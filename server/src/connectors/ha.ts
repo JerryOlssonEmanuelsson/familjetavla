@@ -53,7 +53,7 @@ export const ha = {
     }),
 
   async calendarEvents(c: HaConn, entityId: string, from: Date, to: Date): Promise<CalEvent[]> {
-    type HaEv = { start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; summary: string; location?: string; description?: string };
+    type HaEv = { start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; summary: string; location?: string; description?: string; uid?: string };
     const q = `?start=${encodeURIComponent(from.toISOString())}&end=${encodeURIComponent(to.toISOString())}`;
     const list = await call<HaEv[]>(c, `/calendars/${encodeURIComponent(entityId)}${q}`);
     return list.map((e) => {
@@ -63,7 +63,7 @@ export const ha = {
         const [y, m, d] = (v.date ?? "").split("-").map(Number);
         return new Date(y, m - 1, d);
       };
-      return { start: parse(e.start), end: parse(e.end), allDay, title: e.summary, location: e.location, description: e.description };
+      return { start: parse(e.start), end: parse(e.end), allDay, title: e.summary, location: e.location, description: e.description, uid: e.uid || undefined };
     });
   },
 

@@ -1,11 +1,19 @@
 import type { SourcedEvent } from "./sources.js";
 import { loadLocal, saveLocal } from "./store.js";
+import { dayKey } from "./time.js";
 import type { CalendarSource, DashTravel, Person, TravelChoice, TravelLeg, TravelMode } from "./types.js";
 
-/** Stable key for one occurrence: calendar + start time. */
-export function travelKey(ev: Pick<SourcedEvent, "sourceId" | "start">): string {
+/**
+ * Stable key for one occurrence. With a UID (all ICS/HA events) it is calendar + UID + date, so a
+ * training moved from 17:30 to 17:45 keeps its choice. Without one: calendar + start time.
+ */
+export function travelKey(ev: Pick<SourcedEvent, "sourceId" | "start" | "uid">): string {
+  return ev.uid ? `${ev.sourceId}@${ev.uid}@${dayKey(ev.start)}` : legacyTravelKey(ev);
+}
+function legacyTravelKey(ev: Pick<SourcedEvent, "sourceId" | "start">): string {
   return `${ev.sourceId}@${ev.start.toISOString()}`;
 }
+export const isCare = (sourceId: string) => sourceId.startsWith("care:");
 
 /** Children's own activities (sport, family events tagged to a child) – not school lessons or all-day events. */
 export function wantsTravel(ev: SourcedEvent, people: Map<string, Person>): boolean {
@@ -23,20 +31,21 @@ export function travelOptions(people: Map<string, Person>): { mode: TravelMode; 
   ];
 }
 
-export function legLabel(leg: TravelLeg, people: Map<string, Person>): string {
+export function legLabel(leg: TravelLeg, people: Map<string, Person>, care = false): string {
   if (leg.mode === "bus") return "Buss";
-  if (leg.mode === "self") return "Cyklar/går";
-  if (leg.mode === "ride") return leg.by ? `Skjuts med ${leg.by}` : "Blir skjutsad";
+  if (leg.mode === "self") return care ? "Går själv" : "Cyklar/går";
+  if (leg.mode === "ride") return care ? leg.by || "Någon annan" : leg.by ? `Skjuts med ${leg.by}` : "Blir skjutsad";
   const p = people.get(leg.mode.slice(6));
-  return p ? `${p.name} skjutsar` : "Skjuts";
+  return p ? (care ? p.name : `${p.name} skjutsar`) : "Skjuts";
 }
 
 /** Per-event choices in local.json, falling back to the calendar's default. */
 export function resolveTravel(ev: SourcedEvent, people: Map<string, Person>, cal: CalendarSource | undefined, saved: Record<string, TravelChoice>): DashTravel {
   const key = travelKey(ev);
-  const own = saved[key];
+  const own = saved[key] ?? saved[legacyTravelKey(ev)];
   const choice = own ?? cal?.travel ?? {};
-  const fmt = (l?: TravelLeg) => (l ? { ...l, label: legLabel(l, people) } : undefined);
+  const care = isCare(ev.sourceId);
+  const fmt = (l?: TravelLeg) => (l ? { ...l, label: legLabel(l, people, care) } : undefined);
   return {
     key,
     calendarId: cal?.id,
@@ -44,12 +53,14 @@ export function resolveTravel(ev: SourcedEvent, people: Map<string, Person>, cal
     to: fmt(choice.to),
     home: fmt(choice.home),
     fromCalendar: !own && Boolean(cal?.travel && (cal.travel.to || cal.travel.home)),
+    ...(care ? { kind: "care" as const } : {}),
   };
 }
 
 /** "Emil skjutsar dit · buss hem" for reminders and the Nu-zon. */
 export function travelSummary(t: DashTravel | undefined): string {
   if (!t || (!t.to && !t.home)) return "";
+  if (t.kind === "care") return [t.to && `${t.to.label} lämnar`, t.home && `${t.home.label} hämtar`].filter(Boolean).join(" · ");
   if (t.to && t.home && t.to.label === t.home.label) return `${t.to.label} dit och hem`;
   return [t.to && `${t.to.label} dit`, t.home && `${lower(t.home.label)} hem`].filter(Boolean).join(" · ").replace(/^./, (c) => c.toUpperCase());
 }
@@ -66,7 +77,7 @@ export function saveTravel(key: string, choice: TravelChoice | null, now = new D
   else delete all[key];
   const cutoff = now.getTime() - 2 * 86_400_000;
   for (const k of Object.keys(all)) {
-    const t = Date.parse(k.slice(k.lastIndexOf("@") + 1));
+    const t = Date.parse(k.slice(k.lastIndexOf("@") + 1)); // ISO time or YYYY-MM-DD
     if (Number.isFinite(t) && t < cutoff) delete all[k];
   }
   saveLocal({ travel: all });

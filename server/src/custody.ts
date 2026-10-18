@@ -39,6 +39,14 @@ export function isHome(custody: Custody | undefined, date: Date): boolean {
     return custody.mode === "oddWeeks" ? odd : !odd;
   }
 
+  if (custody.mode === "pattern") {
+    const p = custody.pattern;
+    if (!p || p.length !== 14 || !custody.anchorDate) return true;
+    const weeks = Math.round(daysBetween(custodyWeekStart(parseDayKey(custody.anchorDate), 1), custodyWeekStart(date, 1)) / 7);
+    const week = ((weeks % 2) + 2) % 2;
+    return Boolean(p[week * 7 + isoWeekday(date) - 1]);
+  }
+
   // alternating
   if (!custody.anchorDate) return true;
   const anchorStart = custodyWeekStart(parseDayKey(custody.anchorDate), handover);
@@ -85,3 +93,12 @@ export function custodyStatus(custody: Custody | undefined, now: Date, horizonDa
 export function childrenHomeOn(people: Person[], date: Date): Person[] {
   return people.filter((p) => p.kind === "child" && isHome(p.custody, date));
 }
+
+/** Ready-made 14-day patterns (Mon–Sun week A, then week B). true = here. */
+export const CUSTODY_PRESETS: { id: string; label: string; pattern: boolean[] }[] = [
+  { id: "223", label: "2-2-3", pattern: [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0].map(Boolean) },
+  { id: "2255", label: "2-2-5-5", pattern: [1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0].map(Boolean) },
+  { id: "weekend", label: "Varannan helg (fre–sön)", pattern: [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0].map(Boolean) },
+  { id: "everyday-but-weekend", label: "Alla dagar utom varannan helg", pattern: [1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1].map(Boolean) },
+  { id: "7-7", label: "Varannan vecka (mån–sön)", pattern: [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0].map(Boolean) },
+];

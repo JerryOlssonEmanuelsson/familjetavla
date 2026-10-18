@@ -80,7 +80,7 @@ export function TravelBadge({ t }: { t?: DashTravel }) {
   if (!t) return null;
   if (!t.to && !t.home)
     return (
-      <span className="travel-badge unset" title="Välj skjuts">
+      <span className="travel-badge unset" title={t.kind === "care" ? "Vem lämnar och hämtar?" : "Välj skjuts"}>
         <Icon name="car" size={14} />?
       </span>
     );
@@ -96,6 +96,7 @@ export function TravelBadge({ t }: { t?: DashTravel }) {
 /** "Emil skjutsar dit · buss hem" */
 export function travelText(t?: DashTravel): string {
   if (!t || (!t.to && !t.home)) return "";
+  if (t.kind === "care") return [t.to && `${t.to.label} lämnar`, t.home && `${t.home.label} hämtar`].filter(Boolean).join(" · ");
   if (t.to && t.home && t.to.label === t.home.label) return `${t.to.label} dit och hem`;
   const low = (s: string) => (/^\p{Lu}\p{Ll}+ skjutsar/u.test(s) ? s : s[0].toLowerCase() + s.slice(1));
   return [t.to && `${t.to.label} dit`, t.home && `${low(t.home.label)} hem`]

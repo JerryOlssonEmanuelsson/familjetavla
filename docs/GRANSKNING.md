@@ -76,12 +76,24 @@ Grundprincipen är att **ingen familjeform är standard**. En tidig version utgi
 
 **Tester:** 40 automatiska tester (vitest). Bland annat barnvecka med v53 och fredagsbyte, sommartid i kalendrar, elpris, skjuts, och ett nytt test för heltidsbarn med omsorgstid.
 
+## 4b. Ändrat efter första granskningen (version 0.2.0)
+
+- **Förskola/fritids** per barn: omsorgstider per veckodag i guiden (reserv när Vklass inte går – i Jönköping fungerar Vklass med lösenord), dagens tider från Vklass när de finns, **Lämning/Hämtning i Nu-zonen** och "Emil lämnar · Anna hämtar" med samma väljare som sportens skjuts (standard per barn, ändras per dag).
+- **Stängda dagar:** heldags- eller skolhändelser med "stängt", "planeringsdag", "studiedag", "APT" … ger en varning i Kom ihåg **upp till 7 dagar i förväg**, och omsorgen den dagen visas inte.
+- **Eget 14-dagarsschema** (kryssa i dagar för vecka A och B) med färdiga mallar: 2-2-3, 2-2-5-5, varannan helg, alla dagar utom varannan helg, varannan vecka. Knappen "Vänd" byter perspektiv.
+- **"Hos oss"** (tidigare "Barnvecka"): en rad per grupp när barnen har olika rytm; "byter hem" i stället för "åker".
+- **Matcher alla veckor** är ett eget, synligt val på barnets kalender (förvalt för sport).
+- **Skärmar låses upp med PIN en gång** (HttpOnly-cookie, bara hash sparas). Utan upplåsning svarar API:t 401 – även vardagsknapparna. Skärmen som sätter PIN låses upp direkt; "Glöm alla upplåsta skärmar" finns.
+- **Skjutsval** sparas på kalender + UID + datum, så de överlever att träningen flyttas 15 minuter.
+- Vklass-barn **kopplas automatiskt** på förnamn.
+
+Inte gjort ännu: bytestid (morgon/eftermiddag på bytesdagen), dygnsfaser från solens upp- och nedgång, temperaturbaserade klädtips, veckans middagar bredvid skollunchen.
+
 ## 5. Kända svagheter (vi vet om dem)
 
 - Vklass, Willys och EDP (sopor) är **inofficiella** och kan sluta fungera, eller strida mot sajternas villkor. Vklass-flödet är inte verifierat mot ett riktigt förskolekonto ännu.
 - Var omsorgstiden ligger och hur den är formaterad på Vklass startsida är antaget utifrån communityns skrapare. Om förskolan inte visar den där syns inget, och inget går sönder.
-- Barnveckan på startskärmen visar bara **ett** schema. Med flera växelvisa barn som byter olika veckor visas det första barnets.
-- På Docker-varianten är tavlans vardagsknappar (ljus, inköp) oskyddade på det lokala nätet. Bara inställningarna har PIN.
+- Utan PIN är tavlan fortfarande öppen för hela hemnätet (guiden rekommenderar PIN i Docker-läge).
 - Ingen inloggning per person. Alla som ser tavlan ser allt.
 
 ## 6. Frågor vi vill ha svar på

@@ -16,7 +16,7 @@ import {
   type SourcedEvent,
 } from "./sources.js";
 import { listPhotos, loadConfig, loadLocalList } from "./store.js";
-import { loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
+import { isCare, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
 import {
   addDays,
   daysBetween,
@@ -29,6 +29,7 @@ import {
   shortDate,
   shortWeekday,
   startOfDay,
+  isoWeekday,
 } from "./time.js";
 import type { ActivityIcon, CalendarSource, Config, Control, DashDay, DashEvent, Dashboard, Person, Reminder, TravelChoice } from "./types.js";
 
@@ -68,6 +69,8 @@ export interface TravelCtx {
 export function buildNow(events: SourcedEvent[], people: Map<string, Person>, now: Date, travel?: TravelCtx): Dashboard["now"] {
   const until = addDays(startOfDay(now), 2);
   const upcoming = events
+    .map((e) => (isCare(e.sourceId) ? careMoment(e, now) : e))
+    .filter((e): e is SourcedEvent => Boolean(e))
     .filter((e) => !e.allDay && e.end > now && e.start < until)
     .filter((e) => visibleOn(e, people, startOfDay(e.start)))
     .filter((e) => !e.sourceId.startsWith("school:") || e.gym)
@@ -88,6 +91,15 @@ export function buildNow(events: SourcedEvent[], people: Map<string, Person>, no
     else headline = first.dayLabel === "idag" ? `Senare idag kl ${first.time}` : `${first.dayLabel[0].toUpperCase()}${first.dayLabel.slice(1)} kl ${first.time}`;
   }
   return { headline, items: upcoming };
+}
+
+/** A care day in the Nu zone: "Lämning" until drop-off, then "Hämtning" until pick-up. */
+function careMoment(e: SourcedEvent, now: Date): SourcedEvent | null {
+  const at = e.start > now ? e.start : e.end > now ? e.end : null;
+  if (!at) return null;
+  // Drop-off keeps the whole care span (07:30–16:00); pick-up is a short moment at the end.
+  if (at === e.start) return { ...e, title: `Lämning · ${e.title}` };
+  return { ...e, title: `Hämtning · ${e.title}`, start: at, end: new Date(at.getTime() + 15 * 60_000) };
 }
 
 function joinNames(names: string[]): string {
@@ -211,7 +223,9 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
   const people = new Map(withSwapCalendar(cfg.people, calEvents.filter((e) => e.sourceId === swapCal)).map((p) => [p.id, p]));
   const children = [...people.values()].filter((p) => p.kind === "child");
   const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events];
-  const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map(cfg.calendars.map((c) => [c.id, c])) };
+  const careEvents = buildCareEvents([...people.values()], school.care, all, today, 7);
+  const withCare = [...all, ...careEvents];
+  const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map([...cfg.calendars.map((c) => [c.id, c] as const), ...careCalendars([...people.values()])]) };
 
   // ---- Days ----
   const days: DashDay[] = [];
@@ -229,7 +243,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     const leaving = children.filter((c) => !isHome(c.custody, day) && isHome(c.custody, prev));
     const extra: DashEvent[] = [];
     if (arriving.length) extra.push({ time: "", title: `${joinNames(arriving.map((c) => c.name))} kommer`, color: FAMILY_COLOR, who: "", category: "family", icon: "kids" });
-    if (leaving.length) extra.push({ time: "", title: `${joinNames(leaving.map((c) => c.name))} åker`, color: FAMILY_COLOR, who: "", category: "family", icon: "kids" });
+    if (leaving.length) extra.push({ time: "", title: `${joinNames(leaving.map((c) => c.name))} byter hem`, color: FAMILY_COLOR, who: "", category: "family", icon: "kids" });
     for (const w of waste.filter((p) => daysBetween(day, p.date) === 0)) {
       extra.push({ time: "", title: w.type, color: WASTE_COLOR, who: "", category: "waste", icon: "trash" });
     }
@@ -245,23 +259,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
   }
 
   // ---- Custody card ----
-  let custody: Dashboard["custody"];
-  const shared = children.filter((c) => c.custody && c.custody.mode !== "always");
-  if (shared.length) {
-    const st = custodyStatus(shared[0].custody, now);
-    const names = joinNames(shared.map((c) => c.name));
-    const when = st.nextChange ? relativeDay(st.nextChange, now) : "";
-    custody = {
-      headline: st.home
-        ? st.daysLeft <= 1 ? `${names} åker ${when}` : `${names} är här`
-        : st.daysLeft <= 1 ? `${names} kommer ${when}` : `${names} kommer om ${st.daysLeft} dagar`,
-      sub: st.nextChange
-        ? `${st.home ? "Byte" : "Barnvecka"} ${shortWeekday(st.nextChange).toLowerCase()} ${shortDate(st.nextChange)} · v${isoWeek(st.nextChange)}`
-        : "",
-      daysLeft: st.daysLeft,
-      progress: st.progress,
-    };
-  }
+  const custody = buildCustodyCard(children, now);
 
   return {
     generatedAt: now.toISOString(),
@@ -273,7 +271,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       tempNow: weather ? tempNow(weather, now) : undefined,
       phase: phaseOf(now),
     },
-    now: buildNow(all, people, now, travelCtx),
+    now: buildNow(withCare, people, now, travelCtx),
     travelOptions: travelOptions(people),
     people: cfg.people.map((p) => ({
       name: p.name,
@@ -283,7 +281,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: buildReminders(now, all, people, waste, weather, travelCtx, school.care),
+    reminders: buildReminders(now, withCare, people, waste, weather, travelCtx),
     custody,
     legend: [
       ...cfg.people.map((p) => ({ name: p.name, color: p.color })),
@@ -562,7 +560,6 @@ export function buildReminders(
   waste: { date: Date; type: string }[],
   weather: Forecast | null,
   travel?: TravelCtx,
-  care: { personId: string; text: string }[] = [],
 ): Reminder[] {
   const out: Reminder[] = [];
   const today = startOfDay(now);
@@ -589,14 +586,26 @@ export function buildReminders(
   const arriving = kids.filter((c) => !isHome(c.custody, today) && isHome(c.custody, tomorrow)).map((c) => c.name);
   const leaving = kids.filter((c) => isHome(c.custody, today) && !isHome(c.custody, tomorrow)).map((c) => c.name);
   if (arriving.length) out.push({ icon: "kids", title: `${joinNames(arriving)} kommer imorgon`, sub: "Barnvecka börjar", tone: "green" });
-  if (leaving.length) out.push({ icon: "kids", title: `${joinNames(leaving)} åker imorgon`, sub: "Packa det som ska med", tone: "green" });
+  if (leaving.length) out.push({ icon: "kids", title: `${joinNames(leaving)} byter hem imorgon`, sub: "Packa det som ska med", tone: "green" });
 
-  // Förskola/fritids: today's care time from Vklass (only during the day – it is today's schedule).
-  if (!evening) {
-    for (const c of care) {
-      const p = people.get(c.personId);
-      if (p && isHome(p.custody, today)) out.push({ icon: "kids", title: `${p.name} · ${c.text}`, sub: "Omsorgstid idag · från Vklass", tone: "green" });
-    }
+  // Förskola/fritids closed (planeringsdag, APT, studiedag …) – warn a week ahead.
+  for (const c of closures(events, people, today, 7)) {
+    const diff = daysBetween(today, c.date);
+    const when = diff === 0 ? "idag" : diff === 1 ? "imorgon" : `${shortWeekday(c.date).toLowerCase()} ${shortDate(c.date)}`;
+    out.push({ icon: "school", title: `${c.name} · ${c.title} ${when}`, sub: diff <= 1 ? "Ordna barnomsorg" : `Om ${diff} dagar – ordna barnomsorg`, tone: "amber" });
+  }
+
+  // Förskola/fritids: who drops off and picks up (today, or tomorrow in the evening).
+  for (const e of events.filter((x) => isCare(x.sourceId) && daysBetween(focusDay, x.start) === 0)) {
+    const p = e.personId ? people.get(e.personId) : undefined;
+    if (!p) continue;
+    const who = travel ? travelSummary(resolveTravel(e, people, travel.calendars.get(e.sourceId), travel.saved)) : "";
+    out.push({
+      icon: "kids",
+      title: `${p.name} · ${e.title.toLowerCase()} ${evening ? "imorgon " : ""}${hhmm(e.start)}–${hhmm(e.end)}`,
+      sub: who || "Vem lämnar och hämtar? Tryck på lämningen i Nu",
+      tone: "green",
+    });
   }
 
   // Sport and gym for the focus day, and sport tomorrow morning
@@ -636,4 +645,132 @@ export function buildReminders(
   }
 
   return out.slice(0, 5);
+}
+
+/**
+ * "Hos oss"-kortet. Barn med samma status och samma nästa byte slås ihop; har de olika rytm
+ * (t.ex. dina barn byter måndag och bonusbarnen fredag) får varje grupp en egen rad.
+ */
+export function buildCustodyCard(children: Person[], now: Date): Dashboard["custody"] {
+  const shared = children.filter((c) => c.custody && (c.custody.mode !== "always" || c.custody.overrides?.length));
+  if (!shared.length) return undefined;
+  const groups = new Map<string, { kids: Person[]; st: ReturnType<typeof custodyStatus> }>();
+  for (const c of shared) {
+    const st = custodyStatus(c.custody, now);
+    if (!st.nextChange && c.custody?.mode === "always") continue; // only past overrides
+    const key = `${st.home}|${st.nextChange ? dayKey(st.nextChange) : ""}`;
+    const g = groups.get(key) ?? { kids: [], st };
+    g.kids.push(c);
+    groups.set(key, g);
+  }
+  const list = [...groups.values()].sort((a, b) => a.st.daysLeft - b.st.daysLeft);
+  if (!list.length) return undefined;
+  const changeLabel = (d: Date) => `${shortWeekday(d).toLowerCase()} ${shortDate(d)} · v${isoWeek(d)}`;
+
+  if (list.length === 1) {
+    const { kids, st } = list[0];
+    const names = joinNames(kids.map((c) => c.name));
+    const when = st.nextChange ? relativeDay(st.nextChange, now) : "";
+    return {
+      headline: st.home
+        ? st.nextChange && st.daysLeft <= 1 ? `${names} byter hem ${when}` : `${names} är här`
+        : st.daysLeft <= 1 ? `${names} kommer ${when}` : `${names} kommer om ${st.daysLeft} dagar`,
+      sub: st.nextChange ? `Byte ${changeLabel(st.nextChange)}` : "",
+      daysLeft: st.daysLeft,
+      progress: st.progress,
+    };
+  }
+
+  const here = list.filter((g) => g.st.home).flatMap((g) => g.kids.map((c) => c.name));
+  return {
+    headline: here.length ? `${joinNames(here)} är här` : "Barnen är i andra hemmet",
+    sub: "",
+    daysLeft: list[0].st.daysLeft,
+    progress: list[0].st.progress,
+    rows: list.map(({ kids, st }) => {
+      const last = st.nextChange ? addDays(st.nextChange, -1) : null;
+      return {
+        names: joinNames(kids.map((c) => c.name)),
+        color: kids[0].color,
+        home: st.home,
+        daysLeft: st.daysLeft,
+        text: !st.nextChange
+          ? st.home ? "här" : "i andra hemmet"
+          : st.home
+            ? st.daysLeft <= 1 ? `byter hem ${relativeDay(st.nextChange, now)}` : `här t.o.m. ${shortWeekday(last!).toLowerCase()}`
+            : st.daysLeft <= 1 ? `kommer ${relativeDay(st.nextChange, now)}` : `kommer ${shortWeekday(st.nextChange).toLowerCase()} (om ${st.daysLeft} d)`,
+      };
+    }),
+  };
+}
+
+// ---------- Förskola / fritids ----------
+
+const CLOSED = /stängt|stängd|planeringsdag|studiedag|\bapt\b|kompetensutveckling|studiedagar|lovdag/i;
+const TIME_RANGE = /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/;
+
+/** Pseudo calendars so care days get a default "lämnar/hämtar" like a sport calendar. */
+export function careCalendars(people: Person[]): [string, CalendarSource][] {
+  return people
+    .filter((p) => p.kind === "child" && p.care)
+    .map((p) => [
+      `care:${p.id}`,
+      { id: `care:${p.id}`, name: p.care!.name || "Förskola", provider: "ics", kind: "ics", category: "school", personId: p.id, travel: p.care!.travel },
+    ]);
+}
+
+/** School/förskola events that say the place is closed, per child at home that day. */
+export function closures(events: SourcedEvent[], people: Map<string, Person>, today: Date, days: number) {
+  const out: { name: string; title: string; date: Date }[] = [];
+  const seen = new Set<string>();
+  for (const e of events) {
+    if (e.category !== "school" || !e.personId || !CLOSED.test(e.title)) continue;
+    const p = people.get(e.personId);
+    const d = startOfDay(e.start);
+    const diff = daysBetween(today, d);
+    if (!p || diff < 0 || diff >= days || !isHome(p.custody, d)) continue;
+    const key = `${p.id}@${dayKey(d)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name: p.name, title: e.title.replace(/\s+/g, " ").trim(), date: d });
+  }
+  return out.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+/**
+ * One care event per child and day: the weekly schedule from the guide, today's times from Vklass
+ * when it has them. Skipped on days the child is in the other home or the place is closed.
+ */
+export function buildCareEvents(
+  people: Person[],
+  vklass: { personId: string; text: string }[],
+  events: SourcedEvent[],
+  today: Date,
+  days: number,
+): SourcedEvent[] {
+  const map = new Map(people.map((p) => [p.id, p]));
+  const closed = new Set(closures(events, map, today, days).map((c) => `${c.name}@${dayKey(c.date)}`));
+  const out: SourcedEvent[] = [];
+  for (const p of people.filter((x) => x.kind === "child")) {
+    const live = vklass.find((v) => v.personId === p.id)?.text;
+    if (!p.care && !live) continue;
+    for (let i = 0; i < days; i++) {
+      const day = addDays(today, i);
+      const text = i === 0 && live && TIME_RANGE.test(live) ? live : p.care?.days[String(isoWeekday(day))];
+      const m = text ? TIME_RANGE.exec(text) : null;
+      if (!m || !isHome(p.custody, day) || closed.has(`${p.name}@${dayKey(day)}`)) continue;
+      const at = (h: string, min: string) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), Number(h), Number(min));
+      out.push({
+        sourceId: `care:${p.id}`,
+        uid: "care",
+        personId: p.id,
+        category: "school",
+        title: p.care?.name || "Förskola",
+        start: at(m[1], m[2]),
+        end: at(m[3], m[4]),
+        allDay: false,
+      });
+    }
+  }
+  return out;
 }

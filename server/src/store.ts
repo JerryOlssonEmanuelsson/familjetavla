@@ -16,6 +16,7 @@ const CONFIG_FILE = join(DATA_DIR, "config.json");
 const SECRETS_FILE = join(DATA_DIR, "secrets.json");
 const KEY_FILE = join(DATA_DIR, "secret.key");
 const LOCAL_FILE = join(DATA_DIR, "local.json");
+const DEVICES_FILE = join(DATA_DIR, "devices.json");
 
 export function defaultConfig(): Config {
   return {
@@ -211,4 +212,21 @@ export function photoPath(name: string): string | null {
   if (!PHOTO_NAME.test(name)) return null;
   const p = join(PHOTO_DIR, name);
   return existsSync(p) ? p : null;
+}
+
+// ---------- Paired screens ----------
+
+/** Screens that unlocked the board with the PIN once. Only SHA-256 hashes of their tokens are stored. */
+export interface PairedDevice {
+  hash: string;
+  name: string;
+  created: string;
+}
+
+export function loadDevices(): PairedDevice[] {
+  return readJson<PairedDevice[]>(DEVICES_FILE, []);
+}
+
+export function saveDevices(list: PairedDevice[]) {
+  writeAtomic(DEVICES_FILE, JSON.stringify(list, null, 2), 0o600);
 }

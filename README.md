@@ -86,7 +86,10 @@ Tillägg kräver Home Assistant OS eller Supervised. Kör du Home Assistant i Do
 docker compose up -d     # se docker-compose.yml
 ```
 
-Öppna `http://<datorn>:8099`. Ange Home Assistants adress och en **långlivad token** (från en administratör) i guiden.
+Öppna `http://<datorn>:8099`. Ange Home Assistants adress (t.ex. `http://192.168.1.10:8123`, inte `localhost`) och en **långlivad token** från en administratör i guiden.
+
+- **Sätt en PIN** i guidens sista steg. Då kommer bara skärmar som låsts upp med PIN-koden en gång åt tavlan – inte gäster eller andra enheter på wifi:t.
+- **Uppdatera:** `docker compose pull && docker compose up -d`. Inställningarna ligger kvar i `./data`.
 
 ## Väggplattan
 
@@ -94,7 +97,7 @@ docker compose up -d     # se docker-compose.yml
 - **Lås till tavlan:** Inställningar → Hjälpmedel → **Guidad åtkomst**. Sätt Inställningar → Skärm → Autolås till *Aldrig*, eller låt den släckas och väck den (nedan).
 - **Väck med rörelsesensor:** med HA Companion-appen kan en automation skicka en notis till plattan när rörelsesensorn i hallen triggar, så att skärmen tänds. Annars väcker man med ett tryck.
 - **Spara batteriet:** sätt laddaren i en smart plugg och låt en HA-automation ladda mellan 20 och 80 % (batterinivån finns som sensor via Companion-appen). Plattor som laddas till 100 % dygnet runt sväller ofta efter några år.
-- **Direkt utan HA-inloggning:** slå på port 8099 för tillägget och använd `http://homeassistant.local:8099`. Sätt då en **PIN** för inställningarna.
+- **Direkt utan HA-inloggning:** slå på port 8099 för tillägget och använd `http://homeassistant.local:8099`. Sätt då en **PIN** – plattan låses upp med den en gång och kommer ihåg det.
 
 ## Säkerhet
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { isHome } from "../../../server/src/custody";
+import { CUSTODY_PRESETS, isHome } from "../../../server/src/custody";
 import type {
   CalendarCategory,
   CalendarProvider,
@@ -10,6 +10,7 @@ import type {
   IntegrationCategory,
   Person,
   TestResult,
+  TravelChoice,
 } from "../../../server/src/types";
 import { api, type CalendarTest, type Discovery } from "../api";
 import { Icon } from "../Icon";
@@ -98,7 +99,122 @@ function WeekPreview({ custody }: { custody: Custody }) {
   );
 }
 
-function PersonEditor({ p, onChange, onRemove }: { p: Person; onChange: (p: Person) => void; onRemove: () => void }) {
+const DAY_LETTERS = ["M", "T", "O", "T", "F", "L", "S"];
+const mondayOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** 14 day toggles (week A, week B) with ready-made patterns like 2-2-3 and every other weekend. */
+function PatternEditor({ custody, name, setC }: { custody: Custody; name: string; setC: (c: Partial<Custody>) => void }) {
+  const pattern = custody.pattern ?? CUSTODY_PRESETS.find((x) => x.id === "7-7")!.pattern;
+  const anchor = custody.anchorDate ?? ymd(mondayOf(new Date()));
+  const thisWeek = isHome({ mode: "pattern", pattern: Array(7).fill(true).concat(Array(7).fill(false)), anchorDate: anchor }, new Date()) ? "A" : "B";
+  return (
+    <div className="stack" style={{ gap: 10 }}>
+      <div className="row gap wrap">
+        {CUSTODY_PRESETS.map((pr) => (
+          <button key={pr.id} className={`btn small ${pr.pattern.join() === pattern.join() ? "primary" : ""}`} onClick={() => setC({ pattern: pr.pattern, anchorDate: anchor })}>
+            {pr.label}
+          </button>
+        ))}
+        <button className="btn small ghost" onClick={() => setC({ pattern: pattern.map((x) => !x), anchorDate: anchor })}>
+          Vänd
+        </button>
+      </div>
+      <div className="pattern-grid" role="group" aria-label={`Dagar då ${name || "barnet"} är hos er`}>
+        {["A", "B"].map((w, wi) => (
+          <div key={w} className="pattern-week">
+            <span className="faint">Vecka {w}</span>
+            {DAY_LETTERS.map((l, di) => {
+              const i = wi * 7 + di;
+              return (
+                <button
+                  key={i}
+                  className={pattern[i] ? "on" : ""}
+                  aria-pressed={pattern[i]}
+                  aria-label={`Vecka ${w} ${WEEKDAYS[di]}`}
+                  onClick={() => setC({ pattern: pattern.map((x, j) => (j === i ? !x : x)), anchorDate: anchor })}
+                >
+                  {l}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <label className="field">
+        <span>En dag i vecka A</span>
+        <input type="date" value={anchor} onChange={(e) => e.target.value && setC({ anchorDate: e.target.value, pattern })} />
+      </label>
+      <small className="faint">
+        Ifyllda dagar = {name || "barnet"} är hos er. Den här veckan är vecka {thisWeek}.
+      </small>
+    </div>
+  );
+}
+
+const CARE_DAYS = ["1", "2", "3", "4", "5"];
+
+/** Förskola/fritids: weekly times and who usually drops off and picks up. */
+function CareEditor({ p, adults, onChange }: { p: Person; adults: Person[]; onChange: (p: Person) => void }) {
+  const care = p.care;
+  if (!care) {
+    return (
+      <button className="btn small" style={{ alignSelf: "flex-start" }} onClick={() => onChange({ ...p, care: { name: "Förskola", days: Object.fromEntries(CARE_DAYS.map((d) => [d, "07:30-16:00"])) } })}>
+        <Icon name="plus" size={18} /> Förskola eller fritids
+      </button>
+    );
+  }
+  const setCare = (patch: Partial<NonNullable<Person["care"]>>) => onChange({ ...p, care: { ...care, ...patch } });
+  const times = (d: string) => (care.days[d] ?? "").split("-");
+  const setDay = (d: string, v: string | null) => {
+    const days = { ...care.days };
+    if (v) days[d] = v;
+    else delete days[d];
+    setCare({ days });
+  };
+  const who = (leg?: TravelChoice["to"]) => (leg?.mode?.startsWith("adult:") ? leg.mode : leg?.mode === "ride" ? "ride" : "");
+  const setWho = (k: "to" | "home", v: string) =>
+    setCare({ travel: { ...care.travel, [k]: v ? { mode: v as NonNullable<TravelChoice["to"]>["mode"] } : undefined } });
+  const whoOptions = [{ value: "", label: "Varierar" }, ...adults.map((a) => ({ value: `adult:${a.id}`, label: a.name || "(namnlös)" })), { value: "ride", label: "Någon annan" }];
+  return (
+    <div className="care-box stack">
+      <div className="row gap" style={{ alignItems: "flex-end" }}>
+        <div className="grow">
+          <Select label="Går på" value={care.name ?? "Förskola"} onChange={(v) => setCare({ name: v })} options={["Förskola", "Fritids", "Dagbarnvårdare"].map((x) => ({ value: x, label: x }))} />
+        </div>
+        <button className="btn ghost" aria-label="Ta bort förskola" onClick={() => onChange({ ...p, care: undefined })}>
+          <Icon name="trashSmall" size={20} />
+        </button>
+      </div>
+      <div className="care-days">
+        {CARE_DAYS.map((d, i) => {
+          const [from, to] = times(d);
+          const on = Boolean(care.days[d]);
+          return (
+            <div key={d} className={`care-day ${on ? "" : "off"}`}>
+              <label className="check">
+                <input type="checkbox" checked={on} onChange={(e) => setDay(d, e.target.checked ? care.days["1"] ?? "07:30-16:00" : null)} />
+                <span>{WEEKDAYS[i].slice(0, 3)}</span>
+              </label>
+              <input type="time" aria-label={`${WEEKDAYS[i]} lämning`} disabled={!on} value={from ?? ""} onChange={(e) => e.target.value && setDay(d, `${e.target.value}-${to || "16:00"}`)} />
+              <span className="faint">–</span>
+              <input type="time" aria-label={`${WEEKDAYS[i]} hämtning`} disabled={!on} value={to ?? ""} onChange={(e) => e.target.value && setDay(d, `${from || "07:30"}-${e.target.value}`)} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="grid-2">
+        <Select label="Brukar lämna" value={who(care.travel?.to)} onChange={(v) => setWho("to", v)} options={whoOptions} />
+        <Select label="Brukar hämta" value={who(care.travel?.home)} onChange={(v) => setWho("home", v)} options={whoOptions} />
+      </div>
+      <small className="faint">
+        Tavlan visar lämning och hämtning i Nu, varnar en vecka i förväg för stängda dagar och planeringsdagar, och med Vklass används dagens tider därifrån. Vem som lämnar och hämtar kan ändras per dag på tavlan.
+      </small>
+    </div>
+  );
+}
+
+function PersonEditor({ p, adults, onChange, onRemove }: { p: Person; adults: Person[]; onChange: (p: Person) => void; onRemove: () => void }) {
   const custody = p.custody ?? { mode: "always" as const, handoverDay: 1 as const };
   const setC = (c: Partial<Custody>) => onChange({ ...p, custody: { ...custody, ...c } as Custody });
   return (
@@ -129,10 +245,17 @@ function PersonEditor({ p, onChange, onRemove }: { p: Person; onChange: (p: Pers
             <Select
               label="Bor här"
               value={custody.mode}
-              onChange={(v) => setC({ mode: v as Custody["mode"], anchorDate: v === "alternating" ? custody.anchorDate ?? new Date().toISOString().slice(0, 10) : custody.anchorDate })}
+              onChange={(v) =>
+                setC({
+                  mode: v as Custody["mode"],
+                  anchorDate: v === "alternating" || v === "pattern" ? custody.anchorDate ?? ymd(new Date()) : custody.anchorDate,
+                  pattern: v === "pattern" ? custody.pattern ?? CUSTODY_PRESETS.find((x) => x.id === "223")!.pattern : custody.pattern,
+                })
+              }
               options={[
                 { value: "always", label: "Hela tiden" },
                 { value: "alternating", label: "Växelvis – varannan vecka" },
+                { value: "pattern", label: "Växelvis – eget schema (2-2-3, varannan helg …)" },
                 { value: "oddWeeks", label: "Växelvis – udda veckor" },
                 { value: "evenWeeks", label: "Växelvis – jämna veckor" },
               ]}
@@ -144,7 +267,7 @@ function PersonEditor({ p, onChange, onRemove }: { p: Person; onChange: (p: Pers
                     : undefined
               }
             />
-            {custody.mode !== "always" && (
+            {custody.mode !== "always" && custody.mode !== "pattern" && (
               <Select
                 label="Bytesdag"
                 value={String(custody.handoverDay ?? 1)}
@@ -159,7 +282,8 @@ function PersonEditor({ p, onChange, onRemove }: { p: Person; onChange: (p: Pers
               <input type="date" value={custody.anchorDate ?? ""} onChange={(e) => setC({ anchorDate: e.target.value })} />
             </label>
           )}
-          {custody.mode !== "always" && <WeekPreview custody={custody} />}
+          {custody.mode === "pattern" && <PatternEditor custody={custody} name={p.name} setC={setC} />}
+          {custody.mode !== "always" && custody.mode !== "pattern" && <WeekPreview custody={custody} />}
           <details>
             <summary className="muted" style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>
               Undantag ({custody.overrides?.length ?? 0}) – bytt helg, lov, klämdag
@@ -197,6 +321,7 @@ function PersonEditor({ p, onChange, onRemove }: { p: Person; onChange: (p: Pers
               <small className="faint">Tips: en byteskalender (steget Kalendrar) gör samma sak automatiskt.</small>
             </div>
           </details>
+          <CareEditor p={p} adults={adults} onChange={onChange} />
         </>
       )}
     </div>
@@ -218,6 +343,7 @@ export function FamilyStep({ cfg, set }: StepProps) {
         <PersonEditor
           key={p.id}
           p={p}
+          adults={cfg.people.filter((x) => x.kind === "adult")}
           onChange={(np) => set({ ...cfg, people: cfg.people.map((x, j) => (j === i ? np : x)) })}
           onRemove={() => set({ ...cfg, people: cfg.people.filter((_, j) => j !== i) })}
         />
@@ -643,23 +769,37 @@ function CalendarEditor({
           })}
         </div>
       )}
+      {isChild && (
+        <Select
+          label="Visa"
+          value={cal.visibility === "always" ? "always" : cal.alwaysShow?.length ? "matches" : "custody"}
+          onChange={(v) =>
+            onChange({
+              ...cal,
+              visibility: v === "always" ? "always" : "custody",
+              alwaysShow: v === "matches" ? (cal.alwaysShow?.length ? cal.alwaysShow : ["match", "cup"]) : v === "custody" ? undefined : cal.alwaysShow,
+            })
+          }
+          options={[
+            { value: "matches", label: `Matcher och cuper alla veckor – träningar när ${person!.name} är här` },
+            { value: "custody", label: `Allt bara när ${person!.name} är här` },
+            { value: "always", label: "Allt, alla veckor" },
+          ]}
+          help={cal.visibility !== "always" && cal.alwaysShow?.length ? `Räknas som match: ${cal.alwaysShow.join(", ")} (ändra under Filtrera nedan).` : undefined}
+        />
+      )}
       <details>
         <summary className="muted" style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>
-          Filtrera och visning
+          Filtrera
         </summary>
         <div className="stack" style={{ marginTop: 8 }}>
           <Words label="Visa bara om titeln innehåller" value={cal.include} onChange={(v) => onChange({ ...cal, include: v })} placeholder="P14, Blå" help="Kommaseparerat. Tomt = allt." />
           <Words label="Dölj om titeln innehåller" value={cal.exclude} onChange={(v) => onChange({ ...cal, exclude: v })} placeholder="Föräldramöte, Inställd" />
-          {isChild && person?.custody && person.custody.mode !== "always" && (
+          {isChild && (
             <>
-              <Toggle
-                label={`Visa alla veckor (även när ${person!.name} är i andra hemmet)`}
-                checked={cal.visibility === "always"}
-                onChange={(v) => onChange({ ...cal, visibility: v ? "always" : "custody" })}
-              />
               {cal.visibility !== "always" && (
                 <Words
-                  label="Visa ändå alla veckor om titeln innehåller"
+                  label="Visas alla veckor om titeln innehåller"
                   value={cal.alwaysShow}
                   onChange={(v) => onChange({ ...cal, alwaysShow: v })}
                   placeholder="match, cup"
@@ -800,8 +940,27 @@ export function SchoolStep({ cfg, set, secrets, setSecrets, resp, haOk }: StepPr
               setSecrets={setSecrets}
               secretsSet={resp.secretsSet}
               extra={(r) => {
-                if (r?.discovered && r.discovered.join() !== (discovered[integ.id] ?? []).join()) setTimeout(() => setDiscovered((d) => ({ ...d, [integ.id]: r.discovered! })));
-                if (!meta.discoversChildren || !names.length) return null;
+                if (r?.discovered && r.discovered.join() !== (discovered[integ.id] ?? []).join()) {
+                  const found = r.discovered;
+                  setTimeout(() => {
+                    setDiscovered((d) => ({ ...d, [integ.id]: found }));
+                    // "Leo Andersson" in Vklass → Leo on the board, unless already chosen.
+                    const map = { ...(integ.personMap ?? {}) };
+                    let changed = false;
+                    for (const n of found) {
+                      if (map[n] !== undefined) continue;
+                      const first = n.trim().split(/\s+/)[0].toLowerCase();
+                      const match = children.find((c) => c.name.trim().toLowerCase() === first || c.name.trim().toLowerCase() === n.trim().toLowerCase());
+                      if (match) {
+                        map[n] = match.id;
+                        changed = true;
+                      }
+                    }
+                    if (changed) update({ ...integ, personMap: map });
+                  });
+                }
+                if (!meta.discoversChildren) return null;
+                if (!names.length) return <small className="faint">Tryck på Testa – då hämtas barnen på kontot och kopplas till familjen.</small>;
                 return (
                   <div className="stack">
                     <b>Koppla barnen</b>
@@ -1247,7 +1406,7 @@ function PhotoFrame({ cfg, set }: { cfg: Config; set: (c: Config) => void }) {
 const WIDGET_LABELS: Record<string, string> = {
   now: "Nu – det närmaste, stort",
   reminders: "Kom ihåg (och skolmat)",
-  custody: "Barnvecka",
+  custody: "Hos oss (växelvis boende)",
   week: "Kommande 7 dagar",
   shopping: "Inköpslista",
   prices: "Elpris",
@@ -1330,10 +1489,14 @@ export function DisplayStep({ cfg, set, secrets, setSecrets, resp }: StepProps) 
         <small className="faint">Nattläge visar bara klockan på svart skärm. Tryck för att väcka.</small>
       </section>
       <PhotoFrame cfg={cfg} set={set} />
-      {!resp.runtime.supervisor && (
+      {
         <section className="card">
-          <h2>PIN för inställningar</h2>
-          <p className="muted">Hindrar att någon på nätverket ändrar inställningarna. Tavlan kan användas som vanligt utan PIN.</p>
+          <h2>PIN-kod och skärmar</h2>
+          <p className="muted">
+            {resp.runtime.supervisor
+              ? "Behövs bara om du öppnat port 8099 för surfplattan. Via Home Assistant är tavlan redan skyddad av din inloggning."
+              : "Rekommenderas. Med en PIN kommer bara skärmar som låsts upp en gång åt tavlan – inte gäster eller andra enheter på wifi:t. Den här skärmen låses upp direkt. Inställningarna kräver alltid PIN."}
+          </p>
           <Text
             label="PIN-kod"
             type="password"
@@ -1343,12 +1506,24 @@ export function DisplayStep({ cfg, set, secrets, setSecrets, resp }: StepProps) 
             onChange={(v) => setSecrets({ ...secrets, "admin.pin": v })}
           />
           {pinSet && (
-            <button className="btn small" onClick={() => setSecrets({ ...secrets, "admin.pin": null })}>
-              Ta bort PIN
-            </button>
+            <div className="row gap wrap">
+              <button className="btn small" onClick={() => setSecrets({ ...secrets, "admin.pin": null })}>
+                Ta bort PIN
+              </button>
+              <button
+                className="btn small"
+                onClick={async () => {
+                  if (!confirm("Alla skärmar (även den här) måste låsas upp med PIN igen. Fortsätta?")) return;
+                  await api.forgetDevices();
+                  location.reload();
+                }}
+              >
+                Glöm alla upplåsta skärmar
+              </button>
+            </div>
           )}
         </section>
-      )}
+      }
     </div>
   );
 }

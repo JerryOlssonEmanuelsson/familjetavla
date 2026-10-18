@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Config, ConfigResponse } from "../../../server/src/types";
-import { api, type PostcodeInfo } from "../api";
+import { api, setPin, type PostcodeInfo } from "../api";
 import { Icon } from "../Icon";
 import { clearEntityCache, type SecretDraft } from "./parts";
 import {
@@ -63,6 +63,8 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
     setError("");
     try {
       const r = await api.saveConfig(next, secrets);
+      // A new PIN unlocks this screen at once (the server pairs it), and later saves send it along.
+      if (secrets["admin.pin"]) setPin(secrets["admin.pin"]);
       setResp(r);
       setCfg(r.config);
       setSecrets({});

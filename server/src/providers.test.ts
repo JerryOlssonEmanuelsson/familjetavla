@@ -227,15 +227,68 @@ describe("dit/hem för barnens aktiviteter", () => {
 });
 
 describe("barn som bor här hela tiden", () => {
-  it("ingen barnvecka eller bytespåminnelse, men omsorgstid från förskolan", async () => {
-    const { buildReminders } = await import("./dashboard.js");
-    const leo = { id: "leo", name: "Leo", color: "#f5c84b", kind: "child" as const, custody: { mode: "always" as const } };
-    const people = new Map([[leo.id, leo]]);
-    const morning = new Date("2026-10-19T08:00:00");
-    const r = buildReminders(morning, [], people, [], null, undefined, [{ personId: "leo", text: "07:30 - 16:00" }]);
-    expect(r.map((x) => x.title)).toEqual(["Leo · 07:30 - 16:00"]);
-    expect(r.some((x) => /kommer|åker/.test(x.title))).toBe(false);
-    // On the evening it is no longer today's schedule.
-    expect(buildReminders(new Date("2026-10-19T18:00:00"), [], people, [], null, undefined, [{ personId: "leo", text: "07:30 - 16:00" }])).toEqual([]);
+  it("ingen bytespåminnelse, men förskola med vem som lämnar och hämtar", async () => {
+    const { buildReminders, buildCareEvents, careCalendars } = await import("./dashboard.js");
+    const emil = { id: "emil", name: "Emil", color: "#c9a2ff", kind: "adult" as const };
+    const leo = {
+      id: "leo",
+      name: "Leo",
+      color: "#f5c84b",
+      kind: "child" as const,
+      custody: { mode: "always" as const },
+      care: { name: "Förskola", days: { "1": "07:30-16:00", "5": "08:00-15:00" }, travel: { to: { mode: "adult:emil" as const } } },
+    };
+    const people = new Map<string, Person>([[emil.id, emil], [leo.id, leo]]);
+    const monday = new Date("2026-10-19T00:00:00");
+    // Vklass gives today's time, the guide's schedule the rest of the week.
+    const care = buildCareEvents([...people.values()], [{ personId: "leo", text: "07:45 - 16:15" }], [], monday, 7);
+    expect(care.map((e) => `${e.start.getDay()} ${e.start.getHours()}:${e.start.getMinutes()}`)).toEqual(["1 7:45", "5 8:0"]);
+    const ctx = { saved: {}, calendars: new Map(careCalendars([...people.values()])) };
+    const r = buildReminders(new Date("2026-10-19T07:00:00"), care, people, [], null, ctx);
+    expect(r.map((x) => `${x.title} | ${x.sub}`)).toEqual(["Leo · förskola 07:45–16:15 | Emil lämnar"]);
+  });
+
+  it("varnar en vecka i förväg för planeringsdag och hoppar över den dagen", async () => {
+    const { buildReminders, buildCareEvents } = await import("./dashboard.js");
+    const leo = { id: "leo", name: "Leo", color: "#f5c84b", kind: "child" as const, care: { days: { "3": "07:30-16:00" } } };
+    const people = new Map<string, Person>([[leo.id, leo]]);
+    const closed: SourcedEvent = { ...ev("Förskolan stängd – planeringsdag", { allDay: true, start: new Date(2026, 9, 21), end: new Date(2026, 9, 22) }), sourceId: "kal", category: "school", personId: "leo" };
+    const monday = new Date(2026, 9, 19);
+    expect(buildCareEvents([leo], [], [closed], monday, 7)).toEqual([]);
+    const r = buildReminders(new Date(2026, 9, 19, 9), [closed], people, [], null);
+    expect(r[0].title).toBe("Leo · Förskolan stängd – planeringsdag ons 21 okt");
+  });
+});
+
+describe("växelvis med olika rytm", () => {
+  it("14-dagarsmönster 2-2-3 och varannan helg", async () => {
+    const { CUSTODY_PRESETS, isHome } = await import("./custody.js");
+    const p223 = CUSTODY_PRESETS.find((p) => p.id === "223")!.pattern;
+    const c = { mode: "pattern" as const, pattern: p223, anchorDate: "2026-10-19" }; // vecka A börjar mån 19 okt
+    const days = Array.from({ length: 14 }, (_, i) => isHome(c, new Date(2026, 9, 19 + i)));
+    expect(days).toEqual(p223);
+    // Samma mönster två veckor senare och före ankardatumet.
+    expect(isHome(c, new Date(2026, 10, 2))).toBe(true);
+    expect(isHome(c, new Date(2026, 9, 14))).toBe(p223[9]);
+  });
+
+  it("en rad per grupp när barnen byter olika dagar", async () => {
+    const { buildCustodyCard } = await import("./dashboard.js");
+    const kid = (id: string, handoverDay: 1 | 5) => ({ id, name: id, color: "#fff", kind: "child" as const, custody: { mode: "alternating" as const, anchorDate: "2026-10-19", handoverDay } });
+    const now = new Date(2026, 9, 20, 12);
+    const one = buildCustodyCard([kid("Ella", 1), kid("Leo", 1)], now)!;
+    expect(one.rows).toBeUndefined();
+    expect(one.headline).toBe("Ella och Leo är här");
+    const two = buildCustodyCard([kid("Ella", 1), kid("Leo", 1), kid("Max", 5)], now)!;
+    expect(two.rows!.map((r) => `${r.names}: ${r.text}`)).toEqual(["Max: här t.o.m. tor", "Ella och Leo: här t.o.m. sön"]);
+  });
+});
+
+describe("skjutsval överlever flyttad tid", () => {
+  it("nyckeln bygger på UID och datum", async () => {
+    const { travelKey } = await import("./travel.js");
+    const a = { sourceId: "fotboll", uid: "abc", start: new Date(2026, 9, 20, 17, 30) };
+    expect(travelKey(a)).toBe(travelKey({ ...a, start: new Date(2026, 9, 20, 17, 45) }));
+    expect(travelKey(a)).not.toBe(travelKey({ ...a, start: new Date(2026, 9, 27, 17, 30) }));
   });
 });

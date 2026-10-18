@@ -65,6 +65,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
+  // The screen was un-paired (e.g. "Glöm alla skärmar"): start over so the app shows the unlock screen.
+  if (res.status === 401 && data?.code === "pair" && path !== "config" && !path.startsWith("auth/")) location.reload();
   if (!res.ok) throw new ApiError(res.status, data?.error ?? `Fel ${res.status}`);
   return data as T;
 }
@@ -100,6 +102,9 @@ export interface GroceryLine {
 }
 
 const realApi = {
+  authStatus: () => request<{ paired: boolean; pinRequired: boolean; supervisor: boolean }>("auth/status"),
+  pair: (pin: string, name: string) => post<{ ok: true }>("auth/pair", { pin, name }),
+  forgetDevices: () => request<{ ok: true }>("auth/devices", { method: "DELETE" }),
   config: () => request<ConfigResponse>("config"),
   saveConfig: (config: ConfigResponse["config"], secrets: Record<string, string | null> = {}) =>
     request<ConfigResponse>("config", { method: "PUT", body: JSON.stringify({ config, secrets }) }),

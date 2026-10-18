@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { cached, invalidate } from "./cache.js";
 import { lookupPostcode } from "./connectors/geo.js";
@@ -20,6 +20,8 @@ import {
   listPhotos,
   listSecretKeys,
   loadConfig,
+  loadDevices,
+  saveDevices,
   loadLocalList,
   photoPath,
   saveConfig,
@@ -31,7 +33,7 @@ import { readFileSync } from "node:fs";
 import { addDays, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 const ID = /^[a-z0-9-]{1,40}$/;
 const SUPERVISOR_IP = "172.30.32.2";
 
@@ -45,6 +47,45 @@ function pinOk(req: FastifyRequest): boolean {
   const b = Buffer.from(given);
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+// ---------- Paired screens ----------
+// With a PIN set, the board itself (not only the settings) answers only screens that have been
+// unlocked with the PIN once. They get a long-lived HttpOnly cookie; other devices on the network get 401.
+
+const DEVICE_COOKIE = "ft_device";
+const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+
+function fromIngress(req: FastifyRequest) {
+  return Boolean(process.env.SUPERVISOR_TOKEN) && req.ip === SUPERVISOR_IP;
+}
+
+function deviceToken(req: FastifyRequest): string {
+  const raw = req.headers.cookie ?? "";
+  for (const part of raw.split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === DEVICE_COOKIE) return decodeURIComponent(v.join("="));
+  }
+  return "";
+}
+
+function trusted(req: FastifyRequest): boolean {
+  if (fromIngress(req) || !getSecret("admin.pin")) return true;
+  const t = deviceToken(req);
+  if (t && loadDevices().some((d) => d.hash === sha(t))) return true;
+  return pinOk(req) && Boolean(req.headers["x-admin-pin"]);
+}
+
+/** Remember this browser as a paired screen. */
+function issueDevice(req: FastifyRequest, reply: FastifyReply, name: string) {
+  const token = randomBytes(32).toString("base64url");
+  const list = loadDevices();
+  list.push({ hash: sha(token), name: name.slice(0, 60), created: new Date().toISOString() });
+  saveDevices(list.slice(-20));
+  const secure = req.protocol === "https" ? "; Secure" : "";
+  reply.header("set-cookie", `${DEVICE_COOKIE}=${token}; Path=/; Max-Age=${5 * 365 * 86_400}; HttpOnly; SameSite=Strict${secure}`);
+}
+
+const OPEN = new Set(["/api/health", "/api/auth/status", "/api/auth/pair"]);
 
 async function guard(req: FastifyRequest, reply: FastifyReply) {
   if (!pinOk(req)) await reply.code(401).send({ error: "PIN krävs för inställningar." });
@@ -63,13 +104,21 @@ const personSchema = z.object({
   kind: z.enum(["adult", "child"]),
   custody: z
     .object({
-      mode: z.enum(["always", "oddWeeks", "evenWeeks", "alternating"]),
+      mode: z.enum(["always", "oddWeeks", "evenWeeks", "alternating", "pattern"]),
+      pattern: z.array(z.boolean()).length(14).optional(),
       anchorDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       handoverDay: z.number().int().min(1).max(7).optional(),
       overrides: z
         .array(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), home: z.boolean(), note: z.string().max(60).optional() }))
         .max(60)
         .optional(),
+    })
+    .optional(),
+  care: z
+    .object({
+      name: z.string().max(30).optional(),
+      days: z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().regex(/^\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}$/)),
+      travel: z.lazy(() => travelChoiceSchema).optional(),
     })
     .optional(),
 });
@@ -212,6 +261,39 @@ const previewEvent = (e: { start: Date; allDay: boolean; title: string }) =>
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/api/health", async () => ({ ok: true, version: VERSION }));
 
+  app.addHook("onRequest", async (req, reply) => {
+    const path = req.url.split("?")[0];
+    if (!path.startsWith("/api/") || OPEN.has(path) || trusted(req)) return;
+    await reply.code(401).send({ error: "Den här skärmen är inte upplåst. Ange PIN-koden en gång.", code: "pair" });
+  });
+
+  app.get("/api/auth/status", async (req) => ({
+    paired: trusted(req),
+    pinRequired: Boolean(getSecret("admin.pin")),
+    supervisor: Boolean(process.env.SUPERVISOR_TOKEN),
+  }));
+
+  /** Unlock this screen with the PIN: stores a hashed token and sets a long-lived cookie. */
+  app.post("/api/auth/pair", async (req, reply) => {
+    const { pin, name } = (req.body ?? {}) as { pin?: string; name?: string };
+    const stored = getSecret("admin.pin");
+    if (!stored) return { ok: true };
+    const a = Buffer.from(stored);
+    const b = Buffer.from(String(pin ?? ""));
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      await new Promise((r) => setTimeout(r, 800)); // slow down guessing
+      return reply.code(401).send({ error: "Fel PIN-kod" });
+    }
+    issueDevice(req, reply, String(name ?? "Skärm"));
+    return { ok: true };
+  });
+
+  /** Forget all paired screens (e.g. a lost tablet). Needs the PIN. */
+  app.delete("/api/auth/devices", { preHandler: guard }, async () => {
+    saveDevices([]);
+    return { ok: true };
+  });
+
   // ---------- Config ----------
   app.get("/api/config", async () => configResponse());
 
@@ -230,6 +312,8 @@ export async function registerRoutes(app: FastifyInstance) {
       if (!isUserSecret(k, next)) return fail(reply, new Error(`Okänd hemlighet ${k}`));
     }
     for (const [k, v] of Object.entries(body.secrets ?? {})) setSecret(k as SecretKey, v);
+    // Setting a PIN here must not lock out the screen doing it.
+    if (body.secrets?.["admin.pin"] && !fromIngress(req)) issueDevice(req, reply, "Skärmen där PIN sattes");
 
     // Clean up secrets of removed calendars and integrations; a new login drops the old session.
     const cals = new Set(next.calendars.map((c) => c.id));
@@ -743,8 +827,17 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!body.success) return fail(reply, new Error("Ogiltigt val"));
     const { key, choice, forCalendar } = body.data;
     if (forCalendar) {
-      const calId = key.slice(0, key.lastIndexOf("@"));
+      const calId = key.slice(0, key.indexOf("@"));
       const cfg = loadConfig();
+      if (calId.startsWith("care:")) {
+        // Förskola: the default lives on the child.
+        const child = cfg.people.find((p) => p.id === calId.slice(5));
+        if (!child?.care) return fail(reply, new Error("Hittar inte barnets omsorgstider"));
+        child.care.travel = choice ?? undefined;
+        saveConfig(cfg);
+        saveTravel(key, null);
+        return { ok: true };
+      }
       const cal = cfg.calendars.find((c) => c.id === calId);
       if (!cal) return fail(reply, new Error("Hittar inte kalendern"));
       cal.travel = choice ?? undefined;

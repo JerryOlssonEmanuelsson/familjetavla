@@ -6,12 +6,18 @@ export type CustodyMode =
   | "always" // bor alltid här
   | "oddWeeks" // udda ISO-veckor
   | "evenWeeks" // jämna ISO-veckor
-  | "alternating"; // varannan vecka räknat från ett startdatum (tål vecka 53)
+  | "alternating" // varannan vecka räknat från ett startdatum (tål vecka 53)
+  | "pattern"; // eget rullande 14-dagarsmönster (2-2-3, 2-2-5-5, varannan helg …)
 
 export interface Custody {
   mode: CustodyMode;
   /** Ett datum (YYYY-MM-DD) som ligger i en vecka då barnet är här. Används av "alternating". */
   anchorDate?: string;
+  /**
+   * "pattern": 14 värden, måndag–söndag vecka A och sedan vecka B. true = barnet är här.
+   * Vecka A är veckan som innehåller `anchorDate`.
+   */
+  pattern?: boolean[];
   /** Veckodag då bytet sker och "barnveckan" börjar. Standard måndag. */
   handoverDay?: Weekday;
   /** Manuella undantag som går före grundregeln: bytt helg, lov, klämdag. Datum inklusive. */
@@ -31,6 +37,17 @@ export interface Person {
   color: string;
   kind: "adult" | "child";
   custody?: Custody;
+  /** Förskola/fritids: fasta omsorgstider per veckodag. Vklass dagens tider går före när de finns. */
+  care?: CareSchedule;
+}
+
+export interface CareSchedule {
+  /** Visas på tavlan, t.ex. "Förskola" eller "Fritids". */
+  name?: string;
+  /** ISO-veckodag "1"–"7" → "07:30-16:00". Saknas en dag = ingen omsorg den dagen. */
+  days: Record<string, string>;
+  /** Vem som brukar lämna (to) och hämta (home). */
+  travel?: TravelChoice;
 }
 
 export type CalendarCategory = "family" | "sport" | "school" | "work" | "other";
@@ -337,6 +354,8 @@ export interface DashTravel {
   home?: TravelLeg & { label: string };
   /** Valen kommer från kalenderns standard, inte från just den här händelsen. */
   fromCalendar: boolean;
+  /** "care" = förskola/fritids: Lämnar/Hämtar i stället för Dit/Hem. */
+  kind?: "care";
 }
 
 export type Sky = "clear" | "partly" | "cloudy" | "rain" | "snow" | "fog";
@@ -351,7 +370,7 @@ export interface DashDay {
 }
 
 export interface Reminder {
-  icon: "rain" | "bag" | "gym" | "trash" | "kids" | "info";
+  icon: "rain" | "bag" | "gym" | "trash" | "kids" | "info" | "school";
   title: string;
   sub: string;
   tone: "blue" | "amber" | "neutral" | "green";
@@ -391,6 +410,8 @@ export interface Dashboard {
     sub: string;
     daysLeft: number;
     progress: number; // 0–1
+    /** När barnen har olika rytm: en rad per grupp av barn med samma status. */
+    rows?: { names: string; color: string; home: boolean; text: string; daysLeft: number }[];
   };
   legend: { name: string; color: string }[];
   days: DashDay[];
