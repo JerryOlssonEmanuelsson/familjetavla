@@ -81,6 +81,9 @@ Typsnitten laddas från Google Fonts med systemtypsnitt som reserv – tavlan fu
 ```
 
 * `grid-template-areas: "now now side" "left week side"` på iPad, en kolumn på telefon.
+* **Hela startskärmen ryms på en skärm** på iPad i liggande läge (≥ 1180 × 700): sidan rullar inte, inget hamnar
+  under flikraden, och en kolumn som har för mycket innehåll rullar för sig själv och tonar ut nedtill.
+* På telefon döljs aktivitetsikonen i Nu-zonen så att titeln får plats på en rad.
 * **Nu-zonen** visar de nästa tre tidsatta händelserna fram till slutet av imorgon, med en rubrik som räknas ut
   (”Om 45 min”, ”Om 1 h 30 min”, ”Pågår: …”, ”Imorgon kl 07:45”) och vädret just nu i stort format.
   Barnens skolschema tas inte med (bara idrott, så att man kommer ihåg gympapåsen).
@@ -157,3 +160,11 @@ liggande läge där webbläsaren tillåter det).
 * Ska Nu-zonen kunna visa annat än kalendern (t.ex. ”Diskmaskinen klar”, ”Bilen laddad 07:00”)?
 * Behövs ett ”kiosk”-läge med ännu större text för den som har tavlan långt bort?
 * Ska fotoramen kunna hämta bilder direkt från Google Foto / Immich via Home Assistant?
+
+## Installationsguiden
+
+* Samma levande himmel som tavlan, så guiden känns som en del av den.
+* **"Steg 3 av 11"** med en förloppslinje, och pillret för aktuellt steg rullas alltid fram så det syns.
+* Valfria steg (Hämta, Skola, Sopor, Inköp, El, Huset) säger det, och knappen heter **Hoppa över** tills något är ifyllt.
+* **Hämta från Home Assistant** söker direkt när steget öppnas. Första gången används det som hittas på en gång
+  och följer kryssrutorna – man kan inte tappa sina val genom att trycka Nästa.

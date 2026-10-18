@@ -708,6 +708,49 @@ a.btn {
   min-width: 0;
 }
 
+/* Wall tablet in landscape (iPad and up): the whole home view fits the screen – read at a glance,
+   no page scrolling, nothing hidden behind the tab bar. Each column scrolls on its own if it overflows. */
+@media (min-width: 1180px) and (min-height: 700px) {
+  .board:has(> .tab-page > .home-grid) {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .board > .tab-page:has(> .home-grid) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .tab-page > .home-grid {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .home-grid > .area-left,
+  .home-grid > .area-side,
+  .home-grid > .area-week {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  .home-grid > .area-left::-webkit-scrollbar,
+  .home-grid > .area-side::-webkit-scrollbar,
+  .home-grid > .area-week::-webkit-scrollbar {
+    display: none;
+  }
+  .home-grid > .col > * {
+    flex-shrink: 0;
+  }
+  /* Columns of cards: keep a little room so card shadows are not cut at the edges. */
+  .home-grid > .col {
+    padding: 2px 2px 8px;
+    margin: -2px -2px 0;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  }
+}
+
 /* Nu-zonen */
 .now {
   display: grid;
@@ -1450,6 +1493,37 @@ a.btn {
   align-items: center;
   gap: 6px;
 }
+.wizard > .row > .btn.small {
+  white-space: nowrap;
+}
+.wizard-progress {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--muted);
+  margin-bottom: -8px;
+}
+.wizard-progress em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--faint, var(--muted));
+}
+.wizard-progress::after {
+  content: "";
+  grid-area: 2 / 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--control);
+}
+.wizard-progress i {
+  grid-area: 2 / 1;
+  z-index: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.5s var(--spring);
+}
 .steps button.done {
   color: var(--accent);
 }
@@ -1633,9 +1707,25 @@ a.btn {
   .now {
     padding: 20px;
   }
+  .now-item {
+    gap: 10px;
+    padding: 10px;
+  }
+  /* On a phone the time and avatar say enough – drop the activity icon so the title gets room. */
+  .now-item .evt-ico {
+    display: none;
+  }
   .now-item .time {
     font-size: 22px;
-    min-width: 64px;
+    min-width: 58px;
+  }
+  .now-item .what {
+    font-size: 17px;
+  }
+  .now-item .avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 15px;
   }
 }
 
