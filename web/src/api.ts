@@ -99,7 +99,7 @@ export interface GroceryLine {
   candidates: { code: string; name: string; brand?: string; volume?: string; price?: string; image?: string }[];
 }
 
-export const api = {
+const realApi = {
   config: () => request<ConfigResponse>("config"),
   saveConfig: (config: ConfigResponse["config"], secrets: Record<string, string | null> = {}) =>
     request<ConfigResponse>("config", { method: "PUT", body: JSON.stringify({ config, secrets }) }),
@@ -135,3 +135,8 @@ export const api = {
   toggleItem: (id: string, done: boolean) => post("shopping/toggle", { id, done }),
   clearDone: () => post("shopping/clear-done"),
 };
+
+// Demo build (VITE_DEMO=1): same interface, recorded sample data, no server.
+import { demoApi } from "@demo";
+export const isDemo = Boolean(import.meta.env.VITE_DEMO);
+export const api: typeof realApi = isDemo && demoApi ? (demoApi as unknown as typeof realApi) : realApi;

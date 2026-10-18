@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "build:demo": "VITE_DEMO=1 vite build && node ../dev/inline-demo.mjs"
   },
   "dependencies": {
     "react": "^19.1.0",

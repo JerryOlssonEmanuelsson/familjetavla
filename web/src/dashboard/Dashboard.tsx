@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Dashboard as Dash } from "../../../server/src/types";
-import { api } from "../api";
+import { api, isDemo } from "../api";
 import { Icon, type IconName } from "../Icon";
 import { GroceryModal } from "./GroceryModal";
 import { Home } from "./Home";
@@ -67,7 +67,8 @@ export function Dashboard() {
     let es: EventSource | null = null;
     let soon = 0;
     try {
-      es = new EventSource("api/events");
+      if (!isDemo) es = new EventSource("api/events");
+      if (es)
       es.onmessage = () => {
         window.clearTimeout(soon);
         soon = window.setTimeout(refresh, 150);
@@ -156,6 +157,7 @@ export function Dashboard() {
             </h1>
             <p className="sub">
               <span>Vecka {data.header.week}</span>
+              {isDemo && <span className="chip warn" style={{ padding: "2px 10px", fontSize: 12 }}>Demo · låtsasdata</span>}
               {data.header.weather && <span>· {data.header.weather}</span>}
             </p>
           </div>
