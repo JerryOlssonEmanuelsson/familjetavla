@@ -283,7 +283,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: buildReminders(now, all, people, waste, weather, travelCtx),
+    reminders: buildReminders(now, all, people, waste, weather, travelCtx, school.care),
     custody,
     legend: [
       ...cfg.people.map((p) => ({ name: p.name, color: p.color })),
@@ -562,6 +562,7 @@ export function buildReminders(
   waste: { date: Date; type: string }[],
   weather: Forecast | null,
   travel?: TravelCtx,
+  care: { personId: string; text: string }[] = [],
 ): Reminder[] {
   const out: Reminder[] = [];
   const today = startOfDay(now);
@@ -589,6 +590,14 @@ export function buildReminders(
   const leaving = kids.filter((c) => isHome(c.custody, today) && !isHome(c.custody, tomorrow)).map((c) => c.name);
   if (arriving.length) out.push({ icon: "kids", title: `${joinNames(arriving)} kommer imorgon`, sub: "Barnvecka börjar", tone: "green" });
   if (leaving.length) out.push({ icon: "kids", title: `${joinNames(leaving)} åker imorgon`, sub: "Packa det som ska med", tone: "green" });
+
+  // Förskola/fritids: today's care time from Vklass (only during the day – it is today's schedule).
+  if (!evening) {
+    for (const c of care) {
+      const p = people.get(c.personId);
+      if (p && isHome(p.custody, today)) out.push({ icon: "kids", title: `${p.name} · ${c.text}`, sub: "Omsorgstid idag · från Vklass", tone: "green" });
+    }
+  }
 
   // Sport and gym for the focus day, and sport tomorrow morning
   const horizonEnd = addDays(focusDay, 1);

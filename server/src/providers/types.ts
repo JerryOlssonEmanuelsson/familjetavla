@@ -27,7 +27,16 @@ export interface SchoolEvent extends CalEvent {
 export interface SchoolProvider {
   meta: ProviderMeta;
   test(ctx: ProviderCtx): Promise<TestResult>;
-  fetch(ctx: ProviderCtx, from: Date, to: Date): Promise<{ events: SchoolEvent[]; food?: { child: string; day: string; dishes: string[] }[] }>;
+  fetch(
+    ctx: ProviderCtx,
+    from: Date,
+    to: Date,
+  ): Promise<{
+    events: SchoolEvent[];
+    food?: { child: string; day: string; dishes: string[] }[];
+    /** Förskola/fritids: today's care time per child, e.g. "07:30 - 16:00". */
+    care?: { child: string; text: string }[];
+  }>;
 }
 
 export interface GroceryProvider {

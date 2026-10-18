@@ -131,12 +131,18 @@ function PersonEditor({ p, onChange, onRemove }: { p: Person; onChange: (p: Pers
               value={custody.mode}
               onChange={(v) => setC({ mode: v as Custody["mode"], anchorDate: v === "alternating" ? custody.anchorDate ?? new Date().toISOString().slice(0, 10) : custody.anchorDate })}
               options={[
-                { value: "always", label: "Alltid" },
-                { value: "alternating", label: "Varannan vecka (rekommenderas)" },
-                { value: "oddWeeks", label: "Udda veckor" },
-                { value: "evenWeeks", label: "Jämna veckor" },
+                { value: "always", label: "Hela tiden" },
+                { value: "alternating", label: "Växelvis – varannan vecka" },
+                { value: "oddWeeks", label: "Växelvis – udda veckor" },
+                { value: "evenWeeks", label: "Växelvis – jämna veckor" },
               ]}
-              help={custody.mode === "oddWeeks" || custody.mode === "evenWeeks" ? "OBS: 2026 har vecka 53, då blir det två udda veckor i rad. Varannan vecka följer er rytm." : undefined}
+              help={
+                custody.mode === "oddWeeks" || custody.mode === "evenWeeks"
+                  ? "OBS: 2026 har vecka 53, då blir det två udda veckor i rad. ”Varannan vecka” följer er rytm i stället."
+                  : custody.mode === "always"
+                    ? "Bor barnet växelvis i två hem? Välj det här, så visar tavlan barnveckor och nedräkning till bytet."
+                    : undefined
+              }
             />
             {custody.mode !== "always" && (
               <Select
@@ -644,7 +650,7 @@ function CalendarEditor({
         <div className="stack" style={{ marginTop: 8 }}>
           <Words label="Visa bara om titeln innehåller" value={cal.include} onChange={(v) => onChange({ ...cal, include: v })} placeholder="P14, Blå" help="Kommaseparerat. Tomt = allt." />
           <Words label="Dölj om titeln innehåller" value={cal.exclude} onChange={(v) => onChange({ ...cal, exclude: v })} placeholder="Föräldramöte, Inställd" />
-          {isChild && (
+          {isChild && person?.custody && person.custody.mode !== "always" && (
             <>
               <Toggle
                 label={`Visa alla veckor (även när ${person!.name} är i andra hemmet)`}

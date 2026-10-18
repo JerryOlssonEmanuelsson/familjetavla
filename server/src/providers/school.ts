@@ -21,7 +21,7 @@ export const vklass: SchoolProvider = {
     id: "vklass",
     category: "school",
     name: "Vklass",
-    description: "Schema, idrottslektioner och skolmat för alla barn på kontot.",
+    description: "Skola och förskola: schema, idrott, omsorgstid och matsedel för alla barn på kontot.",
     status: "beta",
     discoversChildren: true,
     fields: [
@@ -54,7 +54,8 @@ export const vklass: SchoolProvider = {
       for (const e of await vklassEvents(s, k.id, from, to)) events.push({ ...e, child: k.name, gym: isGymLesson(e) });
     }
     const food = kids.flatMap((k) => k.food.map((f) => ({ child: k.name, ...f })));
-    return { events, food };
+    const care = kids.flatMap((k) => (k.careTime ? [{ child: k.name, text: k.careTime }] : []));
+    return { events, food, care };
   },
 };
 

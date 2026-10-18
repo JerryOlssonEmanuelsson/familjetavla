@@ -225,3 +225,17 @@ describe("dit/hem för barnens aktiviteter", () => {
     expect(travelSummary(own)).toBe("Emil skjutsar dit · buss hem");
   });
 });
+
+describe("barn som bor här hela tiden", () => {
+  it("ingen barnvecka eller bytespåminnelse, men omsorgstid från förskolan", async () => {
+    const { buildReminders } = await import("./dashboard.js");
+    const leo = { id: "leo", name: "Leo", color: "#f5c84b", kind: "child" as const, custody: { mode: "always" as const } };
+    const people = new Map([[leo.id, leo]]);
+    const morning = new Date("2026-10-19T08:00:00");
+    const r = buildReminders(morning, [], people, [], null, undefined, [{ personId: "leo", text: "07:30 - 16:00" }]);
+    expect(r.map((x) => x.title)).toEqual(["Leo · 07:30 - 16:00"]);
+    expect(r.some((x) => /kommer|åker/.test(x.title))).toBe(false);
+    // On the evening it is no longer today's schedule.
+    expect(buildReminders(new Date("2026-10-19T18:00:00"), [], people, [], null, undefined, [{ personId: "leo", text: "07:30 - 16:00" }])).toEqual([]);
+  });
+});

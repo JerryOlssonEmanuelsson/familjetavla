@@ -2,7 +2,7 @@
 
 # Familjetavla
 
-**En familjetavla för surfplattan i hallen eller köket** – byggd för svenska familjer, gärna med växelvis boende, som kör Home Assistant (men fungerar även utan).
+**En familjetavla för surfplattan i hallen eller köket** – byggd för svenska familjer – med eller utan växelvis boende – som kör Home Assistant (men fungerar även utan).
 
 Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem** (vem skjutsar, buss eller skjuts), **skola** (schema, gympapåse, skolmat), **sophämtning**, **inköpslista** (som kan skickas till Willys), **elpris** med billigaste timmarna – och från Home Assistant: **bilar, ljus, värmepump, spabad, solel och grafer**. Allt sätts upp i en **visuell guide**, utan YAML.
 
@@ -55,7 +55,7 @@ Det som inte finns i HA sköts av **leverantörsmoduler**:
 | Skola | SchoolSoft, Unikum, IST, Skola24, InfoMentor, Edlevo | Kalenderlänk (ICS) | stabil |
 | Skolmat | **Skolmaten.se** | Ingen inloggning | beta |
 | Skolmat | Skolmat-integrationen i HA | Mashie, Matilda, FoodIT, Mateo, skolmat.info | stabil |
-| Skola | **Vklass** | Användarnamn + lösenord (inte BankID) | beta |
+| Skola och förskola | **Vklass** | Schema, idrott, omsorgstid, matsedel. Användarnamn + lösenord (inte BankID) | beta |
 | Sopor | Sök på adress | ~30 kommuner/renhållare (EDP Future) | beta |
 | Sopor | Eget schema | Kärl, en hämtdag, intervall, ev. vissa månader | stabil |
 | Sopor | ICS eller HA-kalender | t.ex. Waste Collection Schedule (~50 svenska renhållare) | stabil |
