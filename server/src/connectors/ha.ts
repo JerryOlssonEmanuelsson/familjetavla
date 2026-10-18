@@ -67,6 +67,10 @@ export const ha = {
     });
   },
 
+  /** Render a Jinja template – the only REST route to the device and area registries. */
+  template: (c: HaConn, template: string) =>
+    call<string>(c, "/template", { method: "POST", body: JSON.stringify({ template }) }),
+
   /** Numeric history, averaged into `bucketMin` buckets. */
   async history(c: HaConn, entityIds: string[], from: Date, to: Date, bucketMin = 30): Promise<Record<string, (number | null)[]>> {
     const q =

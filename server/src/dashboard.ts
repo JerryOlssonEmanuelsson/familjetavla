@@ -28,7 +28,7 @@ import {
   shortWeekday,
   startOfDay,
 } from "./time.js";
-import type { Config, DashDay, DashEvent, Dashboard, Person, Reminder } from "./types.js";
+import type { Config, Control, DashDay, DashEvent, Dashboard, Person, Reminder } from "./types.js";
 
 const MIN = 60_000;
 const WASTE_COLOR = "#9aa0bf";
@@ -183,7 +183,13 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     prices: buildPrices(cfg, prices, now),
     energy: buildEnergy(cfg, stateMap),
     schoolFood: todaysFood(school.food, now),
-    cars: cfg.entities.cars.map((c) => buildCar(c, stateMap, now)),
+    cars: cfg.entities.cars.map((c) => ({
+      ...buildCar(c, stateMap, now),
+      climate: c.climate ? { entityId: c.climate, on: isOnState(stateMap.get(c.climate)?.state) } : undefined,
+      schedules: (cfg.schedules ?? [])
+        .filter((s) => s.entityId === c.climate)
+        .map(({ id, name, days, time, enabled }) => ({ id, name, days, time, enabled })),
+    })),
     lights: cfg.entities.lights.map((l) => ({
       entityId: l.entityId,
       name: l.name,
@@ -198,8 +204,18 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       offline: g.entities.filter((id) => isOffline(stateMap, id)).map((id) => friendly(stateMap, id)),
     })),
     buttons: cfg.entities.buttons ?? [],
-    climates: (cfg.entities.climates ?? []).map((c) => buildClimate(c.entityId, c.name, stateMap)),
+    climates: (cfg.entities.climates ?? []).map((c) => ({
+      ...buildClimate(c.entityId, c.name, stateMap),
+      controls: (c.controls ?? []).map((id) => buildControl(stateMap, id, c.name)),
+    })),
     temps: cfg.entities.temps.map((t) => ({ name: t.name, value: formatTemp(stateMap, t.entityId) })),
+    deviceCards: (cfg.entities.deviceCards ?? []).map((c, index) => ({
+      index,
+      title: c.title,
+      primary: c.primary ? { name: shortName(friendly(stateMap, c.primary), c.title), value: display(stateMap, c.primary) } : undefined,
+      rows: c.sensors.map((id) => ({ name: shortName(friendly(stateMap, id), c.title), value: display(stateMap, id), ok: !isOffline(stateMap, id) })),
+      controls: c.controls.map((id) => buildControl(stateMap, id, c.title)),
+    })),
     graphs: (cfg.entities.graphs ?? []).map((g, index) => ({ index, title: g.title })),
     accent: cfg.dashboard.accent,
     theme: cfg.dashboard.theme ?? "auto",
@@ -207,6 +223,47 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     night: inTimeWindow(now, cfg.dashboard.nightFrom, cfg.dashboard.nightTo),
     errors,
   };
+}
+
+/** "21.4" "°C" → "21,4 °C"; text states as-is. */
+function display(states: Map<string, HaState>, id: string): string {
+  const s = states.get(id);
+  if (!s || s.state === "unavailable" || s.state === "unknown") return "–";
+  const n = Number(s.state);
+  const unit = s.attributes.unit_of_measurement ? ` ${s.attributes.unit_of_measurement}` : "";
+  if (Number.isFinite(n) && s.state.trim() !== "") {
+    const rounded = Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * 10) / 10;
+    return `${String(rounded).replace(".", ",")}${unit}`;
+  }
+  return `${s.state}${unit}`;
+}
+
+export function buildControl(states: Map<string, HaState>, id: string, prefix = ""): Control {
+  const s = states.get(id);
+  const a = (s?.attributes ?? {}) as Record<string, unknown>;
+  const numOrUndef = (v: unknown) => (typeof v === "number" ? v : undefined);
+  return {
+    entityId: id,
+    name: shortName(friendly(states, id), prefix),
+    domain: id.split(".")[0],
+    state: s?.state ?? "unavailable",
+    on: isOnState(s?.state),
+    offline: isOffline(states, id),
+    options: Array.isArray(a.options) ? a.options.map(String) : undefined,
+    min: numOrUndef(a.min),
+    max: numOrUndef(a.max),
+    step: numOrUndef(a.step),
+    unit: typeof a.unit_of_measurement === "string" ? a.unit_of_measurement : undefined,
+  };
+}
+
+function isOnState(state?: string): boolean {
+  return state === "on" || state === "heat" || state === "heat_cool" || state === "auto" || state === "cool";
+}
+
+/** "Spabad Pump 1" → "Pump 1" when the card already says Spabad. */
+function shortName(name: string, prefix: string): string {
+  return name.toLowerCase().startsWith(prefix.toLowerCase()) ? name.slice(prefix.length).trim() || name : name;
 }
 
 function isOffline(states: Map<string, HaState>, id: string): boolean {
@@ -224,7 +281,7 @@ function num(states: Map<string, HaState>, id?: string): number | null {
   return v !== undefined && Number.isFinite(n) ? n : null;
 }
 
-function buildCar(c: Config["entities"]["cars"][number], states: Map<string, HaState>, now: Date): Dashboard["cars"][number] {
+function buildCar(c: Config["entities"]["cars"][number], states: Map<string, HaState>, now: Date): Omit<Dashboard["cars"][number], "schedules" | "climate"> {
   const battery = num(states, c.battery);
   const rangeKm = num(states, c.range);
   const loc = haValue(states, c.location);
@@ -267,7 +324,7 @@ const MODE_LABELS: Record<string, string> = {
   on: "Till",
 };
 
-function buildClimate(entityId: string, name: string, states: Map<string, HaState>): Dashboard["climates"][number] {
+function buildClimate(entityId: string, name: string, states: Map<string, HaState>): Omit<Dashboard["climates"][number], "controls"> {
   const s = states.get(entityId);
   const domain = entityId.startsWith("water_heater.") ? "water_heater" : "climate";
   const a = (s?.attributes ?? {}) as Record<string, unknown>;

@@ -129,6 +129,29 @@ export interface CarEntity {
   range?: string;
   location?: string; // device_tracker, binary_sensor eller sensor
   charging?: string;
+  /** Förvärmning: climate.*, switch.* eller button.* på bilen. */
+  climate?: string;
+}
+
+export interface DeviceCard {
+  title: string;
+  /** Stort värde överst, t.ex. inomhustemperatur. */
+  primary?: string;
+  sensors: string[];
+  /** switch, select, number, button, input_* … */
+  controls: string[];
+}
+
+/** Tidsstyrning som servern kör, t.ex. värmestart i bilen eller spabad. */
+export interface Schedule {
+  id: string;
+  name: string;
+  entityId: string;
+  action: "on" | "off" | "press";
+  /** ISO-veckodagar 1–7. */
+  days: number[];
+  time: string; // "06:40"
+  enabled: boolean;
 }
 
 export interface NamedEntity {
@@ -182,6 +205,7 @@ export interface Config {
     mode: "none" | "supervisor" | "manual";
     url?: string;
   };
+  schedules: Schedule[];
   entities: {
     cars: CarEntity[];
     energy: EnergyEntities;
@@ -193,7 +217,9 @@ export interface Config {
     /** Scener, skript och knappar, t.ex. "Godnatt – släck uppe". */
     buttons: { name: string; entityId: string; style: "accent" | "blue" | "amber" | "plain" }[];
     /** Hus-fliken: climate.* och water_heater.* (värmepump, termostat, varmvatten, spabad). */
-    climates: NamedEntity[];
+    climates: (NamedEntity & { controls?: string[] })[];
+    /** Hus-fliken: kort byggda av valfria sensorer och reglage (t.ex. värmepump via Husdata). */
+    deviceCards: DeviceCard[];
     /** Grafer-fliken. */
     graphs: { title: string; series: { name: string; entityId: string; color: string }[] }[];
   };
@@ -225,6 +251,21 @@ export interface ConfigResponse {
 }
 
 // ---------- Tavlan ----------
+
+/** Ett reglage på tavlan, ritat efter HA-domän. */
+export interface Control {
+  entityId: string;
+  name: string;
+  domain: string;
+  state: string;
+  on: boolean;
+  offline: boolean;
+  options?: string[];
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+}
 
 export interface DashEvent {
   time: string; // "17:30" eller "" för heldag
@@ -301,6 +342,8 @@ export interface Dashboard {
     /** Timmar sedan batterivärdet uppdaterades. */
     ageHours: number | null;
     status: string;
+    climate?: { entityId: string; on: boolean };
+    schedules: { id: string; name: string; days: number[]; time: string; enabled: boolean }[];
   }[];
   lights: { entityId: string; name: string; on: boolean; offline: boolean }[];
   lightGroups: { index: number; name: string; on: number; total: number; offline: string[] }[];
@@ -315,8 +358,17 @@ export interface Dashboard {
     /** Lägen att välja mellan (preset_modes, hvac_modes eller operation_list). */
     modes: { value: string; label: string; field: "preset_mode" | "hvac_mode" | "operation_mode" }[];
     active?: string;
+    /** Pumpar, lampor, blåsare m.m. på samma enhet (t.ex. spabadets). */
+    controls: Control[];
   }[];
   temps: { name: string; value: string }[];
+  deviceCards: {
+    index: number;
+    title: string;
+    primary?: { name: string; value: string };
+    rows: { name: string; value: string; ok: boolean }[];
+    controls: Control[];
+  }[];
   graphs: { index: number; title: string }[];
   accent: string;
   theme: "auto" | "dark" | "light";

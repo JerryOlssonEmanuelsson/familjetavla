@@ -76,6 +76,15 @@ const integrationSchema = z.object({
 });
 
 const entity = z.string().max(120);
+const scheduleSchema = z.object({
+  id: z.string().regex(ID),
+  name: z.string().min(1).max(40),
+  entityId: entity,
+  action: z.enum(["on", "off", "press"]),
+  days: z.array(z.number().int().min(1).max(7)).max(7),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  enabled: z.boolean(),
+});
 const configSchema = z
   .object({
     version: z.literal(1),
@@ -104,8 +113,11 @@ const configSchema = z
       vat: z.boolean(),
     }),
     ha: z.object({ mode: z.enum(["none", "supervisor", "manual"]), url: z.string().url().optional() }),
+    schedules: z.array(scheduleSchema).max(40),
     entities: z.object({
-      cars: z.array(z.object({ name: z.string().max(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional() })).max(6),
+      cars: z
+        .array(z.object({ name: z.string().max(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional(), climate: entity.optional() }))
+        .max(6),
       energy: z.object({ solar: entity.optional(), grid: entity.optional(), house: entity.optional(), battery: entity.optional() }),
       lights: z.array(z.object({ name: z.string().max(40), entityId: entity })).max(16),
       temps: z.array(z.object({ name: z.string().max(40), entityId: entity })).max(8),
@@ -113,7 +125,12 @@ const configSchema = z
       buttons: z
         .array(z.object({ name: z.string().max(40), entityId: entity.regex(/^(scene|script|button|input_button|automation)\./), style: z.enum(["accent", "blue", "amber", "plain"]) }))
         .max(12),
-      climates: z.array(z.object({ name: z.string().max(40), entityId: entity.regex(/^(climate|water_heater)\./) })).max(8),
+      climates: z
+        .array(z.object({ name: z.string().max(40), entityId: entity.regex(/^(climate|water_heater)\./), controls: z.array(entity).max(8).optional() }))
+        .max(8),
+      deviceCards: z
+        .array(z.object({ title: z.string().max(40), primary: entity.optional(), sensors: z.array(entity).max(16), controls: z.array(entity).max(12) }))
+        .max(8),
       graphs: z
         .array(z.object({ title: z.string().max(40), series: z.array(z.object({ name: z.string().max(30), entityId: entity, color: z.string().regex(/^#[0-9a-fA-F]{6}$/) })).max(6) }))
         .max(6),

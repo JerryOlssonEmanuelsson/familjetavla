@@ -1,0 +1,243 @@
+import { ha, type HaConn } from "./connectors/ha.js";
+import type { CarEntity, Config, NamedEntity } from "./types.js";
+
+/**
+ * Discover what a Home Assistant install already has, so the wizard can pre-fill cars,
+ * inverter/solar, grid meter, climate devices, lights per room etc. – whatever brand.
+ *
+ * Uses one template render (POST /api/template) to read the device and area registries,
+ * which the REST state API does not expose.
+ */
+
+export interface HaEntityInfo {
+  e: string; // entity_id
+  n: string; // friendly name
+  a: string | null; // area
+  d: string | null; // device id
+  dn: string | null; // device name
+  m: string | null; // manufacturer
+  mo: string | null; // model
+  dc: string | null; // device_class
+  u: string | null; // unit
+  st: string; // state
+  lu: string; // last_updated
+}
+
+const TEMPLATE = `{% set ns = namespace(out=[]) %}{% for s in states %}{% set d = device_id(s.entity_id) %}{% set ns.out = ns.out + [{"e": s.entity_id, "n": s.name, "a": area_name(s.entity_id), "d": d, "dn": (device_attr(d, 'name_by_user') or device_attr(d, 'name')) if d else none, "m": device_attr(d, 'manufacturer') if d else none, "mo": device_attr(d, 'model') if d else none, "dc": s.attributes.device_class | default(none), "u": s.attributes.unit_of_measurement | default(none), "st": s.state, "lu": s.last_updated | string}] %}{% endfor %}{{ ns.out | tojson }}`;
+
+export async function readRegistry(conn: HaConn): Promise<HaEntityInfo[]> {
+  const res = (await ha.template(conn, TEMPLATE)) as string;
+  const parsed = typeof res === "string" ? JSON.parse(res) : res;
+  return parsed as HaEntityInfo[];
+}
+
+export async function deviceEntities(conn: HaConn, anyEntityOfDevice: string): Promise<HaEntityInfo[]> {
+  const all = await readRegistry(conn);
+  const dev = all.find((x) => x.e === anyEntityOfDevice)?.d;
+  if (!dev) return all.filter((x) => x.e === anyEntityOfDevice);
+  return all.filter((x) => x.d === dev);
+}
+
+const has = (s: string | null | undefined, re: RegExp) => Boolean(s && re.test(s));
+const domain = (e: string) => e.split(".")[0];
+
+const CAR_MAKERS = /tesla|nissan|volvo|polestar|kia|hyundai|volkswagen|vw|skoda|audi|bmw|mini|mercedes|renault|peugeot|citro|opel|toyota|lexus|ford|mg |mg$|byd|porsche|cupra|seat|fiat|jaguar|zeekr|xpeng|nio|honda|mazda|subaru|smart/i;
+const SOLAR = /solar|sol(el|ar)?\b|pv\b|photovolt|inverter|växelriktare|produktion|production|yield/i;
+const INVERTER_MAKERS = /solaredge|huawei|fronius|sma\b|growatt|enphase|goodwe|solis|sungrow|deye|victron|ferroamp|solax|kostal|apsystems/i;
+const HEATPUMP = /husdata|h60|h66|nibe|thermia|ivt|ctc|bosch|daikin|mitsubishi|panasonic|vaillant|viessmann|heat ?pump|värmepump|bergvärme|luft.?vatten|ecoforest|qvantum|nordic/i;
+const SPA = /balboa|gecko|spa\b|spabad|jacuzzi|hot ?tub|bubbelpool|lay-?z|intex|softub|arctic spa|bwa/i;
+const GRID = /grid|nät|import|tibber pulse|power ?meter|elmätare|han\b|p1\b|consumption/i;
+
+export interface Discovery {
+  cars: (CarEntity & { deviceName: string; maker?: string })[];
+  energy: Config["entities"]["energy"];
+  climates: (NamedEntity & { controls?: string[] })[];
+  lightGroups: { name: string; entities: string[] }[];
+  deviceCards: { title: string; primary?: string; sensors: string[]; controls: string[] }[];
+  temps: NamedEntity[];
+  todo: NamedEntity[];
+  calendars: (NamedEntity & { waste: boolean })[];
+  priceSensors: NamedEntity[];
+  buttons: { name: string; entityId: string }[];
+  summary: string[];
+}
+
+export function discover(all: HaEntityInfo[]): Discovery {
+  const byDevice = new Map<string, HaEntityInfo[]>();
+  for (const x of all) if (x.d) byDevice.set(x.d, [...(byDevice.get(x.d) ?? []), x]);
+
+  // ---- Cars: a device with a battery % sensor and a location (tracker) or a known car maker.
+  const cars: Discovery["cars"] = [];
+  for (const [, ents] of byDevice) {
+    const battery = ents.find((x) => domain(x.e) === "sensor" && x.u === "%" && (x.dc === "battery" || has(x.n, /battery|batteri|state of charge|soc\b|laddniv/i)));
+    if (!battery) continue;
+    const tracker = ents.find((x) => domain(x.e) === "device_tracker");
+    const maker = ents[0].m ?? "";
+    const isCar = (tracker && ents.some((x) => has(x.n, /range|räckvidd|odometer|mätarställ|charg|laddning/i))) || has(maker, CAR_MAKERS) || has(ents[0].mo, CAR_MAKERS);
+    if (!isCar) continue;
+    const range = ents.find((x) => domain(x.e) === "sensor" && has(x.u, /^(km|mi)$/) && has(x.n, /range|räckvidd/i) && !has(x.n, /ac on/i));
+    const charging =
+      ents.find((x) => domain(x.e) === "binary_sensor" && (x.dc === "battery_charging" || has(x.n, /charging|laddar/i))) ??
+      ents.find((x) => domain(x.e) === "sensor" && has(x.n, /charging state|laddstatus/i));
+    const plugged = ents.find((x) => domain(x.e) === "binary_sensor" && (x.dc === "plug" || has(x.n, /plugged|ansluten/i)));
+    const climate =
+      ents.find((x) => domain(x.e) === "climate") ??
+      ents.find((x) => ["switch", "button"].includes(domain(x.e)) && has(x.n, /climate|klimat|precondition|förvärm|heat|värm|defrost/i));
+    cars.push({
+      name: ents[0].dn ?? battery.n.replace(/ ?battery.*$/i, ""),
+      deviceName: ents[0].dn ?? "",
+      maker: maker || undefined,
+      battery: battery.e,
+      range: range?.e,
+      location: tracker?.e ?? plugged?.e,
+      charging: charging?.e,
+      climate: climate?.e,
+    });
+  }
+  const carDevices = new Set(cars.map((c) => all.find((x) => x.e === c.battery)?.d));
+
+  // ---- Energy
+  const power = all.filter((x) => domain(x.e) === "sensor" && x.dc === "power" && !carDevices.has(x.d));
+  const solar =
+    power.find((x) => has(x.n, SOLAR) && has(`${x.m} ${x.n}`, INVERTER_MAKERS)) ?? power.find((x) => has(x.n, SOLAR) || has(x.m, INVERTER_MAKERS));
+  const grid = power.find((x) => x !== solar && has(`${x.n} ${x.m ?? ""}`, GRID));
+  const house = power.find((x) => x !== solar && x !== grid && has(x.n, /house|hus|home|hem|load|last|förbrukning|consumption/i));
+  const homeBattery = all.find(
+    (x) => domain(x.e) === "sensor" && x.dc === "battery" && x.u === "%" && !carDevices.has(x.d) && has(`${x.n} ${x.m ?? ""}`, /storage|hembatteri|home battery|powerwall|battery soc|ferroamp|huawei|solaredge|sonnen|pixii|victron/i),
+  );
+
+  // ---- Climate devices (heat pump, thermostats, hot water, spa) with the device's pumps/lights/blowers
+  const climates = all
+    .filter((x) => (domain(x.e) === "climate" || domain(x.e) === "water_heater") && !carDevices.has(x.d))
+    .map((x) => {
+      const siblings = x.d ? (byDevice.get(x.d) ?? []) : [];
+      const spa = has(`${x.m ?? ""} ${x.mo ?? ""} ${x.n} ${x.dn ?? ""}`, SPA);
+      const controls = siblings
+        .filter((s) => ["switch", "fan", "light"].includes(domain(s.e)) && s.e !== x.e)
+        .map((s) => s.e)
+        .slice(0, 6);
+      return { name: spa && !has(x.n, /spa|bad|pool/i) ? "Spabad" : x.n, entityId: x.e, controls: controls.length ? controls : undefined };
+    });
+
+  // ---- Heat pumps etc. without a climate entity (Husdata H60/H66, Nibe, Thermia …): sensor cards
+  const climateDevices = new Set(climates.map((c) => all.find((x) => x.e === c.entityId)?.d));
+  const deviceCards: Discovery["deviceCards"] = [];
+  for (const [dev, ents] of byDevice) {
+    if (climateDevices.has(dev) || carDevices.has(dev)) continue;
+    const head = ents[0];
+    if (!has(`${head.m ?? ""} ${head.mo ?? ""} ${head.dn ?? ""}`, HEATPUMP)) continue;
+    const sensors = ents.filter((x) => domain(x.e) === "sensor" && (x.dc === "temperature" || x.dc === "power" || has(x.n, /cop|kompressor|compressor|varmvatten|hot water|framledning|supply|retur|return|brine|köldbärare/i)));
+    const primary = sensors.find((x) => x.dc === "temperature" && has(x.n, /inne|indoor|rum|room/i)) ?? sensors.find((x) => x.dc === "temperature");
+    const controls = ents.filter((x) => ["switch", "select", "number", "button", "input_number", "input_select", "input_boolean"].includes(domain(x.e)));
+    if (!sensors.length && !controls.length) continue;
+    deviceCards.push({
+      title: head.dn ?? "Värmepump",
+      primary: primary?.e,
+      sensors: sensors.filter((x) => x !== primary).slice(0, 8).map((x) => x.e),
+      controls: controls.slice(0, 8).map((x) => x.e),
+    });
+  }
+
+  // ---- Lights per area
+  const areaLights = new Map<string, string[]>();
+  for (const x of all.filter((y) => domain(y.e) === "light")) {
+    const area = x.a ?? "Övriga";
+    areaLights.set(area, [...(areaLights.get(area) ?? []), x.e]);
+  }
+  const lightGroups = [...areaLights].map(([name, entities]) => ({ name, entities })).sort((a, b) => a.name.localeCompare(b.name, "sv"));
+
+  // ---- Temperatures (indoor/outdoor first)
+  const temps = all
+    .filter((x) => domain(x.e) === "sensor" && x.dc === "temperature" && !carDevices.has(x.d))
+    .sort((a, b) => Number(has(b.n, /ute|outdoor|utomhus|inne|indoor|vardagsrum/i)) - Number(has(a.n, /ute|outdoor|utomhus|inne|indoor|vardagsrum/i)))
+    .slice(0, 12)
+    .map((x) => ({ name: x.n, entityId: x.e }));
+
+  const todo = all.filter((x) => domain(x.e) === "todo").map((x) => ({ name: x.n, entityId: x.e }));
+  const calendars = all
+    .filter((x) => domain(x.e) === "calendar")
+    .map((x) => ({ name: x.n, entityId: x.e, waste: has(`${x.n} ${x.e} ${x.m ?? ""}`, /waste|sop|avfall|renhåll|tömning|hämtning/i) }));
+  const priceSensors = all
+    .filter((x) => domain(x.e) === "sensor" && (has(x.e, /nordpool|tibber|electricity_price|elpris|spot/i) || has(x.u, /(SEK|öre|kr)\/kWh/i)))
+    .map((x) => ({ name: x.n, entityId: x.e }));
+  const buttons = all.filter((x) => domain(x.e) === "scene" || domain(x.e) === "script").map((x) => ({ name: x.n, entityId: x.e }));
+
+  const summary = [
+    cars.length ? `${cars.length} bil${cars.length > 1 ? "ar" : ""}: ${cars.map((c) => c.name).join(", ")}` : "",
+    solar ? `Solel: ${solar.n}${solar.m ? ` (${solar.m})` : ""}` : "",
+    grid ? `Elnät: ${grid.n}` : "",
+    homeBattery ? `Hembatteri: ${homeBattery.n}` : "",
+    climates.length ? `${climates.length} värme/klimat-enheter` : "",
+    deviceCards.length ? `Värmepump/enhet: ${deviceCards.map((d) => d.title).join(", ")}` : "",
+    lightGroups.length ? `${lightGroups.reduce((s, g) => s + g.entities.length, 0)} lampor i ${lightGroups.length} rum` : "",
+    priceSensors.length ? `Elpris-sensor: ${priceSensors[0].name}` : "",
+    calendars.some((c) => c.waste) ? "Sopkalender hittad" : "",
+  ].filter(Boolean);
+
+  return {
+    cars,
+    energy: { solar: solar?.e, grid: grid?.e, house: house?.e, battery: homeBattery?.e },
+    climates,
+    lightGroups,
+    deviceCards,
+    temps,
+    todo,
+    calendars,
+    priceSensors,
+    buttons,
+    summary,
+  };
+}
+
+// ---------- Car "Alla data" ----------
+
+const GROUPS: { name: string; re: RegExp }[] = [
+  { name: "Batteri & laddning", re: /batter|charg|ladd|soc|plug|kWh|state of charge|range|räckvidd/i },
+  { name: "Klimat & temperatur", re: /climate|klimat|temp|heat|värm|defrost|seat|ac\b|hvac|preconditio/i },
+  { name: "Körning & däck", re: /tire|tyre|däck|odometer|mätar|speed|hastighet|drive|shift|gear|trip/i },
+  { name: "Lås & luckor", re: /lock|lås|door|dörr|window|fönster|trunk|frunk|bagage|sunroof|charge port|lucka/i },
+  { name: "Plats", re: /location|position|plats|tracker|gps|heading|latitude|longitude|home|hemma/i },
+  { name: "System", re: /software|firmware|update|version|online|sleep|status|signal|rssi|api|last|senast|asleep|wake/i },
+];
+
+export interface CarEntityRow {
+  entityId: string;
+  name: string;
+  value: string;
+  group: string;
+  ok: boolean;
+  note?: string;
+  domain: string;
+}
+
+export function carRows(ents: HaEntityInfo[], deviceName: string, now = new Date(), staleHours = 12): CarEntityRow[] {
+  const strip = (n: string) => (deviceName && n.startsWith(deviceName) ? n.slice(deviceName.length).trim() || n : n);
+  return ents
+    .filter((x) => !["button", "update", "image"].includes(domain(x.e)))
+    .map((x) => {
+      const name = strip(x.n);
+      const unavailable = x.st === "unavailable" || x.st === "unknown";
+      const age = (now.getTime() - new Date(x.lu).getTime()) / 3_600_000;
+      const stale = !unavailable && domain(x.e) === "sensor" && age > staleHours;
+      const group = GROUPS.find((g) => g.re.test(`${name} ${x.e}`))?.name ?? "Övrigt";
+      const value = unavailable ? "otillgänglig" : `${x.st}${x.u ? ` ${x.u}` : ""}`;
+      return {
+        entityId: x.e,
+        name,
+        value,
+        group,
+        ok: !unavailable && !stale,
+        note: stale ? `inte uppdaterad på ${Math.round(age)} h` : undefined,
+        domain: domain(x.e),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "sv"));
+}
+
+export function carActions(ents: HaEntityInfo[], deviceName: string) {
+  const strip = (n: string) => (deviceName && n.startsWith(deviceName) ? n.slice(deviceName.length).trim() || n : n);
+  return ents
+    .filter((x) => ["button", "switch", "lock", "climate", "cover"].includes(domain(x.e)) && x.st !== "unavailable")
+    .map((x) => ({ entityId: x.e, name: strip(x.n), domain: domain(x.e), state: x.st }))
+    .sort((a, b) => a.name.localeCompare(b.name, "sv"));
+}

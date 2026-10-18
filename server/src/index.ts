@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { registerRoutes } from "./routes.js";
+import { startScheduler } from "./scheduler.js";
 
 process.env.TZ ??= "Europe/Stockholm";
 
@@ -26,3 +27,4 @@ if (existsSync(webDist)) {
 }
 
 await app.listen({ host: "0.0.0.0", port });
+startScheduler(app.log);

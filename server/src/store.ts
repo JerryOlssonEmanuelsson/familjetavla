@@ -28,7 +28,8 @@ export function defaultConfig(): Config {
     shopping: { source: "local", mappings: {} },
     electricity: { cheapHours: 4, markupOre: 0, gridOre: 0, taxOre: 0, vat: false },
     ha: { mode: process.env.SUPERVISOR_TOKEN ? "supervisor" : "none" },
-    entities: { cars: [], energy: {}, lights: [], temps: [], lightGroups: [], buttons: [], climates: [], graphs: [] },
+    schedules: [],
+    entities: { cars: [], energy: {}, lights: [], temps: [], lightGroups: [], buttons: [], climates: [], deviceCards: [], graphs: [] },
     dashboard: { accent: "#34e0a1", theme: "auto", nightFrom: "22:00", nightTo: "06:00" },
   };
 }
