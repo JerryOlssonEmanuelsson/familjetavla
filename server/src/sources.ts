@@ -14,6 +14,8 @@ export interface SourcedEvent extends CalEvent {
   personId?: string;
   category: CalendarCategory;
   gym?: boolean;
+  /** Name of the calendar (helps pick an icon: "Fotboll F14" → ball). */
+  sourceName?: string;
   /** Shown even when the child is at the other home (calendar set to "always" or an alwaysShow match). */
   ignoreCustody?: boolean;
 }
@@ -43,6 +45,7 @@ export async function collectCalendars(cfg: Config, from: Date, to: Date, errors
         return filterEvents(evs, src.include, src.exclude).map((e) => ({
           ...e,
           sourceId: src.id,
+          sourceName: src.name,
           personId: src.personId,
           category: src.category,
           ignoreCustody:

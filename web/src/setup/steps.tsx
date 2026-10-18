@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isHome } from "../../../server/src/custody";
 import type {
   CalendarCategory,
@@ -1136,9 +1136,91 @@ export function HouseStep({ cfg, set }: StepProps) {
   );
 }
 
+// ======================= Fotoram =======================
+
+/** Shrink a photo in the browser before upload (max 1920 px, JPEG) – keeps /data small. */
+async function downscale(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((ok, bad) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => bad(new Error("Kunde inte läsa bilden"));
+      i.src = url;
+    });
+    const scale = Math.min(1, 1920 / Math.max(img.width, img.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.width * scale);
+    c.height = Math.round(img.height * scale);
+    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function PhotoFrame({ cfg, set }: { cfg: Config; set: (c: Config) => void }) {
+  const [photos, setPhotos] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    api.photos().then(setPhotos).catch(() => setPhotos([]));
+  }, []);
+  const d = cfg.dashboard;
+  return (
+    <section className="card">
+      <h2>Fotoram i viloläge</h2>
+      <p className="muted">När ingen rört tavlan på en stund visas familjens bilder med klocka och nästa händelse. Utan bilder visas en lugn himmel.</p>
+      <Select
+        label="Visa efter"
+        value={String(d.idleMinutes ?? 10)}
+        onChange={(v) => set({ ...cfg, dashboard: { ...d, idleMinutes: Number(v) } })}
+        options={[0, 2, 5, 10, 20, 30, 60].map((n) => ({ value: String(n), label: n === 0 ? "Aldrig" : `${n} minuter` }))}
+      />
+      <div className="photos">
+        {(photos ?? []).map((p) => (
+          <figure key={p}>
+            <img src={`api/photos/${encodeURIComponent(p)}`} alt="" />
+            <button className="btn small" aria-label="Ta bort bild" onClick={() => api.deletePhoto(p).then((r) => setPhotos(r.photos))}>
+              <Icon name="x" size={16} />
+            </button>
+          </figure>
+        ))}
+      </div>
+      <label className="btn" style={{ alignSelf: "flex-start" }}>
+        <Icon name="image" size={20} /> {busy ? "Laddar upp…" : "Lägg till bilder"}
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          onChange={async (e) => {
+            const files = [...(e.target.files ?? [])];
+            e.target.value = "";
+            setBusy(true);
+            setError("");
+            try {
+              for (const f of files) {
+                const r = await api.uploadPhoto(await downscale(f), "image/jpeg");
+                setPhotos(r.photos);
+              }
+            } catch (err) {
+              setError((err as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </label>
+      {error && <Result error={error} />}
+    </section>
+  );
+}
+
 // ======================= Startskärm =======================
 
 const WIDGET_LABELS: Record<string, string> = {
+  now: "Nu – det närmaste, stort",
   reminders: "Kom ihåg (och skolmat)",
   custody: "Barnvecka",
   week: "Kommande 7 dagar",
@@ -1222,6 +1304,7 @@ export function DisplayStep({ cfg, set, secrets, setSecrets, resp }: StepProps) 
         </div>
         <small className="faint">Nattläge visar bara klockan på svart skärm. Tryck för att väcka.</small>
       </section>
+      <PhotoFrame cfg={cfg} set={set} />
       {!resp.runtime.supervisor && (
         <section className="card">
           <h2>PIN för inställningar</h2>

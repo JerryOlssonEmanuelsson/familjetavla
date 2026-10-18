@@ -158,3 +158,39 @@ describe("discovery", () => {
     expect(d.lightGroups).toEqual([{ name: "Kök", entities: ["light.kok"] }]);
   });
 });
+
+describe("design helpers", () => {
+  it("picks an icon from title and calendar name", async () => {
+    const { activityIcon } = await import("./dashboard.js");
+    expect(activityIcon("F14 – Träning Fotboll F14", "sport")).toBe("ball");
+    expect(activityIcon("Simträning", "sport")).toBe("swim");
+    expect(activityIcon("Ellas kalas", "family")).toBe("cake");
+    expect(activityIcon("Tandläkare", "family")).toBe("health");
+    expect(activityIcon("Matavfall", "waste")).toBe("trash");
+    expect(activityIcon("Något", "other")).toBe("event");
+  });
+
+  it("uses two letters when initials clash", async () => {
+    const { initialsOf } = await import("./dashboard.js");
+    const ps = [
+      { id: "a", name: "Emil", color: "#000", kind: "adult" as const },
+      { id: "b", name: "Ella", color: "#000", kind: "child" as const },
+      { id: "c", name: "Leo", color: "#000", kind: "child" as const },
+    ];
+    const m = new Map(ps.map((p) => [p.id, p]));
+    expect(ps.map((p) => initialsOf(p, m))).toEqual(["Em", "El", "L"]);
+  });
+
+  it("builds the Nu zone from the next timed events", async () => {
+    const { buildNow } = await import("./dashboard.js");
+    const now = new Date(2026, 9, 18, 17, 15);
+    const evs = [
+      { start: new Date(2026, 9, 18, 18), end: new Date(2026, 9, 18, 19), allDay: false, title: "Middag", sourceId: "f", category: "family" as const },
+      { start: new Date(2026, 9, 19, 17, 30), end: new Date(2026, 9, 19, 19), allDay: false, title: "Fotboll", sourceId: "f", category: "sport" as const },
+      { start: new Date(2026, 9, 18, 0), end: new Date(2026, 9, 19, 0), allDay: true, title: "Heldag", sourceId: "f", category: "family" as const },
+    ];
+    const n = buildNow(evs, new Map(), now);
+    expect(n.headline).toBe("Om 45 min");
+    expect(n.items.map((i) => [i.title, i.dayLabel])).toEqual([["Middag", "idag"], ["Fotboll", "imorgon"]]);
+  });
+});

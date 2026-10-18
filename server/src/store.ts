@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { HOME_WIDGETS, TAB_IDS, type Config, type SecretKey } from "./types.js";
 
@@ -37,6 +37,7 @@ export function defaultConfig(): Config {
       tabs: TAB_IDS.map((id) => ({ id, on: true })),
       nightFrom: "22:00",
       nightTo: "06:00",
+      idleMinutes: 10,
     },
   };
 }
@@ -81,6 +82,8 @@ export function loadConfig(): Config {
   } as Config;
   // Widgets/tabs added in later versions are appended (off for widgets, on for tabs).
   const d = cached.dashboard;
+  // "now" (the big Nu-zon) is the headline of the 2026 layout, so it goes first and on.
+  if (!d.home.some((w) => w.id === "now")) d.home.unshift({ id: "now", on: true });
   for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: false });
   for (const id of TAB_IDS) if (!d.tabs.some((t) => t.id === id)) d.tabs.push({ id, on: true });
   return cached;
@@ -159,4 +162,38 @@ export function loadLocalList(): LocalItem[] {
 
 export function saveLocalList(items: LocalItem[]) {
   writeAtomic(LOCAL_FILE, JSON.stringify({ shopping: items }, null, 2));
+}
+
+// ---------- Photo frame ----------
+
+export const PHOTO_DIR = join(DATA_DIR, "photos");
+const PHOTO_NAME = /^[a-z0-9-]{1,40}\.(jpe?g|png|webp)$/i;
+
+export function listPhotos(): string[] {
+  try {
+    return readdirSync(PHOTO_DIR).filter((f) => PHOTO_NAME.test(f)).sort();
+  } catch {
+    return [];
+  }
+}
+
+export function savePhoto(name: string, data: Buffer) {
+  if (!PHOTO_NAME.test(name)) throw new Error("Ogiltigt filnamn");
+  if (!existsSync(PHOTO_DIR)) mkdirSync(PHOTO_DIR, { recursive: true });
+  writeFileSync(join(PHOTO_DIR, name), data);
+}
+
+export function deletePhoto(name: string) {
+  if (!PHOTO_NAME.test(name)) throw new Error("Ogiltigt filnamn");
+  try {
+    unlinkSync(join(PHOTO_DIR, name));
+  } catch {
+    /* already gone */
+  }
+}
+
+export function photoPath(name: string): string | null {
+  if (!PHOTO_NAME.test(name)) return null;
+  const p = join(PHOTO_DIR, name);
+  return existsSync(p) ? p : null;
 }

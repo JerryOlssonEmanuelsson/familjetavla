@@ -14,6 +14,27 @@ const fx = structuredClone(fixtures) as unknown as {
   calendarTest: CalendarTest;
 };
 
+// "#forsta" opens the demo as a brand-new install: empty settings, the wizard from step one.
+const firstRun = typeof location !== "undefined" && location.hash === "#forsta";
+if (firstRun) {
+  const c = fx.config.config;
+  fx.config.config = {
+    ...c,
+    setupComplete: false,
+    household: { name: "" },
+    people: [],
+    calendars: [],
+    integrations: [{ id: "price", category: "price", provider: "spot", settings: { area: "SE3" } }],
+    shopping: { source: "local", mappings: {} },
+    electricity: { cheapHours: 4, markupOre: 0, gridOre: 0, taxOre: 0, vat: false },
+    ha: { mode: "none" },
+    schedules: [],
+    entities: { cars: [], energy: {}, lights: [], temps: [], lightGroups: [], buttons: [], climates: [], deviceCards: [], graphs: [] },
+  };
+  fx.config.secretsSet = [];
+  history.replaceState(null, "", location.pathname);
+}
+
 const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), ms));
 const d = fx.dashboard;
 
@@ -31,8 +52,37 @@ const groupState = new Map<string, boolean>([
 ]);
 
 function syncDayParts() {
-  d.daypart = new Date().getHours() >= 7 && new Date().getHours() < 19 ? "day" : "night";
+  const h = new Date().getHours() + new Date().getMinutes() / 60;
+  d.daypart = h >= 7 && h < 19 ? "day" : "night";
+  d.header.phase = h >= 5 && h < 8 ? "dawn" : h >= 8 && h < 17.5 ? "day" : h >= 17.5 && h < 21 ? "dusk" : "night";
   d.night = false;
+  syncNow();
+}
+
+/** Recompute the Nu-zon from the viewer's clock so "Om 45 min" is always true in the demo. */
+const baseNow = structuredClone(fx.dashboard.now);
+function syncNow() {
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const at = (t: string, day: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m + (day === "imorgon" ? 1440 : 0) - mins;
+  };
+  const items = baseNow.items
+    .map((e) => ({ ...e, inMinutes: at(e.time, e.dayLabel) }))
+    .filter((e) => e.inMinutes > -60)
+    .sort((a, b) => a.inMinutes - b.inMinutes)
+    .slice(0, 3);
+  const first = items[0];
+  let headline = "Inget mer inplanerat idag";
+  if (first) {
+    const m = first.inMinutes;
+    if (m <= 0) headline = `Pågår: ${first.title}`;
+    else if (m < 60) headline = `Om ${m} min`;
+    else if (m < 180) headline = `Om ${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ""}`.trim();
+    else headline = first.dayLabel === "idag" ? `Senare idag kl ${first.time}` : `Imorgon kl ${first.time}`;
+  }
+  d.now = { headline, items };
 }
 
 const providerTest = (i: Integration): TestResult => {
@@ -176,6 +226,9 @@ export const demoApi = {
     return wait({});
   },
   graph: (index: number) => wait(fx.graphs[index]),
+  photos: () => wait(d.idle.photos),
+  uploadPhoto: (_data: string, _type: string) => wait({ photos: d.idle.photos }),
+  deletePhoto: (_name: string) => wait({ photos: d.idle.photos }),
   toggleLight: (entityId: string) => {
     const l = d.lights.find((x) => x.entityId === entityId);
     if (l) l.on = !l.on;

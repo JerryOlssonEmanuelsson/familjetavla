@@ -108,7 +108,7 @@ npm test                 # vitest
 
 - `server/` – Node 22 + Fastify (TypeScript). `providers/` är leverantörsmodulerna, `connectors/` själva anropen, `discovery.ts` hittar saker i HA, `dashboard.ts` bygger tavlan.
 - `web/` – React + Vite. `dashboard/` är tavlan, `setup/` installationsguiden.
-- `familjetavla/` – Home Assistant-tillägget. `docs/PROJEKT.md` – projektbeskrivning och designbeslut.
+- `familjetavla/` – Home Assistant-tillägget. `docs/PROJEKT.md` – projektbeskrivning och designbeslut, `docs/DESIGN.md` – designsystemet. Lägg till `#ipad` i adressen för att se tavlan som på en iPad (t.ex. på en Android-telefon i liggande läge).
 
 ### Lägg till en leverantör
 

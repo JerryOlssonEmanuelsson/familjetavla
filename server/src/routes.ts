@@ -13,7 +13,20 @@ import { haSocket } from "./connectors/haws.js";
 import { publishToHa } from "./publisher.js";
 import { MULTIPLE, allMeta, findProvider, makeCtx, secretKey } from "./providers/registry.js";
 import { calendarEvents, groceryIntegration } from "./sources.js";
-import { getSecret, listSecretKeys, loadConfig, loadLocalList, saveConfig, saveLocalList, setSecret } from "./store.js";
+import {
+  deletePhoto,
+  getSecret,
+  listPhotos,
+  listSecretKeys,
+  loadConfig,
+  loadLocalList,
+  photoPath,
+  saveConfig,
+  saveLocalList,
+  savePhoto,
+  setSecret,
+} from "./store.js";
+import { readFileSync } from "node:fs";
 import { addDays, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
@@ -151,6 +164,7 @@ const configSchema = z
       tabs: z.array(z.object({ id: z.enum(TAB_IDS), on: z.boolean() })).max(10),
       nightFrom: z.string().regex(/^\d{2}:\d{2}$/),
       nightTo: z.string().regex(/^\d{2}:\d{2}$/),
+      idleMinutes: z.number().int().min(0).max(240).default(10),
     }),
   })
   .superRefine((c, ctx) => {
@@ -581,6 +595,35 @@ export async function registerRoutes(app: FastifyInstance) {
     } catch (e) {
       return fail(reply, e);
     }
+  });
+
+  // ---------- Photo frame ----------
+  app.get("/api/photos", async () => listPhotos());
+
+  app.get("/api/photos/:name", async (req, reply) => {
+    const p = photoPath((req.params as { name: string }).name);
+    if (!p) return reply.code(404).send({ error: "Hittades inte" });
+    const ext = p.split(".").pop()!.toLowerCase();
+    reply.header("cache-control", "public, max-age=86400");
+    reply.type(ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg");
+    return reply.send(readFileSync(p));
+  });
+
+  // Upload as base64 JSON (the wizard downsizes images in the browser first).
+  app.post("/api/photos", { preHandler: guard, bodyLimit: 12 * 1024 * 1024 }, async (req, reply) => {
+    const { data, type } = (req.body ?? {}) as { data?: string; type?: string };
+    const ext = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
+    if (!data) return fail(reply, new Error("Ingen bild"));
+    const buf = Buffer.from(data.replace(/^data:[^,]+,/, ""), "base64");
+    if (buf.length > 8 * 1024 * 1024) return fail(reply, new Error("Bilden är för stor"));
+    const name = `p-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}.${ext}`;
+    savePhoto(name, buf);
+    return { ok: true, name, photos: listPhotos() };
+  });
+
+  app.delete("/api/photos/:name", { preHandler: guard }, async (req) => {
+    deletePhoto((req.params as { name: string }).name);
+    return { ok: true, photos: listPhotos() };
   });
 
   app.post("/api/lights/group", async (req, reply) => {

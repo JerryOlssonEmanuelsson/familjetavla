@@ -2,7 +2,7 @@ import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
 import { haSocket } from "./connectors/haws.js";
-import { forecast, rainBetween, weatherSummary, type Forecast } from "./connectors/weather.js";
+import { forecast, rainBetween, skyNow, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
 import { custodyStatus, isHome } from "./custody.js";
 import {
   collectCalendars,
@@ -15,7 +15,7 @@ import {
   type SourceError,
   type SourcedEvent,
 } from "./sources.js";
-import { loadConfig, loadLocalList } from "./store.js";
+import { listPhotos, loadConfig, loadLocalList } from "./store.js";
 import {
   addDays,
   daysBetween,
@@ -29,7 +29,7 @@ import {
   shortWeekday,
   startOfDay,
 } from "./time.js";
-import type { Config, Control, DashDay, DashEvent, Dashboard, Person, Reminder } from "./types.js";
+import type { ActivityIcon, Config, Control, DashDay, DashEvent, Dashboard, Person, Reminder } from "./types.js";
 
 const MIN = 60_000;
 const WASTE_COLOR = "#9aa0bf";
@@ -57,6 +57,32 @@ export function withSwapCalendar(people: Person[], events: SourcedEvent[]): Pers
   });
 }
 
+/** The next few timed things from now until tomorrow evening – the big "Nu" zone. */
+export function buildNow(events: SourcedEvent[], people: Map<string, Person>, now: Date): Dashboard["now"] {
+  const until = addDays(startOfDay(now), 2);
+  const upcoming = events
+    .filter((e) => !e.allDay && e.end > now && e.start < until)
+    .filter((e) => visibleOn(e, people, startOfDay(e.start)))
+    .filter((e) => !e.sourceId.startsWith("school:") || e.gym)
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+    .slice(0, 3)
+    .map((e) => ({
+      ...toDash(e, people),
+      inMinutes: Math.round((e.start.getTime() - now.getTime()) / 60_000),
+      dayLabel: daysBetween(now, e.start) === 0 ? "idag" : daysBetween(now, e.start) === 1 ? "imorgon" : shortWeekday(e.start).toLowerCase(),
+    }));
+  const first = upcoming[0];
+  let headline = "Inget mer inplanerat idag";
+  if (first) {
+    const m = first.inMinutes;
+    if (m <= 0) headline = `Pågår: ${first.title}`;
+    else if (m < 60) headline = `Om ${m} min`;
+    else if (m < 180) headline = `Om ${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ""}`.trim();
+    else headline = first.dayLabel === "idag" ? `Senare idag kl ${first.time}` : `${first.dayLabel[0].toUpperCase()}${first.dayLabel.slice(1)} kl ${first.time}`;
+  }
+  return { headline, items: upcoming };
+}
+
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} och ${names[names.length - 1]}`;
@@ -76,15 +102,57 @@ function eventsOnDay(events: SourcedEvent[], day: Date): SourcedEvent[] {
   return events.filter((ev) => ev.start.getTime() < e && ev.end.getTime() > s && !(ev.allDay && ev.end.getTime() === s));
 }
 
+const ICON_RULES: [RegExp, ActivityIcon][] = [
+  [/fotboll|football|soccer|match|cup|innebandy|handboll|basket|hockey|bandy|tennis|padel|golf|futsal/i, "ball"],
+  [/sim|swim|bad(?!minton)|vattenpolo/i, "swim"],
+  [/idrott|gympa|\bidh\b|gymnastik|träning|friidrott|dans|karate|judo|taekwondo|ridning|klättring/i, "gym"],
+  [/musik|piano|gitarr|kör\b|sång|fiol|trummor|orkester|kulturskola/i, "music"],
+  [/födelsedag|kalas|bday|birthday|fest|party/i, "cake"],
+  [/tandläkare|läkare|vårdcentral|bvc|tandvård|doktor|sjukhus|vaccin/i, "health"],
+  [/middag|lunch|frukost|mat\b|fika|restaurang|tacos|pizza/i, "food"],
+  [/skola|lektion|prov|utvecklingssamtal|föräldramöte|studiedag|lov\b|förskola/i, "school"],
+  [/resa|flyg|semester|tåg|hotell|stuga/i, "travel"],
+  [/bil|service|besiktning|skjuts|hämta|lämna/i, "car"],
+  [/jobb|möte|arbete|work/i, "work"],
+];
+
+export function activityIcon(title: string, category: DashEvent["category"]): ActivityIcon {
+  if (category === "waste") return "trash";
+  for (const [re, icon] of ICON_RULES) if (re.test(title)) return icon;
+  if (category === "sport") return "gym";
+  if (category === "school") return "school";
+  if (category === "work") return "work";
+  return "event";
+}
+
 function toDash(ev: SourcedEvent, people: Map<string, Person>): DashEvent {
   const p = ev.personId ? people.get(ev.personId) : undefined;
   return {
     time: ev.allDay ? "" : hhmm(ev.start),
+    end: ev.allDay ? undefined : hhmm(ev.end),
     title: ev.title,
     color: p?.color ?? FAMILY_COLOR,
     who: p?.name ?? "",
+    initial: p ? initialsOf(p, people) : undefined,
     category: ev.category,
+    icon: ev.gym ? "gym" : activityIcon(`${ev.title} ${ev.sourceName ?? ""}`, ev.category),
+    location: ev.location,
   };
+}
+
+/** One letter, or two when two people share the first letter (Emil/Ella → Em/El). */
+export function initialsOf(p: Person, people: Map<string, Person>): string {
+  const first = p.name.slice(0, 1).toUpperCase();
+  const clash = [...people.values()].some((o) => o.id !== p.id && o.name.slice(0, 1).toUpperCase() === first);
+  return clash ? `${first}${p.name.slice(1, 2).toLowerCase()}` : first;
+}
+
+function phaseOf(now: Date): Dashboard["header"]["phase"] {
+  const h = now.getHours() + now.getMinutes() / 60;
+  if (h >= 5 && h < 8) return "dawn";
+  if (h >= 8 && h < 17.5) return "day";
+  if (h >= 17.5 && h < 21) return "dusk";
+  return "night";
 }
 
 function haValue(states: Map<string, HaState>, id?: string): string | undefined {
@@ -151,10 +219,10 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     const arriving = children.filter((c) => isHome(c.custody, day) && !isHome(c.custody, prev));
     const leaving = children.filter((c) => !isHome(c.custody, day) && isHome(c.custody, prev));
     const extra: DashEvent[] = [];
-    if (arriving.length) extra.push({ time: "", title: `${joinNames(arriving.map((c) => c.name))} kommer`, color: FAMILY_COLOR, who: "", category: "family" });
-    if (leaving.length) extra.push({ time: "", title: `${joinNames(leaving.map((c) => c.name))} åker`, color: FAMILY_COLOR, who: "", category: "family" });
+    if (arriving.length) extra.push({ time: "", title: `${joinNames(arriving.map((c) => c.name))} kommer`, color: FAMILY_COLOR, who: "", category: "family", icon: "kids" });
+    if (leaving.length) extra.push({ time: "", title: `${joinNames(leaving.map((c) => c.name))} åker`, color: FAMILY_COLOR, who: "", category: "family", icon: "kids" });
     for (const w of waste.filter((p) => daysBetween(day, p.date) === 0)) {
-      extra.push({ time: "", title: w.type, color: WASTE_COLOR, who: "", category: "waste" });
+      extra.push({ time: "", title: w.type, color: WASTE_COLOR, who: "", category: "waste", icon: "trash" });
     }
 
     days.push({
@@ -192,7 +260,19 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       dateLabel: longDate(now),
       week: isoWeek(now),
       weather: weather ? weatherSummary(weather, now) : undefined,
+      sky: weather ? skyNow(weather, now) : undefined,
+      tempNow: weather ? tempNow(weather, now) : undefined,
+      phase: phaseOf(now),
     },
+    now: buildNow(all, people, now),
+    people: cfg.people.map((p) => ({
+      name: p.name,
+      color: p.color,
+      initial: initialsOf(p, new Map(cfg.people.map((x) => [x.id, x]))),
+      home: p.kind === "adult" || isHome(p.custody, now),
+      kind: p.kind,
+    })),
+    idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
     reminders: buildReminders(now, all, people, waste, weather),
     custody,
     legend: [

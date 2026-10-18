@@ -58,7 +58,7 @@ export interface CalendarSource {
   alwaysShow?: string[];
 }
 
-export const HOME_WIDGETS = ["reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
+export const HOME_WIDGETS = ["now", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
 export type HomeWidget = (typeof HOME_WIDGETS)[number];
 export const TAB_IDS = ["cars", "lights", "house", "energy", "graphs"] as const;
 export type TabId = (typeof TAB_IDS)[number];
@@ -251,6 +251,8 @@ export interface Config {
     tabs: { id: TabId; on: boolean }[];
     nightFrom: string; // "22:00"
     nightTo: string; // "06:00"
+    /** Minuter utan beröring innan fotoramen visas. 0 = av. */
+    idleMinutes: number;
   };
 }
 
@@ -290,13 +292,25 @@ export interface Control {
   unit?: string;
 }
 
+/** Ikon per aktivitet, så att även barn som inte läser förstår tavlan. */
+export type ActivityIcon =
+  | "ball" | "swim" | "gym" | "music" | "school" | "trash" | "food" | "cake" | "health" | "car" | "kids" | "work" | "travel" | "event";
+
 export interface DashEvent {
   time: string; // "17:30" eller "" för heldag
+  end?: string; // "19:00"
   title: string;
   color: string;
   who: string;
+  /** Personens initial för avataren. */
+  initial?: string;
   category: CalendarCategory | "waste";
+  icon: ActivityIcon;
+  location?: string;
+  source?: string;
 }
+
+export type Sky = "clear" | "partly" | "cloudy" | "rain" | "snow" | "fog";
 
 export interface DashDay {
   key: string; // YYYY-MM-DD
@@ -327,7 +341,19 @@ export interface Dashboard {
     dateLabel: string;
     week: number;
     weather?: string;
+    sky?: Sky;
+    tempNow?: number;
+    /** Dygnsfas för den levande bakgrunden. */
+    phase: "dawn" | "day" | "dusk" | "night";
   };
+  /** "Nu"-zonen: det som händer de närmaste timmarna. */
+  now: {
+    headline: string;
+    items: (DashEvent & { inMinutes: number; dayLabel: string })[];
+  };
+  people: { name: string; color: string; initial: string; home: boolean; kind: "adult" | "child" }[];
+  /** Fotoram i viloläge. */
+  idle: { minutes: number; photos: string[] };
   reminders: Reminder[];
   custody?: {
     headline: string;

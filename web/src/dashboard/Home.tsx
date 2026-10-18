@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Dashboard, Reminder } from "../../../server/src/types";
 import { api } from "../api";
 import { Icon, type IconName } from "../Icon";
+import { AnimatedNumber, Avatar, EventIcon, eventLabel } from "./bits";
 import type { Actions } from "./Dashboard";
 
 const REMINDER_ICON: Record<Reminder["icon"], IconName> = {
@@ -143,23 +144,76 @@ function Shopping({ data, actions }: { data: Dashboard; actions: Actions }) {
   );
 }
 
-function Week({ data }: { data: Dashboard }) {
+const SKY_LABEL: Record<string, string> = { clear: "Klart", partly: "Halvklart", cloudy: "Mulet", rain: "Regn", snow: "Snö", fog: "Dimma" };
+const SKY_ICON: Record<string, IconName> = { clear: "sun", partly: "partly", cloudy: "cloud", rain: "rain", snow: "snow", fog: "cloud" };
+
+/** The big "Nu" zone: what happens in the next few hours, readable from across the room. */
+function NowZone({ data, actions }: { data: Dashboard; actions: Actions }) {
+  const { now, header } = data;
   return (
-    <section className="card col-week">
+    <section className="card strong now area-now" aria-label="Nu">
+      <div style={{ minWidth: 0 }}>
+        <span className="eyebrow">Nu</span>
+        <div className="now-headline">{now.headline}</div>
+        {now.items.length > 0 && (
+          <div className="now-list">
+            {now.items.map((e, i) => (
+              <button key={i} className={`now-item ${i === 0 ? "first" : ""}`} onClick={() => actions.openEvent(e)}>
+                <EventIcon icon={e.icon} color={e.color} size={24} />
+                <span className="time">{e.time}</span>
+                <span className="grow" style={{ minWidth: 0 }}>
+                  <span className="what" style={{ display: "block" }}>
+                    {e.title}
+                  </span>
+                  <span className="when">
+                    {e.dayLabel === "idag" ? (e.inMinutes > 0 && e.inMinutes < 120 ? `om ${e.inMinutes} min` : "idag") : e.dayLabel}
+                    {e.location ? ` · ${e.location}` : ""}
+                  </span>
+                </span>
+                {e.who && e.initial && <Avatar initial={e.initial} color={e.color} name={e.who} size="lg" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {(header.tempNow !== undefined || header.sky) && (
+        <div className="weather-now">
+          {header.sky && (
+            <span className="sky-ico">
+              <Icon name={SKY_ICON[header.sky] ?? "partly"} size={44} strokeWidth={1.6} />
+            </span>
+          )}
+          {header.tempNow !== undefined && (
+            <span className="temp">
+              <AnimatedNumber value={header.tempNow} />°
+            </span>
+          )}
+          {header.sky && <span className="muted">{SKY_LABEL[header.sky]}</span>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
+  return (
+    <section className="card area-week week-swipe">
       <div className="card-head" style={{ flexWrap: "wrap" }}>
         <h2>Kommande 7 dagar</h2>
         <div className="legend">
-          {data.legend.map((l) => (
-            <span key={l.name}>
-              <span className="dot" style={{ background: l.color }} />
-              {l.name}
-            </span>
-          ))}
+          {data.legend
+            .filter((l) => !data.people.some((p) => p.name === l.name))
+            .map((l) => (
+              <span key={l.name}>
+                <span className="dot" style={{ background: l.color }} />
+                {l.name}
+              </span>
+            ))}
         </div>
       </div>
       <div className="stack" style={{ gap: 8 }}>
-        {data.days.map((d) => (
-          <div key={d.key} className={`day ${d.isToday ? "today" : ""}`}>
+        {data.days.map((d, di) => (
+          <div key={d.key} className={`day ${d.isToday ? "today" : ""} ${di < 2 ? "big" : ""}`}>
             <div className="day-name">
               <b>{d.name}</b>
               <small>{d.date}</small>
@@ -167,12 +221,12 @@ function Week({ data }: { data: Dashboard }) {
             <div className="events">
               {d.events.length === 0 && <span className="empty-day">Inget inplanerat</span>}
               {d.events.map((e, i) => (
-                <div className="event" key={i}>
-                  <span className="dot" style={{ background: e.color }} />
+                <button className="event" key={i} onClick={() => actions.openEvent({ ...e, dayLabel: d.name.toLowerCase() })} aria-label={eventLabel(e)}>
+                  <EventIcon icon={e.icon} color={e.color} size={di < 2 ? 17 : 15} />
                   {e.time && <span className="t">{e.time}</span>}
                   <span className="title">{e.title}</span>
-                  {e.who && <span className="muted">· {e.who}</span>}
-                </div>
+                  {e.who && e.initial && <Avatar initial={e.initial} color={e.color} name={e.who} />}
+                </button>
               ))}
             </div>
           </div>
@@ -195,7 +249,7 @@ export function PriceCard({ prices }: { prices: NonNullable<Dashboard["prices"]>
       <div className="row gap" style={{ alignItems: "baseline" }}>
         <span className="muted">Nu</span>
         <span className="big-num">
-          {fmt(prices.now)}
+          <AnimatedNumber value={prices.now} decimals={2} />
           <small>kr/kWh{prices.kind === "spot" ? " spot" : ""}</small>
         </span>
       </div>
@@ -362,9 +416,9 @@ function ClimatesMini({ climates }: { climates: Dashboard["climates"] }) {
 }
 
 /**
- * The home screen is built from the user's chosen widgets, in their order. The week view
- * takes the wide middle column; the rest are split between the side columns. Widgets
- * without data render nothing, so an empty choice never shows an empty box.
+ * The home screen is a bento grid built from the user's chosen widgets, in their order:
+ * the "Nu" zone across the top, the week in the wide middle, the rest split between the
+ * side columns. Widgets without data render nothing, so a choice never shows an empty box.
  */
 export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
   const render = (id: Dashboard["home"][number]["id"]): React.ReactNode => {
@@ -392,17 +446,17 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
     }
   };
   const chosen = data.home.filter((w) => w.on);
+  const nowOn = chosen.some((w) => w.id === "now");
   const weekOn = chosen.some((w) => w.id === "week");
-  const side = chosen.filter((w) => w.id !== "week").map((w) => render(w.id)).filter(Boolean);
-  // Balance side widgets: first half left, rest right.
-  const half = Math.ceil(side.length / 2);
-  const left = weekOn ? side.slice(0, half) : side.filter((_, i) => i % 2 === 0);
-  const right = weekOn ? side.slice(half) : side.filter((_, i) => i % 2 === 1);
+  const rest = chosen.filter((w) => w.id !== "week" && w.id !== "now").map((w) => render(w.id)).filter(Boolean);
+  // Left column under the Nu zone, side column to the right: first half left, the rest right.
+  const half = Math.ceil(rest.length / 2);
   return (
     <main className="home-grid">
-      <div className="col">{left}</div>
-      {weekOn ? <Week data={data} /> : <div className="col col-week" />}
-      <div className="col">{right}</div>
+      {nowOn && <NowZone data={data} actions={actions} />}
+      <div className="col area-left">{rest.slice(0, half)}</div>
+      {weekOn ? <Week data={data} actions={actions} /> : <div className="area-week" />}
+      <div className="col area-side">{rest.slice(half)}</div>
     </main>
   );
 }

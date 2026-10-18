@@ -20,7 +20,7 @@ const out = `<title>Familjetavla demo</title>
 <link rel="icon" href="${icon}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>${css.join("\n")}</style>
 <div id="root"></div>
 <script type="module">${js.join("\n")}</script>
