@@ -12,6 +12,7 @@ const REMINDER_ICON: Record<Reminder["icon"], IconName> = {
   trash: "trash",
   kids: "kids",
   info: "info",
+  school: "school",
 };
 
 export function Ring({ progress, size = 92, stroke = 9, children }: { progress: number; size?: number; stroke?: number; children: React.ReactNode }) {
@@ -70,10 +71,25 @@ function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["school
 }
 
 function Custody({ c }: { c: NonNullable<Dashboard["custody"]> }) {
+  if (c.rows) {
+    // Children with different rhythms: one row each, nearest change first.
+    return (
+      <section className="card custody custody-rows">
+        <span className="eyebrow">Hos oss</span>
+        {c.rows.map((r) => (
+          <div key={r.names} className={`custody-row ${r.home ? "home" : "away"}`}>
+            <span className="dot" style={{ background: r.color }} aria-hidden="true" />
+            <b className="grow">{r.names}</b>
+            <span className="muted">{r.text}</span>
+          </div>
+        ))}
+      </section>
+    );
+  }
   return (
     <section className="card custody">
       <div className="grow stack" style={{ gap: 6 }}>
-        <span className="eyebrow">Barnvecka</span>
+        <span className="eyebrow">Hos oss</span>
         <b style={{ fontSize: 22, lineHeight: 1.2 }}>{c.headline}</b>
         <span className="muted" style={{ fontSize: 14 }}>
           {c.sub}
@@ -168,7 +184,7 @@ function NowZone({ data, actions }: { data: Dashboard; actions: Actions }) {
                   <span className="when">
                     {e.dayLabel === "idag" ? (e.inMinutes > 0 && e.inMinutes < 120 ? `om ${e.inMinutes} min` : "idag") : e.dayLabel}
                     {e.location ? ` · ${e.location}` : ""}
-                    {e.travel && ` · ${travelText(e.travel) || "välj skjuts"}`}
+                    {e.travel && ` · ${travelText(e.travel) || (e.travel.kind === "care" ? "vem lämnar och hämtar?" : "välj skjuts")}`}
                   </span>
                 </span>
                 {e.who && e.initial && <Avatar initial={e.initial} color={e.color} name={e.who} size="lg" />}

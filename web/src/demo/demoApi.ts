@@ -38,9 +38,68 @@ if (firstRun) {
 const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), ms));
 const d = fx.dashboard;
 
+// ---- A mixed family like the one we build for: two children every other week (Ella, Leo) and
+// two at home all the time (Maja on förskola with drop-off/pick-up, Nils). Added on top of the
+// recorded data so the demo shows care days, a planning day and "Hos oss". ----
+{
+  const c = fx.config.config;
+  c.people = [
+    ...c.people.slice(0, 1),
+    { id: "anna", name: "Anna", color: "#ff8fa3", kind: "adult" },
+    ...c.people.slice(1),
+    {
+      id: "maja",
+      name: "Maja",
+      color: "#34e0a1",
+      kind: "child",
+      custody: { mode: "always" },
+      care: { name: "Förskola", days: { "1": "07:30-16:00", "2": "07:30-16:00", "3": "07:30-16:00", "4": "07:30-16:00", "5": "08:00-15:00" }, travel: { to: { mode: "adult:emil" }, home: { mode: "adult:anna" } } },
+    },
+    { id: "nils", name: "Nils", color: "#ff9f5a", kind: "child", custody: { mode: "always" } },
+  ];
+  const dd = fx.dashboard;
+  dd.people = [
+    dd.people[0],
+    { name: "Anna", color: "#ff8fa3", initial: "A", home: true, kind: "adult" },
+    ...dd.people.slice(1),
+    { name: "Maja", color: "#34e0a1", initial: "M", home: true, kind: "child" },
+    { name: "Nils", color: "#ff9f5a", initial: "N", home: true, kind: "child" },
+  ];
+  dd.legend = [dd.legend[0], { name: "Anna", color: "#ff8fa3" }, ...dd.legend.slice(1, 3), { name: "Maja", color: "#34e0a1" }, { name: "Nils", color: "#ff9f5a" }, ...dd.legend.slice(3)];
+  const careTravel = {
+    key: "care:maja@care@2026-10-19",
+    calendarId: "care:maja",
+    calendarName: "Förskola",
+    to: { mode: "adult:emil" as const, label: "Emil" },
+    home: { mode: "adult:anna" as const, label: "Anna" },
+    fromCalendar: true,
+    kind: "care" as const,
+  };
+  dd.now.items.push({
+    time: "07:30",
+    end: "16:00",
+    title: "Lämning · Förskola",
+    color: "#34e0a1",
+    who: "Maja",
+    initial: "M",
+    category: "school",
+    icon: "school",
+    travel: careTravel,
+    inMinutes: 0,
+    dayLabel: "imorgon",
+  });
+  dd.reminders.splice(2, 0, { icon: "kids", title: "Maja · förskola imorgon 07:30–16:00", sub: "Emil lämnar · Anna hämtar", tone: "green" });
+  dd.reminders.splice(1, 0, { icon: "school", title: "Maja · Planeringsdag – förskolan stängd fre 23 okt", sub: "Om 5 dagar – ordna barnomsorg", tone: "amber" });
+  dd.reminders = dd.reminders.map((r) => (r.icon === "kids" && r.sub === "Barnvecka börjar" ? { ...r, sub: "Byte" } : r));
+  if (dd.custody) dd.custody.sub = "Byte mån 19 okt · v43";
+  const fri = dd.days.find((x) => x.key === "2026-10-23");
+  fri?.events.unshift({ time: "", title: "Planeringsdag – förskolan stängd", color: "#34e0a1", who: "Maja", initial: "M", category: "school", icon: "school" });
+}
+
 // ---- Dit/hem in the demo: the same rules as server/src/travel.ts, on the recorded events ----
 d.travelOptions = [
   { mode: "adult:emil", label: "Emil skjutsar" },
+  { mode: "adult:anna", label: "Anna skjutsar" },
   { mode: "ride", label: "Blir skjutsad" },
   { mode: "bus", label: "Buss" },
   { mode: "self", label: "Cyklar/går" },
@@ -51,7 +110,7 @@ const savedTravel: Record<string, TravelChoice> = {
 };
 const calTravel: Record<string, TravelChoice> = { "leo-sim": { to: { mode: "bus" }, home: { mode: "adult:emil" } } };
 const legLabel = (l: TravelLeg) =>
-  l.mode === "bus" ? "Buss" : l.mode === "self" ? "Cyklar/går" : l.mode === "ride" ? (l.by ? `Skjuts med ${l.by}` : "Blir skjutsad") : "Emil skjutsar";
+  l.mode === "bus" ? "Buss" : l.mode === "self" ? "Cyklar/går" : l.mode === "ride" ? (l.by ? `Skjuts med ${l.by}` : "Blir skjutsad") : l.mode === "adult:anna" ? "Anna skjutsar" : "Emil skjutsar";
 function decorate(e: DashEvent, dayKey: string) {
   if (e.category !== "sport" || !e.time) return;
   const cal = demoCal(e.title);
@@ -65,7 +124,7 @@ function summary(e: DashEvent) {
   const t = e.travel;
   if (!t || (!t.to && !t.home)) return "";
   if (t.to && t.home && t.to.label === t.home.label) return `${t.to.label} dit och hem`;
-  const low = (x: string) => (x.startsWith("Emil") ? x : x[0].toLowerCase() + x.slice(1));
+  const low = (x: string) => (/^(Emil|Anna)/.test(x) ? x : x[0].toLowerCase() + x.slice(1));
   return [t.to && `${t.to.label} dit`, t.home && `${low(t.home.label)} hem`].filter(Boolean).join(" · ").replace(/^./, (c) => c.toUpperCase());
 }
 function syncTravel() {
@@ -177,6 +236,9 @@ export const demoApi = {
     return wait(fx.config, 300);
   },
   checkPin: () => wait({ ok: true }),
+  authStatus: () => wait({ paired: true, pinRequired: false, supervisor: false }),
+  pair: (_pin: string, _name: string) => wait({ ok: true as const }),
+  forgetDevices: () => wait({ ok: true as const }),
   dashboard: () => {
     syncDayParts();
     return wait(d, 120);
@@ -296,6 +358,17 @@ export const demoApi = {
     return wait({});
   },
   travel: (key: string, choice: TravelChoice | null, forCalendar = false) => {
+    if (key.startsWith("care:")) {
+      // Förskola in the demo: update the drop-off item and the reminder.
+      const name = (l?: TravelLeg) => (!l ? undefined : l.mode === "adult:anna" ? "Anna" : l.mode === "adult:emil" ? "Emil" : l.by || "Någon annan");
+      for (const e of [...baseNow.items, ...d.now.items]) {
+        if (e.travel?.key !== key) continue;
+        e.travel = { ...e.travel, to: choice?.to && { ...choice.to, label: name(choice.to)! }, home: choice?.home && { ...choice.home, label: name(choice.home)! }, fromCalendar: forCalendar };
+      }
+      const r = d.reminders.find((x) => x.title.startsWith("Maja · förskola"));
+      if (r) r.sub = [choice?.to && `${name(choice.to)} lämnar`, choice?.home && `${name(choice.home)} hämtar`].filter(Boolean).join(" · ") || "Vem lämnar och hämtar? Tryck på lämningen i Nu";
+      return wait({ ok: true as const }, 150);
+    }
     if (forCalendar) {
       const calId = key.slice(0, key.lastIndexOf("@"));
       if (choice) calTravel[calId] = choice;

@@ -2,7 +2,7 @@
 
 > Status 2026-10-18 (version 3, efter två granskningsrundor). Skrivet för att kunna granskas av någon annan (människa eller AI): vad bygger vi, hur, vilka beslut är tagna, vad saknas och var finns riskerna. Kommentera gärna direkt per avsnitt.
 >
-> Hör ihop med **[DESIGN.md](DESIGN.md)** (designsystemet i detalj). Klickbar demo utan server: `docs/demo/familjetavla-demo.html` (öppna i webbläsaren; `#ipad` visar den i iPad-storlek, `#forsta` som nyinstallerad).
+> Senaste granskningsunderlag: **[GRANSKNING.md](GRANSKNING.md)**. Hör ihop med **[DESIGN.md](DESIGN.md)** (designsystemet i detalj). Klickbar demo utan server: `docs/demo/familjetavla-demo.html` (öppna i webbläsaren; `#ipad` visar den i iPad-storlek, `#forsta` som nyinstallerad).
 
 Repo: https://github.com/murre87/familjetavla (MIT-licens, publikt)
 
@@ -30,7 +30,7 @@ Inspiration: Skylight/Cozyla/DAKboard (färdiga familjeskärmar), OneHub Family 
 
 ## 2. Målgrupp och principer
 
-- Svenska familjer, ofta med växelvis boende, som redan kör Home Assistant.
+- Svenska familjer – med eller utan växelvis boende, ofta blandat i samma hushåll – som gärna (men inte nödvändigtvis) kör Home Assistant. Ingen familjeform är standard: nya barn bor här "hela tiden" tills man väljer annat.
 - **Märkesoberoende**: bilar, växelriktare, värmepumpar, spabad, elbolag m.m. läses via Home Assistant – appen ska inte behöva känna till varje märke.
 - **Hämta automatiskt från HA** det som redan finns integrerat; användaren bockar bara ur.
 - **Leverantörsmoduler** för det som inte finns i HA (skola, mataffär, sopor, elpris): en fil per leverantör, guiden ritar formulären själv.

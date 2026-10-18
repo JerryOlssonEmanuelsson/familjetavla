@@ -54,18 +54,67 @@ function PinGate({ onOk }: { onOk: () => void }) {
   );
 }
 
+/** First visit from a new screen when a PIN is set: unlock it once, then it stays unlocked. */
+function PairGate({ onOk }: { onOk: () => void }) {
+  const [pin, setValue] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="center-screen">
+      <form
+        className="card pin-card"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError("");
+          try {
+            const ua = navigator.userAgent;
+            const name = /iPad/.test(ua) ? "iPad" : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : "Dator";
+            await api.pair(pin, name);
+            onOk();
+          } catch {
+            setError("Fel PIN-kod");
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <h1>Lås upp skärmen</h1>
+        <p className="muted">Ange familjetavlans PIN-kod en gång. Sedan kommer den här skärmen ihåg det – andra enheter på nätverket kommer inte åt tavlan.</p>
+        <label className="field">
+          <span>PIN-kod</span>
+          <input type="password" inputMode="numeric" autoFocus value={pin} onChange={(e) => setValue(e.target.value)} />
+        </label>
+        {error && <p className="error-text">{error}</p>}
+        <button className="btn primary" disabled={busy || !pin}>
+          {busy ? "Låser upp…" : "Lås upp"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export function App() {
   const hash = useHash();
   const [cfg, setCfg] = useState<ConfigResponse | null>(null);
   const [loadError, setLoadError] = useState("");
   const [unlocked, setUnlocked] = useState(false);
+  const [needsPair, setNeedsPair] = useState(false);
 
-  useEffect(() => {
+  const load = () =>
     api
       .config()
-      .then(setCfg)
-      .catch((e: Error) => setLoadError(e.message));
+      .then((c) => {
+        setNeedsPair(false);
+        setCfg(c);
+      })
+      .catch((e: ApiError) => (e.status === 401 ? setNeedsPair(true) : setLoadError(e.message)));
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (needsPair) return <PairGate onOk={() => void load()} />;
 
   if (loadError) {
     return (

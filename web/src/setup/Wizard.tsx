@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Config, ConfigResponse } from "../../../server/src/types";
-import { api, type PostcodeInfo } from "../api";
+import { api, setPin, type PostcodeInfo } from "../api";
 import { Icon } from "../Icon";
 import { clearEntityCache, type SecretDraft } from "./parts";
 import {
@@ -33,11 +33,11 @@ export interface StepProps {
 
 const STEPS: { id: string; label: string; title: string; lead: string; C: (p: StepProps) => React.ReactNode; needsHa?: boolean; optional?: boolean }[] = [
   { id: "hem", label: "Hem", title: "Välkommen till Familjetavlan", lead: "Vi börjar med var ni bor – det ger väder, elområde och sophämtning.", C: HomeStep },
-  { id: "familj", label: "Familjen", title: "Vilka bor här?", lead: "Lägg till vuxna och barn. För barn med växelvis boende anger du vilka veckor de är här.", C: FamilyStep },
+  { id: "familj", label: "Familjen", title: "Vilka bor här?", lead: "Lägg till vuxna och barn. Bor ett barn växelvis i två hem väljer du det på barnet – annars behöver du inte tänka på det.", C: FamilyStep },
   { id: "ha", label: "Home Assistant", title: "Home Assistant", lead: "Med Home Assistant kan tavlan visa bilar, ljus, värme och energi. Hoppa över om du inte har det.", C: HaStep },
   { id: "hamta", label: "Hämta", title: "Hämta från Home Assistant", lead: "Vi letar upp det du redan har integrerat – bilar, växelriktare, värmepump, spabad, lampor och mer. Bocka ur det du inte vill ha.", C: DiscoverStep, needsHa: true, optional: true },
-  { id: "kalendrar", label: "Kalendrar", title: "Kalendrar", lead: "Lägg till familjens kalendrar och barnens lag. Sport kan visas bara på barnveckorna.", C: CalendarsStep },
-  { id: "skola", label: "Skola", title: "Skola", lead: "Hämta schema, idrott och skolmat. Tavlan påminner om gympapåsen.", C: SchoolStep, optional: true },
+  { id: "kalendrar", label: "Kalendrar", title: "Kalendrar", lead: "Lägg till familjens kalendrar och barnens aktiviteter – en kalender per lag eller aktivitet.", C: CalendarsStep },
+  { id: "skola", label: "Skola", title: "Skola och förskola", lead: "Skola och förskola: schema, idrott, omsorgstid och matsedel. Tavlan påminner om gympapåsen.", C: SchoolStep, optional: true },
   { id: "sopor", label: "Sopor", title: "Sophämtning", lead: "Få en påminnelse kvällen innan kärlen töms.", C: WasteStep, optional: true },
   { id: "inkop", label: "Inköp", title: "Mat & inköp", lead: "Inköpslistan på tavlan – och skicka den till butikens varukorg.", C: ShoppingStep, optional: true },
   { id: "el", label: "El", title: "Elpris", lead: "Se timpriset och de billigaste timmarna. Lägg till ditt elbolags påslag för verkligt pris.", C: ElectricityStep, optional: true },
@@ -63,6 +63,8 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
     setError("");
     try {
       const r = await api.saveConfig(next, secrets);
+      // A new PIN unlocks this screen at once (the server pairs it), and later saves send it along.
+      if (secrets["admin.pin"]) setPin(secrets["admin.pin"]);
       setResp(r);
       setCfg(r.config);
       setSecrets({});

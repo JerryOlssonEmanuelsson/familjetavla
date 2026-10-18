@@ -13,6 +13,8 @@ export interface CalEvent {
   description?: string;
   /** CATEGORIES from the feed – SportAdmin/laget.se often put the team or group here. */
   categories?: string[];
+  /** UID from the calendar – same for every occurrence of a recurring event. */
+  uid?: string;
 }
 
 const haystack = (e: CalEvent) =>
@@ -107,6 +109,7 @@ export function parseIcs(body: string, from: Date, to: Date): CalEvent[] {
     const allDay = isAllDay(ev);
     const cats = (ev as { categories?: unknown }).categories;
     const base = {
+      uid: typeof ev.uid === "string" && ev.uid ? ev.uid : undefined,
       allDay,
       title: text(ev.summary) || "(utan titel)",
       location: text(ev.location) || undefined,

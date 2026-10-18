@@ -64,10 +64,12 @@ export async function collectCalendars(cfg: Config, from: Date, to: Date, errors
 export interface SchoolData {
   events: SourcedEvent[];
   food: { child: string; day: string; dishes: string[] }[];
+  /** Care time (förskola/fritids) per person id. */
+  care: { personId: string; text: string }[];
 }
 
 export async function collectSchool(cfg: Config, from: Date, to: Date, errors: SourceError[]): Promise<SchoolData> {
-  const out: SchoolData = { events: [], food: [] };
+  const out: SchoolData = { events: [], food: [], care: [] };
   const names = new Map(cfg.people.map((p) => [p.id, p.name]));
   await Promise.all(
     cfg.integrations
@@ -80,6 +82,10 @@ export async function collectSchool(cfg: Config, from: Date, to: Date, errors: S
           for (const e of data.events) {
             const personId = e.child ? integ.personMap?.[e.child] : integ.personId;
             out.events.push({ ...e, sourceId: `school:${integ.id}`, personId, category: "school" });
+          }
+          for (const c of data.care ?? []) {
+            const pid = c.child ? integ.personMap?.[c.child] : integ.personId;
+            if (pid) out.care.push({ personId: pid, text: c.text });
           }
           for (const f of data.food ?? []) {
             const pid = f.child ? integ.personMap?.[f.child] : integ.personId;

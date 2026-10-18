@@ -112,7 +112,7 @@ function TravelPicker({
   return (
     <div className="travel-pick">
       <div className="travel-pick-label">
-        <Icon name={label === "Dit" ? "arrowRight" : "arrowLeft"} size={18} />
+        <Icon name={label === "Dit" || label === "Lämnar" ? "arrowRight" : "arrowLeft"} size={18} />
         {label}
       </div>
       <div className="seg" role="radiogroup" aria-label={label}>
@@ -172,6 +172,11 @@ function EventSheet({
     }
   };
   const current: TravelChoice = { to: t?.to && { mode: t.to.mode, by: t.to.by }, home: t?.home && { mode: t.home.mode, by: t.home.by } };
+  // Förskola: who drops off and picks up – adults by name, or someone else.
+  const care = t?.kind === "care";
+  const options = care
+    ? data.travelOptions.filter((o) => o.mode.startsWith("adult:") || o.mode === "ride").map((o) => ({ ...o, label: o.mode === "ride" ? "Någon annan" : o.label.replace(/ skjutsar$/, "") }))
+    : data.travelOptions;
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={e.title} onClick={(x) => x.stopPropagation()} style={{ maxWidth: 620 }}>
@@ -207,16 +212,16 @@ function EventSheet({
         </div>
         {t && (
           <div className={`travel-box ${busy ? "busy" : ""}`}>
-            <h3>Hur tar sig {e.who || "barnet"} dit och hem?</h3>
-            <TravelPicker label="Dit" leg={current.to} options={data.travelOptions} onPick={(to) => save({ ...current, to })} />
-            <TravelPicker label="Hem" leg={current.home} options={data.travelOptions} onPick={(home) => save({ ...current, home })} />
+            <h3>{care ? `Vem lämnar och hämtar ${e.who || "barnet"}?` : `Hur tar sig ${e.who || "barnet"} dit och hem?`}</h3>
+            <TravelPicker label={care ? "Lämnar" : "Dit"} leg={current.to} options={options} onPick={(to) => save({ ...current, to })} />
+            <TravelPicker label={care ? "Hämtar" : "Hem"} leg={current.home} options={options} onPick={(home) => save({ ...current, home })} />
             <div className="row gap wrap travel-foot">
               <span className="muted grow">
-                {t.fromCalendar ? `Standard för ${t.calendarName ?? "kalendern"}.` : t.to || t.home ? "Gäller bara det här tillfället." : "Inget valt än."}
+                {t.fromCalendar ? (care ? "Brukar vara så." : `Standard för ${t.calendarName ?? "kalendern"}.`) : t.to || t.home ? (care ? "Gäller bara den här dagen." : "Gäller bara det här tillfället.") : "Inget valt än."}
               </span>
               {t.calendarId && (t.to || t.home) && !t.fromCalendar && (
                 <button className="btn small ghost" onClick={() => save(current, true)}>
-                  Använd för alla i {t.calendarName ?? "kalendern"}
+                  {care ? "Gör till standard" : `Använd för alla i ${t.calendarName ?? "kalendern"}`}
                 </button>
               )}
             </div>
