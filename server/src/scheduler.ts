@@ -40,7 +40,8 @@ export function startScheduler(log: FastifyBaseLogger) {
         log.error(`Schema "${s.name}" misslyckades: ${(e as Error).message}`);
       }
     }
-    if (fired.size > 500) fired.clear();
+    // Forget earlier minutes only – clearing everything could fire a schedule twice in the same minute.
+    for (const k of fired) if (!k.endsWith(`@${minuteKey}`)) fired.delete(k);
   };
   return setInterval(() => void tick(), 20_000);
 }

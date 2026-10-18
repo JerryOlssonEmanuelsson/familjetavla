@@ -33,7 +33,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Version
         id: v
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          V=$(node -p "require('./package.json').version")
+          # Home Assistant pulls the image tag named in config.yaml, so the two must match.
+          A=$(sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\}/\1/p' familjetavla/config.yaml)
+          if [ "$V" != "$A" ]; then echo "::error::package.json ($V) och familjetavla/config.yaml ($A) har olika version"; exit 1; fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .

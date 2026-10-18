@@ -74,6 +74,8 @@ Det som inte finns i HA sköts av **leverantörsmoduler**:
 2. Installera **Familjetavla**, starta, och öppna den i sidomenyn.
 3. Följ guiden. Home Assistant är anslutet automatiskt.
 
+> **För dig som underhåller projektet:** tillägget hämtar en färdig image från GitHub. Den byggs när du skapar en release med en tagg som `v0.1.0` (samma version som i `familjetavla/config.yaml`). Gör paketen `familjetavla-amd64` och `familjetavla-aarch64` publika under GitHub → Packages om de blir privata.
+
 ### Med Docker
 
 ```bash
