@@ -86,8 +86,18 @@ export class HaSocket {
       return this.schedule();
     }
     this.ws = ws;
-    ws.onmessage = (ev) => this.handle(conn, JSON.parse(String(ev.data)));
+    // Events from a socket that has since been replaced (config saved → start()) are ignored,
+    // otherwise its late onclose would open a second, duplicate connection.
+    ws.onmessage = (ev) => {
+      if (this.ws !== ws) return;
+      try {
+        void this.handle(ws, conn, JSON.parse(String(ev.data)));
+      } catch {
+        /* not JSON */
+      }
+    };
     ws.onclose = () => {
+      if (this.ws !== ws) return;
       const was = this.connected;
       this.connected = false;
       if (was) this.log.warn("HA WebSocket stängdes – försöker igen");
@@ -104,13 +114,13 @@ export class HaSocket {
     this.timer = setTimeout(() => this.open(), delay);
   }
 
-  private async handle(conn: HaConn, msg: { type: string; id?: number; success?: boolean; result?: unknown; error?: { message: string }; event?: { data: { entity_id: string; new_state: HaState | null } } }) {
+  private async handle(ws: WebSocket, conn: HaConn, msg: { type: string; id?: number; success?: boolean; result?: unknown; error?: { message: string }; event?: { data: { entity_id: string; new_state: HaState | null } } }) {
     if (msg.type === "auth_required") {
-      this.ws?.send(JSON.stringify({ type: "auth", access_token: conn.token }));
+      ws.send(JSON.stringify({ type: "auth", access_token: conn.token }));
     } else if (msg.type === "auth_invalid") {
       this.log.error("HA WebSocket: ogiltig token");
       this.stopped = true;
-      this.ws?.close();
+      ws.close();
     } else if (msg.type === "auth_ok") {
       this.connected = true;
       this.retry = 0;

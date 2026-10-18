@@ -70,9 +70,15 @@ Det som inte finns i HA sköts av **leverantörsmoduler**:
 
 ### Som Home Assistant-tillägg (rekommenderas)
 
-1. **Inställningar → Tillägg → Tilläggsbutik → ⋮ → Förråd**, lägg till `https://github.com/murre87/familjetavla`.
-2. Installera **Familjetavla**, starta, och öppna den i sidomenyn.
-3. Följ guiden. Home Assistant är anslutet automatiskt.
+[![Lägg till i Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fmurre87%2Ffamiljetavla)
+
+1. Tryck på knappen ovan (eller **Inställningar → Tillägg → Tilläggsbutik → ⋮ → Förråd** och lägg till `https://github.com/murre87/familjetavla`).
+2. Installera **Familjetavla**, tryck **Starta** och slå på **Visa i sidomenyn**.
+3. Öppna Familjetavla. Guiden tar ungefär tio minuter, Home Assistant är redan anslutet, och allt utom *Hem* och *Familjen* kan hoppas över och fyllas i senare.
+
+Tillägg kräver Home Assistant OS eller Supervised. Kör du Home Assistant i Docker (Container) – använd Docker nedan.
+
+> **För dig som underhåller projektet:** tillägget hämtar en färdig image från GitHub. Den byggs när du skapar en release med en tagg som `v0.1.0` (samma version som i `familjetavla/config.yaml`). Gör paketen `familjetavla-amd64` och `familjetavla-aarch64` publika under GitHub → Packages om de blir privata.
 
 ### Med Docker
 

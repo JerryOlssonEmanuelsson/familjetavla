@@ -369,6 +369,24 @@ export function DiscoverStep({ cfg, set }: StepProps) {
     setApplied(true);
   };
 
+  // Search as soon as the step opens – one less button to find.
+  useEffect(() => {
+    void scan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // First setup (nothing from HA on the board yet): use what was found right away, and keep
+  // following the checkboxes – so "Nästa" never loses the choices. When re-running the guide,
+  // existing settings are only replaced after "Använd det valda".
+  const [fresh] = useState(() => {
+    const e = cfg.entities;
+    return e.cars.length + e.climates.length + e.deviceCards.length + e.lightGroups.length + e.temps.length === 0 && !Object.values(e.energy).some(Boolean);
+  });
+  useEffect(() => {
+    if (d && (fresh || applied)) apply();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, pick]);
+
   const Box = ({ k, label, sub }: { k: string; label: string; sub?: string }) => (
     <label className="check item-row">
       <input type="checkbox" checked={Boolean(pick[k])} onChange={(e) => setPick({ ...pick, [k]: e.target.checked })} />
@@ -381,8 +399,8 @@ export function DiscoverStep({ cfg, set }: StepProps) {
 
   return (
     <div className="stack">
-      <button className="btn primary" onClick={scan} disabled={busy}>
-        {busy ? "Söker…" : d ? "Sök igen" : "Hämta från Home Assistant"}
+      <button className={d ? "btn" : "btn primary"} onClick={scan} disabled={busy}>
+        {busy ? "Söker i Home Assistant…" : d ? "Sök igen" : "Hämta från Home Assistant"}
       </button>
       <Result error={error} />
       {d && (
@@ -443,13 +461,14 @@ export function DiscoverStep({ cfg, set }: StepProps) {
             {d.calendars.some((c) => c.waste) && <Box k="waste" label="Sophämtning från Home Assistant" sub={d.calendars.filter((c) => c.waste).map((c) => c.name).join(", ")} />}
             {d.priceSensors.length > 0 && <Box k="price" label="Elpris från Home Assistant i stället för spotpris" sub={d.priceSensors[0].name} />}
           </section>
-          <button className="btn primary" onClick={apply}>
-            Använd det valda
-          </button>
-          {applied && (
+          {applied ? (
             <div className="result" role="status">
-              <b>Klart! Allt kan finjusteras i steget Huset.</b>
+              <b>Klart – det du bockat i följer med. Allt kan finjusteras i steget Huset.</b>
             </div>
+          ) : (
+            <button className="btn primary" onClick={apply}>
+              Använd det valda
+            </button>
           )}
         </>
       )}
