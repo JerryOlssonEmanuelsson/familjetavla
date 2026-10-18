@@ -163,6 +163,21 @@ Kalenderkällor (Google/iCloud/laget.se/SportAdmin/Outlook/ICS/HA) är en egen, 
 - Flera tavlor med olika vyer (t.ex. barnrummet)
 - Tunn HACS-integration som exponerar tavlans data som entiteter
 
+## 8b. Ändrat efter första granskningen (2026-10-18)
+
+- **Undantag för barnveckan** (datumintervall hemma/borta) + valfri **byteskalender** (heldagshändelse med barnets namn = hemma, + "borta" = borta).
+- **WebSocket mot HA** (live-states och `state_changed`) + **Server-Sent Events** till plattan → knapptryck syns direkt. REST används som reserv.
+- **Registret via WebSocket** (`config/device_registry/list`, `entity_registry`, `area_registry`) i stället för `/api/template` (template finns kvar som reserv).
+- **"Är du säker?"** på värmestart, bilens lås/knappar och värmelägen.
+- **Sensorer tillbaka till HA:** `sensor.familjetavla_barnvecka_<namn>`, `sensor.familjetavla_nasta_sophamtning`.
+- **Nattläge med pixelförskjutning**, guide för väckning via rörelsesensor och laddning 20–80 %.
+- **Skolmat** från Skolmaten.se och från Skolmat-integrationen i HA; ICS + skolmat är huvudspåret, Vklass ett tillval.
+- **Extern webbläsare** för Willys (`BROWSER_WS_URL`, t.ex. browserless) och möjlighet att bygga utan Chromium.
+- **Valbar startskärm:** rutor och flikar av/på och i valfri ordning.
+- **Leverantörer:** Hemköp (Axfood), eget sopschema, HA-elpris, enhetskort för värmepumpar (Husdata m.fl.), spabad med pumpar/ljus.
+
+Nästa omgång (förslag från granskningen): kollektivtrafik via Trafiklab, veckomeny för middagar, "vem hämtar?" på händelser, notisbanners från HA, större idag/imorgon med ikoner, tvåstegsinloggning (SMS-kod) för ICA/Coop.
+
 ## 9. Teknik och kvalitet
 
 - TypeScript strikt i server och webb, delade typer i `server/src/types.ts`.

@@ -1,0 +1,15 @@
+# Familjetavla utan Home Assistant-tillägg (t.ex. HA Container, NAS eller egen server).
+# Starta: docker compose up -d  → öppna http://<datorn>:8099
+services:
+  familjetavla:
+    image: ghcr.io/murre87/familjetavla:latest
+    # build: .            # eller bygg själv från källkoden
+    container_name: familjetavla
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Europe/Stockholm
+      # - BROWSER_WS_URL=ws://browserless:3000   # extern webbläsare för Willys (valfritt)

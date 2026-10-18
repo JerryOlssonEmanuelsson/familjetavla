@@ -66,11 +66,15 @@ export async function axfoodLogin(site: AxfoodSite, username: string, password: 
   if (!AXFOOD_USERNAME.test(username)) {
     throw new Error(`${site.label}: användarnamnet ska vara personnummer (10 eller 12 siffror) eller kundkortsnummer (16 siffror), inte e-post.`);
   }
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath: process.env.CHROMIUM_PATH || undefined,
-    args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--window-size=1920,1080"],
-  });
+  // BROWSER_WS_URL lets small machines (e.g. a Raspberry Pi) use an external browser such as
+  // browserless/chromium instead of running Chromium locally.
+  const browser = process.env.BROWSER_WS_URL
+    ? await chromium.connect(process.env.BROWSER_WS_URL, { timeout: 30_000 })
+    : await chromium.launch({
+        headless: true,
+        executablePath: process.env.CHROMIUM_PATH || undefined,
+        args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--window-size=1920,1080"],
+      });
   try {
     const ctx = await browser.newContext({ userAgent: UA, viewport: { width: 1920, height: 1080 }, locale: "sv-SE" });
     const page = await ctx.newPage();

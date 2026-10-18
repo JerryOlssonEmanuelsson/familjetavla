@@ -1,4 +1,5 @@
-import { ha, type HaConn } from "./connectors/ha.js";
+import { ha, type HaConn, type HaState } from "./connectors/ha.js";
+import { haSocket } from "./connectors/haws.js";
 import type { CarEntity, Config, NamedEntity } from "./types.js";
 
 /**
@@ -25,7 +26,48 @@ export interface HaEntityInfo {
 
 const TEMPLATE = `{% set ns = namespace(out=[]) %}{% for s in states %}{% set d = device_id(s.entity_id) %}{% set ns.out = ns.out + [{"e": s.entity_id, "n": s.name, "a": area_name(s.entity_id), "d": d, "dn": (device_attr(d, 'name_by_user') or device_attr(d, 'name')) if d else none, "m": device_attr(d, 'manufacturer') if d else none, "mo": device_attr(d, 'model') if d else none, "dc": s.attributes.device_class | default(none), "u": s.attributes.unit_of_measurement | default(none), "st": s.state, "lu": s.last_updated | string}] %}{% endfor %}{{ ns.out | tojson }}`;
 
+/** Registries over the WebSocket API – the structured way HA's own frontend builds its device tree. */
+async function readRegistryWs(): Promise<HaEntityInfo[] | null> {
+  const sock = haSocket();
+  if (!sock?.connected) return null;
+  type Ent = { entity_id: string; device_id: string | null; area_id: string | null; name: string | null; original_name: string | null; disabled_by: string | null; hidden_by: string | null };
+  type Dev = { id: string; name: string | null; name_by_user: string | null; manufacturer: string | null; model: string | null; area_id: string | null };
+  type Area = { area_id: string; name: string };
+  const [ents, devs, areas] = await Promise.all([
+    sock.call<Ent[]>({ type: "config/entity_registry/list" }),
+    sock.call<Dev[]>({ type: "config/device_registry/list" }),
+    sock.call<Area[]>({ type: "config/area_registry/list" }),
+  ]);
+  const devMap = new Map(devs.map((d) => [d.id, d]));
+  const areaMap = new Map(areas.map((a) => [a.area_id, a.name]));
+  const entMap = new Map(ents.map((e) => [e.entity_id, e]));
+  const out: HaEntityInfo[] = [];
+  for (const s of sock.states.values()) {
+    const e = entMap.get(s.entity_id);
+    if (e?.disabled_by || e?.hidden_by) continue;
+    const d = e?.device_id ? devMap.get(e.device_id) : undefined;
+    const areaId = e?.area_id ?? d?.area_id ?? null;
+    const st = s as HaState & { last_updated?: string };
+    out.push({
+      e: s.entity_id,
+      n: String(s.attributes.friendly_name ?? e?.name ?? e?.original_name ?? s.entity_id),
+      a: areaId ? (areaMap.get(areaId) ?? null) : null,
+      d: e?.device_id ?? null,
+      dn: d ? (d.name_by_user ?? d.name) : null,
+      m: d?.manufacturer ?? null,
+      mo: d?.model ?? null,
+      dc: (s.attributes.device_class as string | undefined) ?? null,
+      u: s.attributes.unit_of_measurement ?? null,
+      st: s.state,
+      lu: st.last_updated ?? s.last_changed,
+    });
+  }
+  return out;
+}
+
 export async function readRegistry(conn: HaConn): Promise<HaEntityInfo[]> {
+  const viaWs = await readRegistryWs().catch(() => null);
+  if (viaWs) return viaWs;
   const res = (await ha.template(conn, TEMPLATE)) as string;
   const parsed = typeof res === "string" ? JSON.parse(res) : res;
   return parsed as HaEntityInfo[];

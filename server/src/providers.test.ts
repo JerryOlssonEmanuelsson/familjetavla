@@ -95,3 +95,66 @@ describe("HA price sensor", () => {
     expect(p[0].price).toBeCloseTo(1);
   });
 });
+
+describe("custody overrides and swap calendar", () => {
+  it("override wins over the base rule", async () => {
+    const { isHome } = await import("./custody.js");
+    const c = {
+      mode: "alternating" as const,
+      anchorDate: "2026-10-19",
+      overrides: [{ from: "2026-10-31", to: "2026-11-01", home: true }],
+    };
+    expect(isHome(c, new Date(2026, 9, 31))).toBe(true); // would be away (v44)
+    expect(isHome(c, new Date(2026, 9, 30))).toBe(false); // fredag v44, utanför undantaget
+  });
+
+  it("swap calendar events become overrides", async () => {
+    const { withSwapCalendar } = await import("./dashboard.js");
+    const kid: Person = { id: "k", name: "Ella", color: "#fff", kind: "child", custody: { mode: "oddWeeks" } };
+    const evs = [
+      { ...ev("Ella"), allDay: true, start: new Date(2026, 9, 14), end: new Date(2026, 9, 15), sourceId: "swap", category: "family" as const },
+      { ...ev("Ella borta"), allDay: true, start: new Date(2026, 9, 21), end: new Date(2026, 9, 22), sourceId: "swap", category: "family" as const },
+    ];
+    const [p] = withSwapCalendar([kid], evs);
+    expect(p.custody?.overrides).toEqual([
+      { from: "2026-10-14", to: "2026-10-14", home: true },
+      { from: "2026-10-21", to: "2026-10-21", home: false },
+    ]);
+  });
+});
+
+describe("scheduler", () => {
+  it("fires only enabled schedules at the exact minute and weekday", async () => {
+    const { dueSchedules } = await import("./scheduler.js");
+    const s = { id: "a", name: "Värme", entityId: "climate.car", action: "on" as const, days: [1, 2, 3, 4, 5], time: "06:40", enabled: true };
+    expect(dueSchedules([s], new Date(2026, 9, 19, 6, 40))).toHaveLength(1); // måndag
+    expect(dueSchedules([s], new Date(2026, 9, 18, 6, 40))).toHaveLength(0); // söndag
+    expect(dueSchedules([{ ...s, enabled: false }], new Date(2026, 9, 19, 6, 40))).toHaveLength(0);
+  });
+});
+
+describe("discovery", () => {
+  it("finds a car, solar, spa and a Husdata heat pump card", async () => {
+    const { discover } = await import("./discovery.js");
+    const e = (x: Partial<import("./discovery.js").HaEntityInfo> & { e: string; n: string }) => ({ a: null, d: null, dn: null, m: null, mo: null, dc: null, u: null, st: "1", lu: new Date().toISOString(), ...x });
+    const all = [
+      e({ e: "sensor.leaf_battery", n: "Leaf Battery", d: "car", dn: "Nissan Leaf", m: "Nissan", dc: "battery", u: "%" }),
+      e({ e: "sensor.leaf_range", n: "Leaf Range (AC Off)", d: "car", dn: "Nissan Leaf", m: "Nissan", u: "km" }),
+      e({ e: "device_tracker.leaf", n: "Leaf", d: "car", dn: "Nissan Leaf", m: "Nissan", st: "home" }),
+      e({ e: "climate.leaf_climate", n: "Leaf Climate", d: "car", dn: "Nissan Leaf", m: "Nissan" }),
+      e({ e: "sensor.solaredge_current_power", n: "SolarEdge Current Power", d: "inv", m: "SolarEdge", dc: "power", u: "W" }),
+      e({ e: "climate.spa", n: "Spa", d: "spa", dn: "Spabad", m: "Balboa" }),
+      e({ e: "switch.spa_pump_1", n: "Spa Pump 1", d: "spa", dn: "Spabad", m: "Balboa" }),
+      e({ e: "sensor.h60_indoor", n: "Värmepump Inomhus", d: "hp", dn: "Värmepump", m: "Husdata", dc: "temperature", u: "°C" }),
+      e({ e: "sensor.h60_hot_water", n: "Värmepump Varmvatten", d: "hp", dn: "Värmepump", m: "Husdata", dc: "temperature", u: "°C" }),
+      e({ e: "light.kok", n: "Kök tak", a: "Kök" }),
+    ];
+    const d = discover(all);
+    expect(d.cars).toHaveLength(1);
+    expect(d.cars[0]).toMatchObject({ name: "Nissan Leaf", battery: "sensor.leaf_battery", range: "sensor.leaf_range", climate: "climate.leaf_climate" });
+    expect(d.energy.solar).toBe("sensor.solaredge_current_power");
+    expect(d.climates).toEqual([{ name: "Spa", entityId: "climate.spa", controls: ["switch.spa_pump_1"] }]);
+    expect(d.deviceCards[0]).toMatchObject({ title: "Värmepump", primary: "sensor.h60_indoor", sensors: ["sensor.h60_hot_water"] });
+    expect(d.lightGroups).toEqual([{ name: "Kök", entities: ["light.kok"] }]);
+  });
+});

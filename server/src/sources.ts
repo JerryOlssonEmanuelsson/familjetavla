@@ -79,7 +79,7 @@ export async function collectSchool(cfg: Config, from: Date, to: Date, errors: S
             out.events.push({ ...e, sourceId: `school:${integ.id}`, personId, category: "school" });
           }
           for (const f of data.food ?? []) {
-            const pid = integ.personMap?.[f.child];
+            const pid = f.child ? integ.personMap?.[f.child] : integ.personId;
             out.food.push({ ...f, child: (pid && names.get(pid)) || f.child });
           }
         } catch (e) {

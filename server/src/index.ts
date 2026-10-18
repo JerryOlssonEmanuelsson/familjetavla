@@ -3,6 +3,9 @@ import Fastify from "fastify";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { haConnection } from "./connectors/ha.js";
+import { initHaSocket } from "./connectors/haws.js";
+import { startPublisher } from "./publisher.js";
 import { registerRoutes } from "./routes.js";
 import { startScheduler } from "./scheduler.js";
 
@@ -12,7 +15,10 @@ const here = dirname(fileURLToPath(import.meta.url));
 const webDist = process.env.WEB_DIST ?? join(here, "../../web/dist");
 const port = Number(process.env.PORT ?? 8099);
 
-const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" }, bodyLimit: 256 * 1024 });
+const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" }, bodyLimit: 256 * 1024, trustProxy: false });
+
+const socket = initHaSocket(app.log);
+socket.start(haConnection());
 
 await registerRoutes(app);
 
@@ -28,3 +34,4 @@ if (existsSync(webDist)) {
 
 await app.listen({ host: "0.0.0.0", port });
 startScheduler(app.log);
+startPublisher(app.log);

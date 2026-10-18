@@ -14,6 +14,15 @@ export interface Custody {
   anchorDate?: string;
   /** Veckodag då bytet sker och "barnveckan" börjar. Standard måndag. */
   handoverDay?: Weekday;
+  /** Manuella undantag som går före grundregeln: bytt helg, lov, klämdag. Datum inklusive. */
+  overrides?: CustodyOverride[];
+}
+
+export interface CustodyOverride {
+  from: string; // YYYY-MM-DD
+  to: string; // YYYY-MM-DD
+  home: boolean;
+  note?: string;
 }
 
 export interface Person {
@@ -48,6 +57,11 @@ export interface CalendarSource {
   visibility?: "custody" | "always";
   alwaysShow?: string[];
 }
+
+export const HOME_WIDGETS = ["reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
+export type HomeWidget = (typeof HOME_WIDGETS)[number];
+export const TAB_IDS = ["cars", "lights", "house", "energy", "graphs"] as const;
+export type TabId = (typeof TAB_IDS)[number];
 
 // ---------- Leverantörsmoduler (skola, mataffär, sopor, elpris) ----------
 
@@ -180,6 +194,11 @@ export interface Config {
     municipality?: string;
     lat?: number;
     lon?: number;
+    /**
+     * Valfri byteskalender (id i calendars): en heldagshändelse med barnets namn betyder hemma,
+     * med barnets namn + "borta" betyder borta. Går före grundregeln.
+     */
+    custodyCalendarId?: string;
   };
   people: Person[];
   calendars: CalendarSource[];
@@ -226,6 +245,10 @@ export interface Config {
   dashboard: {
     accent: string;
     theme: "auto" | "dark" | "light";
+    /** Startskärmens rutor i ordning; av/på per ruta. */
+    home: { id: HomeWidget; on: boolean }[];
+    /** Vilka flikar som visas. */
+    tabs: { id: TabId; on: boolean }[];
     nightFrom: string; // "22:00"
     nightTo: string; // "06:00"
   };
@@ -372,6 +395,8 @@ export interface Dashboard {
   graphs: { index: number; title: string }[];
   accent: string;
   theme: "auto" | "dark" | "light";
+  home: { id: HomeWidget; on: boolean }[];
+  tabs: { id: TabId; on: boolean }[];
   /** Dygnsfärger: "day" eller "night" utifrån klockan. */
   daypart: "day" | "night";
   night: boolean;

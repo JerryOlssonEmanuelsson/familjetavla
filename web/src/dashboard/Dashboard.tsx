@@ -31,6 +31,8 @@ function readThemeOverride(): "dark" | "light" | null {
 export interface Actions {
   refresh: () => Promise<void>;
   run: (label: string, fn: () => Promise<unknown>) => Promise<void>;
+  /** Like run, but asks "Är du säker?" first – for heating, locks and similar. */
+  confirm: (question: string, label: string, fn: () => Promise<unknown>) => void;
   openGrocery: () => void;
 }
 
@@ -43,6 +45,7 @@ export function Dashboard() {
   const [grocery, setGrocery] = useState(false);
   const [awakeUntil, setAwakeUntil] = useState(0);
   const [themeOverride, setThemeOverride] = useState(readThemeOverride);
+  const [asking, setAsking] = useState<{ question: string; label: string; fn: () => Promise<unknown> } | null>(null);
   const toastTimer = useRef<number>(0);
 
   const refresh = useCallback(async () => {
@@ -60,9 +63,22 @@ export function Dashboard() {
     const tick = window.setInterval(() => setNow(new Date()), 15_000);
     const onVisible = () => document.visibilityState === "visible" && refresh();
     document.addEventListener("visibilitychange", onVisible);
+    // Live updates: the server pushes "change" when something on the board changes in HA.
+    let es: EventSource | null = null;
+    let soon = 0;
+    try {
+      es = new EventSource("api/events");
+      es.onmessage = () => {
+        window.clearTimeout(soon);
+        soon = window.setTimeout(refresh, 150);
+      };
+    } catch {
+      /* polling still works */
+    }
     return () => {
       clearInterval(poll);
       clearInterval(tick);
+      es?.close();
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [refresh]);
@@ -73,17 +89,19 @@ export function Dashboard() {
     toastTimer.current = window.setTimeout(() => setToast(""), 3500);
   };
 
+  const run: Actions["run"] = async (label, fn) => {
+    try {
+      await fn();
+      await refresh();
+    } catch (e) {
+      showToast(`${label}: ${(e as Error).message}`);
+    }
+  };
   const actions: Actions = {
     refresh,
     openGrocery: () => setGrocery(true),
-    run: async (label, fn) => {
-      try {
-        await fn();
-        await refresh();
-      } catch (e) {
-        showToast(`${label}: ${(e as Error).message}`);
-      }
-    },
+    run,
+    confirm: (question, label, fn) => setAsking({ question, label, fn }),
   };
 
   // Theme: explicit choice (button) wins, else config: auto follows "dygnsfärger".
@@ -121,7 +139,9 @@ export function Dashboard() {
     );
   }
 
-  const tabs = TABS.filter((t) => t.show(data));
+  const tabOn = (id: Tab) => id === "home" || data.tabs.find((t) => t.id === id)?.on !== false;
+  const order = (id: Tab) => (id === "home" ? -1 : data.tabs.findIndex((t) => t.id === id));
+  const tabs = TABS.filter((t) => t.show(data) && tabOn(t.id)).sort((a, b) => order(a.id) - order(b.id));
   const clock = now.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
   const sleeping = data.night && Date.now() > awakeUntil;
 
@@ -168,7 +188,7 @@ export function Dashboard() {
         )}
 
         {tab === "home" && <Home data={data} actions={actions} />}
-        {tab === "cars" && <CarsPage data={data} />}
+        {tab === "cars" && <CarsPage data={data} actions={actions} />}
         {tab === "lights" && <LightsPage data={data} actions={actions} />}
         {tab === "house" && <HousePage data={data} actions={actions} />}
         {tab === "energy" && <EnergyPage data={data} />}
@@ -197,10 +217,36 @@ export function Dashboard() {
         />
       )}
 
+      {asking && (
+        <div className="overlay" onClick={() => setAsking(null)}>
+          <div className="sheet" role="alertdialog" aria-modal="true" aria-label={asking.question} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+            <h2 style={{ fontSize: 22 }}>{asking.question}</h2>
+            <div className="row gap" style={{ justifyContent: "flex-end" }}>
+              <button className="btn" onClick={() => setAsking(null)}>
+                Avbryt
+              </button>
+              <button
+                className="btn primary"
+                autoFocus
+                onClick={() => {
+                  const a = asking;
+                  setAsking(null);
+                  run(a.label, a.fn);
+                }}
+              >
+                Ja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {sleeping && (
         <button className="night-veil" onClick={() => setAwakeUntil(Date.now() + 2 * 60_000)} aria-label="Väck skärmen">
-          <span className="clock">{clock}</span>
-          <span>Tryck för att visa tavlan</span>
+          {/* Pixel shift: the clock wanders slowly so an OLED panel does not burn in. */}
+          <span className="clock" style={{ transform: `translate(${((now.getMinutes() * 37) % 41) - 20}vw, ${((now.getMinutes() * 23) % 31) - 15}vh)` }}>
+            {clock}
+          </span>
         </button>
       )}
 

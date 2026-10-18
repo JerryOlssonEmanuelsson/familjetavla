@@ -1,6 +1,7 @@
 import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
+import { haSocket } from "./connectors/haws.js";
 import { forecast, rainBetween, weatherSummary, type Forecast } from "./connectors/weather.js";
 import { custodyStatus, isHome } from "./custody.js";
 import {
@@ -33,6 +34,28 @@ import type { Config, Control, DashDay, DashEvent, Dashboard, Person, Reminder }
 const MIN = 60_000;
 const WASTE_COLOR = "#9aa0bf";
 const FAMILY_COLOR = "#34e0a1";
+
+/**
+ * Swap calendar: an all-day event with the child's name means "here" that day, the name plus
+ * "borta" means away. Appended as overrides, so they win over the base rule and earlier overrides.
+ */
+export function withSwapCalendar(people: Person[], events: SourcedEvent[]): Person[] {
+  if (!events.length) return people;
+  return people.map((p) => {
+    if (p.kind !== "child" || !p.name) return p;
+    const name = p.name.toLowerCase();
+    const extra: NonNullable<NonNullable<Person["custody"]>["overrides"]> = [];
+    for (const e of events) {
+      const t = e.title.toLowerCase();
+      if (!e.allDay || !t.includes(name)) continue;
+      const last = new Date(e.end.getTime() - 1);
+      extra.push({ from: dayKey(e.start), to: dayKey(last), home: !/borta|hos (mamma|pappa)|andra hemmet/.test(t) });
+    }
+    if (!extra.length) return p;
+    const custody = p.custody ?? { mode: "always" as const };
+    return { ...p, custody: { ...custody, overrides: [...(custody.overrides ?? []), ...extra] } };
+  });
+}
 
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";
@@ -84,8 +107,6 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
   const errors: SourceError[] = [];
   const today = startOfDay(now);
   const horizon = addDays(today, 7);
-  const people = new Map(cfg.people.map((p) => [p.id, p]));
-  const children = cfg.people.filter((p) => p.kind === "child");
 
   const conn = haConnection();
   const [calEvents, school, waste, weather, prices, states, shopping] = await Promise.all([
@@ -99,7 +120,9 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
         })
       : Promise.resolve(null),
     collectPrices(cfg, now, errors),
-    conn
+    haSocket()?.connected
+      ? Promise.resolve([...haSocket()!.states.values()])
+      : conn
       ? cached("ha:states", 20_000, () => ha.states(conn)).catch((e) => {
           errors.push({ source: "Home Assistant", message: (e as Error).message });
           return [] as HaState[];
@@ -108,7 +131,10 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     loadShopping(cfg, errors),
   ]);
   const stateMap = new Map(states.map((s) => [s.entity_id, s]));
-  const all = [...calEvents, ...school.events];
+  const swapCal = cfg.household.custodyCalendarId;
+  const people = new Map(withSwapCalendar(cfg.people, calEvents.filter((e) => e.sourceId === swapCal)).map((p) => [p.id, p]));
+  const children = [...people.values()].filter((p) => p.kind === "child");
+  const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events];
 
   // ---- Days ----
   const days: DashDay[] = [];
@@ -219,6 +245,8 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     graphs: (cfg.entities.graphs ?? []).map((g, index) => ({ index, title: g.title })),
     accent: cfg.dashboard.accent,
     theme: cfg.dashboard.theme ?? "auto",
+    home: cfg.dashboard.home,
+    tabs: cfg.dashboard.tabs,
     daypart: inTimeWindow(now, "07:00", "19:00") ? "day" : "night",
     night: inTimeWindow(now, cfg.dashboard.nightFrom, cfg.dashboard.nightTo),
     errors,
@@ -322,6 +350,13 @@ const MODE_LABELS: Record<string, string> = {
   high_demand: "Hög",
   gas: "Gas",
   on: "Till",
+  ready: "Klar",
+  rest: "Vila",
+  ready_in_rest: "Klar i vila",
+  manual: "Manuell",
+  schedule: "Schema",
+  holiday: "Semester",
+  vacation: "Semester",
 };
 
 function buildClimate(entityId: string, name: string, states: Map<string, HaState>): Omit<Dashboard["climates"][number], "controls"> {
@@ -456,13 +491,13 @@ export function buildReminders(
     }
   }
 
-  // Custody handover
-  for (const c of [...people.values()].filter((p) => p.kind === "child")) {
-    const tomorrow = addDays(today, 1);
-    if (!isHome(c.custody, today) && isHome(c.custody, tomorrow)) {
-      out.push({ icon: "kids", title: `${c.name} kommer imorgon`, sub: "Barnvecka börjar", tone: "green" });
-    }
-  }
+  // Custody handover (one line for all children arriving or leaving tomorrow)
+  const tomorrow = addDays(today, 1);
+  const kids = [...people.values()].filter((p) => p.kind === "child");
+  const arriving = kids.filter((c) => !isHome(c.custody, today) && isHome(c.custody, tomorrow)).map((c) => c.name);
+  const leaving = kids.filter((c) => isHome(c.custody, today) && !isHome(c.custody, tomorrow)).map((c) => c.name);
+  if (arriving.length) out.push({ icon: "kids", title: `${joinNames(arriving)} kommer imorgon`, sub: "Barnvecka börjar", tone: "green" });
+  if (leaving.length) out.push({ icon: "kids", title: `${joinNames(leaving)} åker imorgon`, sub: "Packa det som ska med", tone: "green" });
 
   // Sport and gym for the focus day, and sport tomorrow morning
   const horizonEnd = addDays(focusDay, 1);
@@ -477,7 +512,7 @@ export function buildReminders(
       const key = `sport:${p.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ icon: "bag", title: `${p.name} · ${e.title} ${e.allDay ? focusLabel : hhmm(e.start)}`, sub: "Packa träningsväskan", tone: "blue" });
+      out.push({ icon: "bag", title: `${p.name} · ${e.title} ${evening ? `${focusLabel} ` : ""}${e.allDay ? (evening ? "" : focusLabel) : hhmm(e.start)}`.trim(), sub: "Packa träningsväskan", tone: "blue" });
     } else if (e.gym) {
       const key = `gym:${p.id}`;
       if (seen.has(key)) continue;

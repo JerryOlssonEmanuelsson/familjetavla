@@ -1,4 +1,6 @@
 import { fetchIcs } from "../connectors/ics.js";
+import { ha, haConnection } from "../connectors/ha.js";
+import { getJson } from "../http.js";
 import { isGymLesson, vklassChildren, vklassEvents, vklassLogin } from "../connectors/vklass.js";
 import { hhmm, shortDate, shortWeekday } from "../time.js";
 import type { ProviderCtx, SchoolEvent, SchoolProvider } from "./types.js";
@@ -53,6 +55,87 @@ export const vklass: SchoolProvider = {
     }
     const food = kids.flatMap((k) => k.food.map((f) => ({ child: k.name, ...f })));
     return { events, food };
+  },
+};
+
+const DAY_NAMES = ["Söndag", "Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag", "Lördag"];
+const foodDay = (d: Date) => `${DAY_NAMES[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+
+/**
+ * Skolmaten.se – open menu, no login. API shape from the Skolmat HA integration
+ * (github.com/Kaptensanders/skolmat): /api/4/menu/school/<slug>?year=&week=
+ */
+export const skolmaten: SchoolProvider = {
+  meta: {
+    id: "skolmaten",
+    category: "school",
+    name: "Skolmaten.se (skolmat)",
+    description: "Veckans lunch från skolmaten.se – ingen inloggning. Används av en majoritet av kommunerna.",
+    status: "beta",
+    fields: [{ key: "url", label: "Skolans sida på skolmaten.se", type: "url", placeholder: "https://skolmaten.se/skolans-namn" }],
+    guide: ["Sök upp skolan på skolmaten.se och kopiera adressen från webbläsaren.", "Välj vilket barn menyn gäller."],
+  },
+  async test(ctx) {
+    const { food } = await this.fetch(ctx, new Date(), new Date(Date.now() + 14 * 86_400_000));
+    if (!food?.length) throw new Error("Hittade ingen meny för skolan de kommande två veckorna.");
+    return { ok: true, preview: food.slice(0, 5).map((f) => `${f.day}: ${f.dishes.join(", ")}`) };
+  },
+  async fetch(ctx, from) {
+    const slug = new URL(ctx.str("url")).pathname.replace(/^\/+|\/+$/g, "");
+    if (!slug) throw new Error("Klistra in skolans adress på skolmaten.se.");
+    const headers = {
+      accept: "application/json",
+      referer: "https://skolmaten.se/",
+      // Public web client token used by skolmaten.se's own front end.
+      "client-token": "web-eaa12e50-c84c-4b4a-9cfe-4e3fcbcd9165",
+    };
+    type Day = { date: string; Meals?: { name: string }[] };
+    const weeks: Day[] = [];
+    for (const offset of [0, 7]) {
+      const d = new Date(from.getTime() + offset * 86_400_000);
+      const url = `https://skolmaten.se/api/4/menu/school/${encodeURIComponent(slug)}?year=${isoYear(d)}&week=${isoWeekNo(d)}`;
+      const data = await getJson<{ WeekState?: { Days?: Day[] } }>(url, { headers });
+      weeks.push(...(data.WeekState?.Days ?? []));
+    }
+    const food = weeks
+      .filter((d) => d.Meals?.length)
+      .map((d) => ({ child: "", day: foodDay(new Date(d.date)), dishes: d.Meals!.map((m) => m.name.trim()).filter(Boolean) }));
+    return { events: [], food };
+  },
+};
+
+function isoWeekNo(d: Date) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86_400_000 + 1) / 7);
+}
+function isoYear(d: Date) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return t.getUTCFullYear();
+}
+
+/** School lunch from the Skolmat integration in HA (Mashie, Matilda, FoodIT, Mateo, skolmat.info …). */
+export const skolmatHa: SchoolProvider = {
+  meta: {
+    id: "skolmat-ha",
+    category: "school",
+    name: "Skolmat från Home Assistant",
+    description: "Använd Skolmat-integrationen (HACS) – stöder Mashie, Matilda, FoodIT, Mateo, skolmat.info m.fl.",
+    status: "stable",
+    needsHa: true,
+    fields: [{ key: "entityId", label: "Skolmat-kalender", type: "entity", domains: ["calendar"] }],
+  },
+  async test(ctx) {
+    const { food } = await this.fetch(ctx, new Date(), new Date(Date.now() + 14 * 86_400_000));
+    return { ok: true, preview: (food ?? []).slice(0, 5).map((f) => `${f.day}: ${f.dishes.join(", ")}`) };
+  },
+  async fetch(ctx, from, to) {
+    const conn = haConnection();
+    if (!conn) throw new Error("Home Assistant är inte anslutet.");
+    const evs = await ha.calendarEvents(conn, ctx.str("entityId"), from, to);
+    return { events: [], food: evs.map((e) => ({ child: "", day: foodDay(e.start), dishes: [e.title, ...(e.description ? [e.description] : [])].slice(0, 2) })) };
   },
 };
 

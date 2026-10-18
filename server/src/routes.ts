@@ -7,11 +7,15 @@ import { detectGroups, fetchIcs, filterEvents } from "./connectors/ics.js";
 import { ha, haConnection } from "./connectors/ha.js";
 import { geocode } from "./connectors/weather.js";
 import { buildDashboard } from "./dashboard.js";
+import { carActions, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
+import { runEntityAction } from "./scheduler.js";
+import { haSocket } from "./connectors/haws.js";
+import { publishToHa } from "./publisher.js";
 import { MULTIPLE, allMeta, findProvider, makeCtx, secretKey } from "./providers/registry.js";
 import { calendarEvents, groceryIntegration } from "./sources.js";
 import { getSecret, listSecretKeys, loadConfig, loadLocalList, saveConfig, saveLocalList, setSecret } from "./store.js";
 import { addDays, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
-import type { Config, ConfigResponse, Integration, IntegrationCategory, SecretKey } from "./types.js";
+import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export const VERSION = "0.1.0";
 const ID = /^[a-z0-9-]{1,40}$/;
@@ -48,6 +52,10 @@ const personSchema = z.object({
       mode: z.enum(["always", "oddWeeks", "evenWeeks", "alternating"]),
       anchorDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       handoverDay: z.number().int().min(1).max(7).optional(),
+      overrides: z
+        .array(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), home: z.boolean(), note: z.string().max(60).optional() }))
+        .max(60)
+        .optional(),
     })
     .optional(),
 });
@@ -96,6 +104,7 @@ const configSchema = z
       municipality: z.string().max(80).optional(),
       lat: z.number().optional(),
       lon: z.number().optional(),
+      custodyCalendarId: z.string().optional(),
     }),
     people: z.array(personSchema).max(12),
     calendars: z.array(calendarSchema).max(40),
@@ -138,6 +147,8 @@ const configSchema = z
     dashboard: z.object({
       accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
       theme: z.enum(["auto", "dark", "light"]),
+      home: z.array(z.object({ id: z.enum(HOME_WIDGETS), on: z.boolean() })).max(20),
+      tabs: z.array(z.object({ id: z.enum(TAB_IDS), on: z.boolean() })).max(10),
       nightFrom: z.string().regex(/^\d{2}:\d{2}$/),
       nightTo: z.string().regex(/^\d{2}:\d{2}$/),
     }),
@@ -217,6 +228,62 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // ---------- Dashboard ----------
   app.get("/api/dashboard", async () => buildDashboard());
+
+  /**
+   * Server-Sent Events: tells open boards to refresh when something on the board changes in HA
+   * (a lamp, the car, the shopping list). Throttled so a burst of changes is one refresh.
+   */
+  const clients = new Set<import("node:http").ServerResponse>();
+  let pendingPush: NodeJS.Timeout | null = null;
+  const watched = () => {
+    const c = loadConfig();
+    const e = c.entities;
+    return new Set<string>([
+      ...e.lights.map((l) => l.entityId),
+      ...e.temps.map((t) => t.entityId),
+      ...e.cars.flatMap((x) => [x.battery, x.range, x.location, x.charging, x.climate].filter(Boolean) as string[]),
+      ...(Object.values(e.energy ?? {}).filter(Boolean) as string[]),
+      ...(e.lightGroups ?? []).flatMap((g) => g.entities),
+      ...(e.climates ?? []).flatMap((x) => [x.entityId, ...(x.controls ?? [])]),
+      ...(e.deviceCards ?? []).flatMap((x) => [x.primary, ...x.sensors, ...x.controls].filter(Boolean) as string[]),
+      ...(c.shopping.entityId ? [c.shopping.entityId] : []),
+    ]);
+  };
+  let watchSet = watched();
+  haSocket()?.onChange((id) => {
+    if (id !== "*" && !watchSet.has(id)) return;
+    if (id === c_shopping()) invalidate("todo:");
+    if (pendingPush || clients.size === 0) return;
+    pendingPush = setTimeout(() => {
+      pendingPush = null;
+      for (const res of clients) res.write(`data: change\n\n`);
+    }, 400);
+  });
+  const c_shopping = () => loadConfig().shopping.entityId;
+  app.addHook("onResponse", async (req) => {
+    if (req.method === "PUT" && req.url.startsWith("/api/config")) {
+      watchSet = watched();
+      haSocket()?.start(haConnection());
+      publishToHa().catch(() => {});
+    }
+  });
+
+  app.get("/api/events", (req, reply) => {
+    reply.raw.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+    });
+    reply.raw.write(`retry: 5000\n\n`);
+    clients.add(reply.raw);
+    const ping = setInterval(() => reply.raw.write(`: ping\n\n`), 25_000);
+    req.raw.on("close", () => {
+      clearInterval(ping);
+      clients.delete(reply.raw);
+    });
+    reply.hijack();
+  });
 
   // ---------- Providers ----------
   app.get("/api/providers", async () => allMeta());
@@ -395,6 +462,125 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     invalidate("ha:states");
     return { ok: true };
+  });
+
+  // ---------- Auto-discovery from Home Assistant ----------
+  app.get("/api/ha/discover", { preHandler: guard }, async (_req, reply) => {
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Anslut Home Assistant först."));
+    try {
+      return discover(await readRegistry(conn));
+    } catch (e) {
+      return fail(reply, new Error(`Kunde inte läsa Home Assistant: ${(e as Error).message}. Token behöver administratörsrättighet.`));
+    }
+  });
+
+  // ---------- Car: all entities of the car's device, and its actions ----------
+  const carDevice = async (index: number) => {
+    const car = loadConfig().entities.cars[index];
+    const conn = haConnection();
+    if (!car || !conn) throw new Error(car ? "Home Assistant är inte anslutet." : "Okänd bil");
+    const ents = await cached(`car:${index}`, 30_000, () => deviceEntities(conn, car.battery));
+    return { car, ents, deviceName: ents[0]?.dn ?? car.name };
+  };
+
+  app.get("/api/car/:index", async (req, reply) => {
+    try {
+      const { car, ents, deviceName } = await carDevice(Number((req.params as { index: string }).index));
+      const rows = carRows(ents, deviceName);
+      return { name: car.name, valid: rows.filter((r) => r.ok).length, total: rows.length, rows, actions: carActions(ents, deviceName) };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  app.post("/api/car/:index/action", async (req, reply) => {
+    const { entityId, action } = (req.body ?? {}) as { entityId?: string; action?: "on" | "off" | "press" };
+    try {
+      const { ents } = await carDevice(Number((req.params as { index: string }).index));
+      if (!entityId || !ents.some((x) => x.e === entityId)) throw new Error("Entiteten hör inte till bilen.");
+      await runEntityAction(entityId, action ?? "on");
+      invalidate("car:");
+      invalidate("ha:states");
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  // ---------- Generic controls on climate/device cards ----------
+  app.post("/api/control", async (req, reply) => {
+    const { entityId, op, value } = (req.body ?? {}) as { entityId?: string; op?: "toggle" | "select" | "set" | "press"; value?: string | number };
+    const cfg = loadConfig();
+    const allowed = new Set([
+      ...(cfg.entities.climates ?? []).flatMap((c) => c.controls ?? []),
+      ...(cfg.entities.deviceCards ?? []).flatMap((c) => c.controls),
+    ]);
+    const conn = haConnection();
+    if (!entityId || !allowed.has(entityId)) return fail(reply, new Error("Okänt reglage"));
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const domain = entityId.split(".")[0];
+    try {
+      if (op === "select") {
+        const d = domain === "input_select" ? "input_select" : "select";
+        await ha.service(conn, d, "select_option", { entity_id: entityId, option: String(value) });
+      } else if (op === "set") {
+        const d = domain === "input_number" ? "input_number" : "number";
+        await ha.service(conn, d, "set_value", { entity_id: entityId, value: Number(value) });
+      } else if (op === "press") {
+        await runEntityAction(entityId, "press");
+      } else {
+        await ha.service(conn, "homeassistant", "toggle", { entity_id: entityId });
+      }
+      invalidate("ha:states");
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  // ---------- Schedules (e.g. car preheat) – editable from the board ----------
+  app.put("/api/schedules/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const parsed = scheduleSchema.safeParse({ ...(req.body as object), id });
+    if (!parsed.success) return fail(reply, new Error("Ogiltigt schema"));
+    const cfg = loadConfig();
+    const s = parsed.data as Schedule;
+    // Only entities already configured somewhere on the board may be scheduled.
+    const known = new Set([
+      ...cfg.entities.cars.flatMap((c) => (c.climate ? [c.climate] : [])),
+      ...(cfg.entities.climates ?? []).flatMap((c) => [c.entityId, ...(c.controls ?? [])]),
+      ...(cfg.entities.deviceCards ?? []).flatMap((c) => c.controls),
+      ...(cfg.entities.buttons ?? []).map((b) => b.entityId),
+      ...cfg.entities.lights.map((l) => l.entityId),
+    ]);
+    if (!known.has(s.entityId)) return fail(reply, new Error("Entiteten finns inte på tavlan."));
+    cfg.schedules = [...(cfg.schedules ?? []).filter((x) => x.id !== id), s];
+    saveConfig(cfg);
+    return { ok: true, schedules: cfg.schedules };
+  });
+
+  app.delete("/api/schedules/:id", async (req) => {
+    const id = (req.params as { id: string }).id;
+    const cfg = loadConfig();
+    cfg.schedules = (cfg.schedules ?? []).filter((x) => x.id !== id);
+    saveConfig(cfg);
+    return { ok: true };
+  });
+
+  app.post("/api/run", async (req, reply) => {
+    // "Starta värme nu" etc. – same allow-list as schedules.
+    const { entityId, action } = (req.body ?? {}) as { entityId?: string; action?: "on" | "off" | "press" };
+    const cfg = loadConfig();
+    const known = new Set([...cfg.entities.cars.flatMap((c) => (c.climate ? [c.climate] : [])), ...(cfg.schedules ?? []).map((s) => s.entityId)]);
+    if (!entityId || !known.has(entityId)) return fail(reply, new Error("Okänd enhet"));
+    try {
+      await runEntityAction(entityId, action ?? "on");
+      invalidate("ha:states");
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
   });
 
   app.post("/api/lights/group", async (req, reply) => {

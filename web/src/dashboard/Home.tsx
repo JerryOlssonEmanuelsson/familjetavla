@@ -290,20 +290,119 @@ function Lights({ data, actions }: { data: Dashboard; actions: Actions }) {
   );
 }
 
+function Temps({ temps }: { temps: Dashboard["temps"] }) {
+  if (!temps.length) return null;
+  return (
+    <section className="card">
+      <h2>Temperaturer</h2>
+      <div className="stats">
+        {temps.map((t) => (
+          <div key={t.name}>
+            <small>{t.name}</small>
+            <b>{t.value}</b>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function EnergyMini({ e }: { e: Dashboard["energy"] }) {
+  if (!e) return null;
+  const f = (n?: number) => (n === undefined ? "–" : `${n.toFixed(1).replace(".", ",")} kW`);
+  return (
+    <section className="card">
+      <h2>Energi</h2>
+      <div className="stats">
+        {e.solarKw !== undefined && (
+          <div>
+            <small>Solel</small>
+            <b>{f(e.solarKw)}</b>
+          </div>
+        )}
+        {e.gridKw !== undefined && (
+          <div>
+            <small>{e.gridKw >= 0 ? "Köper" : "Säljer"}</small>
+            <b>{f(Math.abs(e.gridKw))}</b>
+          </div>
+        )}
+        {e.houseKw !== undefined && (
+          <div>
+            <small>Huset</small>
+            <b>{f(e.houseKw)}</b>
+          </div>
+        )}
+        {e.batteryPct !== undefined && (
+          <div>
+            <small>Batteri</small>
+            <b>{Math.round(e.batteryPct)} %</b>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ClimatesMini({ climates }: { climates: Dashboard["climates"] }) {
+  if (!climates.length) return null;
+  const f = (n: number | null) => (n === null ? "–" : `${String(Math.round(n * 10) / 10).replace(".", ",")}°`);
+  return (
+    <section className="card">
+      <h2>Värme</h2>
+      <div className="stats">
+        {climates.slice(0, 6).map((c) => (
+          <div key={c.entityId}>
+            <small>{c.name}</small>
+            <b>{f(c.current ?? c.target)}</b>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * The home screen is built from the user's chosen widgets, in their order. The week view
+ * takes the wide middle column; the rest are split between the side columns. Widgets
+ * without data render nothing, so an empty choice never shows an empty box.
+ */
 export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
+  const render = (id: Dashboard["home"][number]["id"]): React.ReactNode => {
+    switch (id) {
+      case "reminders":
+        return <Reminders key={id} items={data.reminders} food={data.schoolFood} />;
+      case "custody":
+        return data.custody ? <Custody key={id} c={data.custody} /> : null;
+      case "shopping":
+        return <Shopping key={id} data={data} actions={actions} />;
+      case "prices":
+        return data.prices ? <PriceCard key={id} prices={data.prices} /> : null;
+      case "cars":
+        return <Cars key={id} cars={data.cars} />;
+      case "lights":
+        return <Lights key={id} data={{ ...data, temps: [] }} actions={actions} />;
+      case "temps":
+        return <Temps key={id} temps={data.temps} />;
+      case "energy":
+        return <EnergyMini key={id} e={data.energy} />;
+      case "climates":
+        return <ClimatesMini key={id} climates={data.climates} />;
+      default:
+        return null;
+    }
+  };
+  const chosen = data.home.filter((w) => w.on);
+  const weekOn = chosen.some((w) => w.id === "week");
+  const side = chosen.filter((w) => w.id !== "week").map((w) => render(w.id)).filter(Boolean);
+  // Balance side widgets: first half left, rest right.
+  const half = Math.ceil(side.length / 2);
+  const left = weekOn ? side.slice(0, half) : side.filter((_, i) => i % 2 === 0);
+  const right = weekOn ? side.slice(half) : side.filter((_, i) => i % 2 === 1);
   return (
     <main className="home-grid">
-      <div className="col">
-        <Reminders items={data.reminders} food={data.schoolFood} />
-        {data.custody && <Custody c={data.custody} />}
-        <Shopping data={data} actions={actions} />
-      </div>
-      <Week data={data} />
-      <div className="col">
-        {data.prices && <PriceCard prices={data.prices} />}
-        <Cars cars={data.cars} />
-        <Lights data={data} actions={actions} />
-      </div>
+      <div className="col">{left}</div>
+      {weekOn ? <Week data={data} /> : <div className="col col-week" />}
+      <div className="col">{right}</div>
     </main>
   );
 }

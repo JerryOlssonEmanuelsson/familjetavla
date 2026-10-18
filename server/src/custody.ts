@@ -1,5 +1,5 @@
 import type { Custody, Person } from "./types.js";
-import { addDays, daysBetween, isoWeek, isoWeekday, parseDayKey, startOfDay } from "./time.js";
+import { addDays, dayKey, daysBetween, isoWeek, isoWeekday, parseDayKey, startOfDay } from "./time.js";
 
 /**
  * Start of the "custody week" that contains `date`: the most recent handover day.
@@ -20,7 +20,16 @@ export function custodyWeekStart(date: Date, handoverDay = 1): Date {
  * whole weeks from an anchor date and never drifts.
  */
 export function isHome(custody: Custody | undefined, date: Date): boolean {
-  if (!custody || custody.mode === "always") return true;
+  if (!custody) return true;
+  if (custody.overrides?.length) {
+    const k = dayKey(date);
+    // Last matching override wins, so a later, more specific exception can refine an earlier one.
+    for (let i = custody.overrides.length - 1; i >= 0; i--) {
+      const o = custody.overrides[i];
+      if (k >= o.from && k <= o.to) return o.home;
+    }
+  }
+  if (custody.mode === "always") return true;
   const handover = custody.handoverDay ?? 1;
   const weekStart = custodyWeekStart(date, handover);
 
@@ -50,7 +59,7 @@ export interface CustodyStatus {
 export function custodyStatus(custody: Custody | undefined, now: Date, horizonDays = 60): CustodyStatus {
   const today = startOfDay(now);
   const home = isHome(custody, today);
-  if (!custody || custody.mode === "always") {
+  if (!custody || (custody.mode === "always" && !custody.overrides?.length)) {
     return { home: true, nextChange: null, daysLeft: 0, progress: 1 };
   }
   let next: Date | null = null;

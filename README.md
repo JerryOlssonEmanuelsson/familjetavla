@@ -1,0 +1,127 @@
+<p align="center"><img src="web/public/icon-180.png" width="96" alt=""></p>
+
+# Familjetavla
+
+**En familjetavla för surfplattan i hallen eller köket** – byggd för svenska familjer, gärna med växelvis boende, som kör Home Assistant (men fungerar även utan).
+
+Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se), **skola** (schema, gympapåse, skolmat), **sophämtning**, **inköpslista** (som kan skickas till Willys), **elpris** med billigaste timmarna – och från Home Assistant: **bilar, ljus, värmepump, spabad, solel och grafer**. Allt sätts upp i en **visuell guide**, utan YAML.
+
+![Familjetavlan på en iPad Pro](docs/screenshots/home-dark.png)
+
+<table>
+<tr>
+<td><img src="docs/screenshots/home-light.png" alt="Ljust tema"></td>
+<td><img src="docs/screenshots/tab-Bil.png" alt="Bil med värmestart och schema"></td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/tab-Hus.png" alt="Spabad och värmepump via Husdata"></td>
+<td><img src="docs/screenshots/wiz-kalendrar.png" alt="Installationsguiden"></td>
+</tr>
+</table>
+
+## Vad den gör
+
+**Hemvyn**
+- **Kom ihåg:** "Regn i eftermiddag – ta regnjackan", "Ella · Fotboll imorgon 17:30 – packa väskan", "Idrott tis – gympapåse", "Matavfall hämtas imorgon – ställ ut kärlet ikväll", "Barnen kommer imorgon". Efter kl. 17 visar den morgondagen.
+- **Barnvecka:** nedräkning till nästa byte. Varannan vecka från valfritt datum (tål vecka 53), udda/jämna veckor, valfri bytesdag, **undantag** för lov och bytta helger, och en valfri **byteskalender**.
+- **Kommande 7 dagar:** färg per person. Barnens sport syns bara på barnveckorna – men t.ex. **matcher alla veckor** om du vill.
+- **Inköpslista** (egen eller Home Assistants), **elpris**, bilar, ljus och temperaturer.
+- **Välj själv** vilka rutor som visas och i vilken ordning. Rutor utan data döljs.
+- Ljust/mörkt tema eller **dygnsfärger**, nattläge med klocka som flyttar sig (skonar OLED).
+
+**Flikar** (visas bara om du har något att visa)
+- **Bil:** batteri, räckvidd, hemma/borta, "data 18 h gammal", **Alla data** (bilens alla entiteter i grupper, ✓/⚠), bilens knappar (blinka, tuta, lås), **Starta värme nu** och **schema per veckodag**.
+- **Ljus:** rum med Tänd alla / Släck alla, "6 av 8 tända · offline: …", egna knappar för scener ("Godnatt – släck uppe").
+- **Hus:** termostater, värmepump, varmvatten och **spabad** (Balboa, Gecko …) med lägen och pumpar. **Enhetskort** för värmepumpar som bara ger sensorer, t.ex. via **Husdata H60/H66**.
+- **Energi:** solel, köp/sälj mot nätet, husets effekt, hembatteri – vilken växelriktare som helst.
+- **Grafer:** senaste dygnet för valfria sensorer + elpris.
+
+Tunga knappar (värmestart, lås, värmelägen) frågar "Är du säker?". Ändringar i Home Assistant syns direkt på tavlan (WebSocket).
+
+**Tillbaka till Home Assistant:** tavlan skapar `sensor.familjetavla_barnvecka_<namn>` (hemma/borta) och `sensor.familjetavla_nasta_sophamtning` – perfekt för automationer som sänker värmen i barnrummet när barnen är i andra hemmet.
+
+## Kopplingar
+
+Allt som redan finns i Home Assistant (bilar, växelriktare, värmepump, spabad, laddbox, elmätare, lampor …) **hämtas automatiskt** – guiden har en knapp *Hämta från Home Assistant* och du bockar bara ur det du inte vill ha.
+
+Det som inte finns i HA sköts av **leverantörsmoduler**:
+
+| Område | Leverantör | Hur | Status |
+|---|---|---|---|
+| Kalender | Google, iCloud, Outlook, valfri ICS | Prenumerationslänk | stabil |
+| Kalender | **laget.se** | Lagets kalender → Prenumerera (en länk per lag) | stabil |
+| Kalender | **SportAdmin** | Appen → Aktiviteter → Prenumerera. **Lagfilter** om barnet har flera lag | stabil |
+| Kalender | Home Assistant | Valfri `calendar.*` | stabil |
+| Skola | SchoolSoft, Unikum, IST, Skola24, InfoMentor, Edlevo | Kalenderlänk (ICS) | stabil |
+| Skolmat | **Skolmaten.se** | Ingen inloggning | beta |
+| Skolmat | Skolmat-integrationen i HA | Mashie, Matilda, FoodIT, Mateo, skolmat.info | stabil |
+| Skola | **Vklass** | Användarnamn + lösenord (inte BankID) | beta |
+| Sopor | Sök på adress | ~30 kommuner/renhållare (EDP Future) | beta |
+| Sopor | Eget schema | Kärl, en hämtdag, intervall, ev. vissa månader | stabil |
+| Sopor | ICS eller HA-kalender | t.ex. Waste Collection Schedule (~50 svenska renhållare) | stabil |
+| Mataffär | **Willys** | Inloggning via dold webbläsare, sedan varukorgen | beta |
+| Mataffär | Hemköp | Samma plattform som Willys | experimentell |
+| Elpris | Spotpris SE1–SE4 | elprisetjustnu.se + ditt påslag, nät, skatt, moms | stabil |
+| Elpris | HA-sensor | Nordpool, Tibber m.fl. | beta |
+
+> Vklass, Willys/Hemköp och EDP är **inofficiella** kopplingar och kan sluta fungera när sajterna ändras. BankID går inte att automatisera – kontona behöver ett lösenord.
+
+## Installera
+
+### Som Home Assistant-tillägg (rekommenderas)
+
+1. **Inställningar → Tillägg → Tilläggsbutik → ⋮ → Förråd**, lägg till `https://github.com/murre87/familjetavla`.
+2. Installera **Familjetavla**, starta, och öppna den i sidomenyn.
+3. Följ guiden. Home Assistant är anslutet automatiskt.
+
+### Med Docker
+
+```bash
+docker compose up -d     # se docker-compose.yml
+```
+
+Öppna `http://<datorn>:8099`. Ange Home Assistants adress och en **långlivad token** (från en administratör) i guiden.
+
+## Väggplattan
+
+- **Helskärm på iPad:** öppna tavlan i Safari → Dela → **Lägg till på hemskärmen**. Då öppnas den utan adressfält.
+- **Lås till tavlan:** Inställningar → Hjälpmedel → **Guidad åtkomst**. Sätt Inställningar → Skärm → Autolås till *Aldrig*, eller låt den släckas och väck den (nedan).
+- **Väck med rörelsesensor:** med HA Companion-appen kan en automation skicka en notis till plattan när rörelsesensorn i hallen triggar, så att skärmen tänds. Annars väcker man med ett tryck.
+- **Spara batteriet:** sätt laddaren i en smart plugg och låt en HA-automation ladda mellan 20 och 80 % (batterinivån finns som sensor via Companion-appen). Plattor som laddas till 100 % dygnet runt sväller ofta efter några år.
+- **Direkt utan HA-inloggning:** slå på port 8099 för tillägget och använd `http://homeassistant.local:8099`. Sätt då en **PIN** för inställningarna.
+
+## Säkerhet
+
+- Allt körs hemma. Lösenord, token och privata kalenderlänkar sparas **krypterade** i `/data` och skickas aldrig till webbläsaren.
+- Inställningarna kan låsas med **PIN**. I tillägget sköts inloggningen av Home Assistant.
+- Vardagsknappar (ljus, inköpslista) kräver ingen PIN så att hela familjen kan använda tavlan. Kör den bara på ditt hemnätverk.
+
+## Utveckla
+
+```bash
+npm install
+npm run mock-ha          # en låtsas-Home Assistant med demodata på :8123
+npm run dev              # server på :8099, webb på :5173
+npm run seed             # lägg in en demofamilj
+npm test                 # vitest
+```
+
+- `server/` – Node 22 + Fastify (TypeScript). `providers/` är leverantörsmodulerna, `connectors/` själva anropen, `discovery.ts` hittar saker i HA, `dashboard.ts` bygger tavlan.
+- `web/` – React + Vite. `dashboard/` är tavlan, `setup/` installationsguiden.
+- `familjetavla/` – Home Assistant-tillägget. `docs/PROJEKT.md` – projektbeskrivning och designbeslut.
+
+### Lägg till en leverantör
+
+1. Skriv en modul i `server/src/providers/` som uppfyller gränssnittet i `providers/types.ts` (`meta`, `test`, `fetch` …).
+2. Beskriv fälten i `meta.fields` (text, lösenord, val, entitet …) – guiden ritar formuläret och **Testa**-knappen själv. Fält med `secret: true` krypteras.
+3. Registrera den i `providers/registry.ts` och lägg till ett test.
+
+Önskas: ICA, Coop, Mathem, SchoolSoft/Unikum inbyggt, Trafiklab (nästa buss), veckomeny.
+
+## Tack
+
+Kopplingarna bygger på kartläggning från andra öppna projekt: [willys-mcp](https://github.com/oscarthroedsson/willys-mcp) (Willys/Axfood), [Waste Collection Schedule](https://github.com/mampfes/hacs_waste_collection_schedule) (EDP Future-renhållare), [Vklass scrape sensor](https://community.home-assistant.io/t/vklass-scrape-sensor/939402) och [Skolmat](https://github.com/Kaptensanders/skolmat) (skolmaten.se). Elpris från [elprisetjustnu.se](https://www.elprisetjustnu.se), väder från [Open-Meteo](https://open-meteo.com), postnummer från [OpenStreetMap Nominatim](https://nominatim.org).
+
+## Licens
+
+MIT

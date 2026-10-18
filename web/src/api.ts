@@ -1,4 +1,33 @@
-import type { ConfigResponse, Dashboard, Integration, TestResult } from "../../server/src/types";
+import type { CarEntity, Config, ConfigResponse, Dashboard, Integration, NamedEntity, Schedule, TestResult } from "../../server/src/types";
+
+export interface Discovery {
+  cars: (CarEntity & { deviceName: string; maker?: string })[];
+  energy: Config["entities"]["energy"];
+  climates: (NamedEntity & { controls?: string[] })[];
+  lightGroups: { name: string; entities: string[] }[];
+  deviceCards: Config["entities"]["deviceCards"];
+  temps: NamedEntity[];
+  todo: NamedEntity[];
+  calendars: (NamedEntity & { waste: boolean })[];
+  priceSensors: NamedEntity[];
+  buttons: { name: string; entityId: string }[];
+  summary: string[];
+}
+
+export interface CarDetails {
+  name: string;
+  valid: number;
+  total: number;
+  rows: { entityId: string; name: string; value: string; group: string; ok: boolean; note?: string; domain: string }[];
+  actions: { entityId: string; name: string; domain: string; state: string }[];
+}
+
+export interface GraphData {
+  title: string;
+  from: string;
+  to: string;
+  series: { name: string; color: string; points: (number | null)[] }[];
+}
 
 const PIN_KEY = "familjetavla.pin";
 
@@ -88,6 +117,18 @@ export const api = {
   grocerySend: (lines: { item: string; code: string; name: string; qty: number }[]) =>
     post<{ ok: boolean; store: string; items: number | null; total: string | null }>("grocery/send", { lines }),
 
+  discover: () => request<Discovery>("ha/discover"),
+  car: (index: number) => request<CarDetails>(`car/${index}`),
+  carAction: (index: number, entityId: string, action: "on" | "off" | "press") => post(`car/${index}/action`, { entityId, action }),
+  run: (entityId: string, action: "on" | "off" | "press" = "on") => post("run", { entityId, action }),
+  saveSchedule: (s: Schedule) => request(`schedules/${s.id}`, { method: "PUT", body: JSON.stringify(s) }),
+  deleteSchedule: (id: string) => request(`schedules/${id}`, { method: "DELETE" }),
+  control: (entityId: string, op: "toggle" | "select" | "set" | "press", value?: string | number) => post("control", { entityId, op, value }),
+  climateMode: (entityId: string, field: string, value: string) => post("climate/mode", { entityId, field, value }),
+  climateTarget: (entityId: string, temperature: number) => post("climate/target", { entityId, temperature }),
+  lightGroup: (index: number, on: boolean) => post("lights/group", { index, on }),
+  button: (entityId: string) => post("button", { entityId }),
+  graph: (index: number) => request<GraphData>(`graph/${index}`),
   toggleLight: (entityId: string) => post("lights/toggle", { entityId }),
   lightsOff: () => post("lights/off"),
   addItem: (name: string) => post("shopping/add", { name }),

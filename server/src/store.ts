@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from "node:fs";
 import { join } from "node:path";
-import type { Config, SecretKey } from "./types.js";
+import { HOME_WIDGETS, TAB_IDS, type Config, type SecretKey } from "./types.js";
 
 /**
  * All state lives in one data directory (/data in the add-on, ./data in dev):
@@ -30,7 +30,14 @@ export function defaultConfig(): Config {
     ha: { mode: process.env.SUPERVISOR_TOKEN ? "supervisor" : "none" },
     schedules: [],
     entities: { cars: [], energy: {}, lights: [], temps: [], lightGroups: [], buttons: [], climates: [], deviceCards: [], graphs: [] },
-    dashboard: { accent: "#34e0a1", theme: "auto", nightFrom: "22:00", nightTo: "06:00" },
+    dashboard: {
+      accent: "#34e0a1",
+      theme: "auto",
+      home: HOME_WIDGETS.map((id) => ({ id, on: !["temps", "energy", "climates"].includes(id) })),
+      tabs: TAB_IDS.map((id) => ({ id, on: true })),
+      nightFrom: "22:00",
+      nightTo: "06:00",
+    },
   };
 }
 
@@ -72,6 +79,10 @@ export function loadConfig(): Config {
     entities: { ...base.entities, ...stored.entities },
     dashboard: { ...base.dashboard, ...stored.dashboard },
   } as Config;
+  // Widgets/tabs added in later versions are appended (off for widgets, on for tabs).
+  const d = cached.dashboard;
+  for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: false });
+  for (const id of TAB_IDS) if (!d.tabs.some((t) => t.id === id)) d.tabs.push({ id, on: true });
   return cached;
 }
 
