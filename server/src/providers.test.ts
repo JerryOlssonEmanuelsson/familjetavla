@@ -194,3 +194,34 @@ describe("design helpers", () => {
     expect(n.items.map((i) => [i.title, i.dayLabel])).toEqual([["Middag", "idag"], ["Fotboll", "imorgon"]]);
   });
 });
+
+import { legLabel, resolveTravel, travelKey, travelOptions, travelSummary, wantsTravel } from "./travel.js";
+
+describe("dit/hem för barnens aktiviteter", () => {
+  const people = new Map([
+    ["emil", { id: "emil", name: "Emil", color: "#000", kind: "adult" as const }],
+    ["ella", { id: "ella", name: "Ella", color: "#000", kind: "child" as const }],
+  ]);
+  const ev = { sourceId: "ella-sport", personId: "ella", start: new Date("2026-10-19T15:30:00Z"), end: new Date("2026-10-19T17:00:00Z"), allDay: false, title: "F14 – Träning", category: "sport" as const };
+
+  it("gäller barnens egna aktiviteter, inte skollektioner", () => {
+    expect(wantsTravel(ev, people)).toBe(true);
+    expect(wantsTravel({ ...ev, sourceId: "school:x" }, people)).toBe(false);
+    expect(wantsTravel({ ...ev, personId: "emil" }, people)).toBe(false);
+  });
+
+  it("listar vuxna först och sedan buss/skjuts", () => {
+    expect(travelOptions(people).map((o) => o.label)).toEqual(["Emil skjutsar", "Blir skjutsad", "Buss", "Cyklar/går"]);
+    expect(legLabel({ mode: "ride", by: "Saras pappa" }, people)).toBe("Skjuts med Saras pappa");
+  });
+
+  it("eget val vinner över kalenderns standard", () => {
+    const cal = { id: "ella-sport", name: "Fotboll F14", provider: "sportadmin" as const, kind: "ics" as const, category: "sport" as const, travel: { to: { mode: "bus" as const }, home: { mode: "bus" as const } } };
+    const std = resolveTravel(ev, people, cal, {});
+    expect(std.fromCalendar).toBe(true);
+    expect(travelSummary(std)).toBe("Buss dit och hem");
+    const own = resolveTravel(ev, people, cal, { [travelKey(ev)]: { to: { mode: "adult:emil" }, home: { mode: "bus" } } });
+    expect(own.fromCalendar).toBe(false);
+    expect(travelSummary(own)).toBe("Emil skjutsar dit · buss hem");
+  });
+});

@@ -1,6 +1,8 @@
 # Familjetavla – projektbeskrivning för granskning
 
-> Status 2026-10-18. Skrivet för att kunna granskas av någon annan (människa eller AI): vad bygger vi, hur, vilka beslut är tagna, vad saknas och var finns riskerna. Kommentera gärna direkt per avsnitt.
+> Status 2026-10-18 (version 3, efter två granskningsrundor). Skrivet för att kunna granskas av någon annan (människa eller AI): vad bygger vi, hur, vilka beslut är tagna, vad saknas och var finns riskerna. Kommentera gärna direkt per avsnitt.
+>
+> Hör ihop med **[DESIGN.md](DESIGN.md)** (designsystemet i detalj). Klickbar demo utan server: `docs/demo/familjetavla-demo.html` (öppna i webbläsaren; `#ipad` visar den i iPad-storlek, `#forsta` som nyinstallerad).
 
 Repo: https://github.com/murre87/familjetavla (MIT-licens, publikt)
 
@@ -10,9 +12,11 @@ Repo: https://github.com/murre87/familjetavla (MIT-licens, publikt)
 
 En **familjetavla för surfplattan i hallen/köket**, t.ex. en iPad Pro på väggen. Den samlar det en svensk barnfamilj behöver se varje dag på ett ställe:
 
+- **Nu-zonen**: det som händer härnäst, läsbart från andra sidan rummet ("Om 45 min · Middag")
 - familjens kalendrar och de kommande 7 dagarna
 - **barnvecka** (växelvis boende): vilka veckor barnen är hemma, nedräkning till bytet
 - barnens **sport** (SportAdmin, laget.se) – bara på barnveckorna, men t.ex. matcher alla veckor
+- **dit och hem** för barnens aktiviteter: vem skjutsar, blir skjutsad (med vem), buss eller cykel
 - **skola** (Vklass, och andra plattformar via kalenderlänk): idrott → "ta gympapåsen", skolmat
 - **sophämtning** för adressen
 - **elpris** timme för timme med billigaste timmarna, inkl. eget påslag/nät/moms
@@ -68,7 +72,8 @@ Inspiration: Skylight/Cozyla/DAKboard (färdiga familjeskärmar), OneHub Family 
 - `config.json` – inställningar, inga hemligheter
 - `secrets.json` – lösenord, tokens, privata kalenderlänkar, sessioner (AES-256-GCM)
 - `secret.key` – nyckeln (skapas vid första start, chmod 600)
-- `local.json` – inbyggd inköpslista om HA:s inte används
+- `local.json` – inbyggd inköpslista om HA:s inte används, samt dit/hem-val per händelse (rensas efter två dagar)
+- `photos/` – bilder till fotoramen i viloläget
 
 **Säkerhet**
 - Hemligheter skickas aldrig tillbaka till webbläsaren (bara "är satt").
@@ -79,14 +84,27 @@ Inspiration: Skylight/Cozyla/DAKboard (färdiga familjeskärmar), OneHub Family 
 ## 4. Funktioner
 
 ### 4.1 Hem (familjetavlan)
-- Rubrik: datum, vecka, väder (Open-Meteo), klocka, temaknapp, inställningar.
-- **Kom ihåg** (max 5): regn, barnen kommer imorgon, sport idag/imorgon → packa väskan, idrott (Vklass) → gympapåse, sophämtning idag/imorgon, skolmat. Efter kl. 17 visas morgondagen.
-- **Barnvecka**: rubrik ("Barnen kommer imorgon"), nästa byte + vecka, ring med dagar kvar.
-- **Kommande 7 dagar**: färg per person, heldagshändelser först, "X kommer/åker" på bytesdagar, sophämtning som egen händelse. Skollektioner döljs utom idrott och heldag.
+Layout och utseende beskrivs i detalj i [DESIGN.md](DESIGN.md). Kort:
+
+- **Sidhuvud**: datum, vecka, väder, stor klocka, avatarer för familjen (den som är på andra hemmet nedtonad), temaknapp, inställningar.
+- **Nu-zon** (överst, dubbel bredd): rubrik som räknas ut ("Om 45 min", "Pågår: …", "Imorgon kl 07:45"), de tre nästa tidsatta händelserna fram till slutet av imorgon med ikon, person och skjuts, samt vädret just nu i stort format.
+- **Kom ihåg** (max 5): regn, barnen kommer/åker imorgon, sport idag/imorgon → "Packa väskan · Emil skjutsar dit · buss hem" (eller "välj skjuts"), idrott (Vklass) → gympapåse, sophämtning, skolmat. Efter kl. 17 visas morgondagen.
+- **Barnvecka**: rubrik ("Ella och Leo kommer imorgon"), nästa byte + vecka, ring med dagar kvar.
+- **Kommande 7 dagar**: Idag och Imorgon större, resten kompakt. Händelser som piller med **aktivitetsikon** (boll, simning, musik, tårta, läkare, resa, sopor, mat, skola… gissas från titel och kalendernamn), tid, titel, personens avatar och en liten **skjutsmarkering** (bil/buss/cykel dit ⇄ hem, eller "?" om inget är valt). Heldag först, "X kommer/åker" på bytesdagar, sophämtning som egen händelse. Skollektioner döljs utom idrott och heldag.
+- **Tryck på en händelse** → ark med tid, plats, person och – för barnens aktiviteter – **Dit/Hem**-väljare.
 - **Inköpslista**: bocka av, lägg till, rensa, "Skicka till Willys".
-- **Elpris**: nu, nivå (billigt/normalt/dyrt), staplar 24 h, billigaste sammanhängande block.
-- Bilar (kort), ljus-snabbknappar, temperaturer.
-- **Nattläge**: svart skärm med klocka mellan valda tider, tryck för att väcka 2 min.
+- **Elpris**: nu (rullande siffra), nivå, staplar 24 h, billigaste sammanhängande block.
+- Bilar (kort), ljus-snabbknappar, temperaturer, energi, klimat – av/på och i valfri ordning under Visning.
+- **Viloläge / fotoram**: efter X minuter utan beröring (standard 10) tonar tavlan över till familjens bilder (eller den levande himlen) med klocka, nästa händelse och temperatur. Tryck för att väcka.
+- **Nattläge**: svart skärm med klocka mellan valda tider, pixelförskjutning, tryck för att väcka 2 min.
+- **Gester**: svep mellan flikar, dra nedåt för att uppdatera.
+
+### 4.1b Dit och hem (skjuts) för barnens aktiviteter
+- Gäller händelser som tillhör ett **barn** (sport, egna kalendrar) – inte skollektioner eller heldag.
+- För **Dit** och **Hem** var för sig: "<vuxen> skjutsar" (en knapp per vuxen i familjen), **Blir skjutsad** (valfritt "med vem?", t.ex. "Saras pappa"), **Buss**, **Cyklar/går**.
+- Valet gäller det enskilda tillfället, eller med **"Använd för alla i Fotboll F14"** som standard för hela kalendern. Ett eget val för ett tillfälle vinner alltid över standarden.
+- Syns i Nu-zonen ("Emil skjutsar dit · skjuts med Saras pappa hem"), i Kom ihåg och som ikon på pillret i veckan.
+- Lagring: standard i `config.json` (`calendars[].travel`), enskilda val i `local.json` med nyckel `<kalender-id>@<starttid ISO>`. API: `POST /api/travel { key, choice, forCalendar }` (kräver inte PIN – ska kunna ändras från tavlan).
 
 ### 4.2 Flikar (visas bara om de har innehåll)
 - **Bil**: per bil batteriring, räckvidd, hemma/borta, laddar, "data X h gammal". **Alla data**: hela bilens HA-enhet grupperad (Batteri & laddning, Klimat, Körning & däck, Lås & luckor, Plats, System, Övrigt), ✓ färskt / ⚠ otillgängligt eller äldre än 12 h. Bilens egna knappar (Blinka, Tuta, Uppdatera, Starta laddning) blir tryckbara. **Starta värme nu** + **schema per veckodag**.
@@ -106,7 +124,7 @@ Inspiration: Skylight/Cozyla/DAKboard (färdiga familjeskärmar), OneHub Family 
 8. **Mat & inköp**: inköpslista lokalt eller HA:s todo; butik Willys/Hemköp.
 9. **El**: spotpris (elområde) eller HA-sensor (Nordpool/Tibber/elbolag) + påslag, nätavgift, energiskatt, moms, antal billiga timmar.
 10. **Huset**: finjustera bilar, energi, ljus, knappar, klimat, enhetskort, grafer (entitetsväljare med sök).
-11. **Klart**: tema (auto/mörkt/ljust), accentfärg, nattläge, PIN.
+11. **Visning / Klart**: välj och sortera rutor på startskärmen och flikar, tema (auto följer dygnet / mörkt / ljust), accentfärg, nattläge, viloläge efter X minuter, **fotoram** (ladda upp bilder, skalas ned i webbläsaren), PIN.
 
 Varje leverantör har knappen **Testa** som visar riktiga exempelrader innan man sparar.
 
@@ -138,7 +156,10 @@ Kalenderkällor (Google/iCloud/laget.se/SportAdmin/Outlook/ICS/HA) är en egen, 
 - **Cache med "stale-if-error"**: om Vklass/Willys/elpris strular visas senaste fungerande data, och felet syns diskret ("2 källor svarar inte").
 - **Skollektioner döljs** på tavlan (för mycket brus) – bara idrott och heldag visas, plus påminnelse.
 - **Hash-routing + relativa API-sökvägar** för att fungera bakom HA ingress.
-- **Ett anrop bygger hela tavlan** (`GET /api/dashboard`), pollas varje minut + när plattan vaknar.
+- **Ett anrop bygger hela tavlan** (`GET /api/dashboard`), pollas varje minut + när plattan vaknar, och direkt vid ändringar via SSE.
+- **Design 2026** ("Liquid Glass"): glaskort över en levande himmel som följer dygnsfas (gryning/dag/skymning/natt) och väder (regn/snö/dimma); tema "auto" byter ljust/mörkt efter fasen. Stora smala siffror (Bricolage Grotesque, variabel bredd) + Manrope. Fjäderrörelser, View Transitions mellan flikar, `prefers-reduced-motion` respekteras. Se DESIGN.md.
+- **Skjuts per tillfälle med standard per kalender**: de flesta träningar är likadana varje vecka, men undantagen måste vara enkla att göra från tavlan.
+- **iPad-förhandsvisning (`#ipad`)**: tavlan körs i en iframe på 1366 × 1024 och skalas ned, så layouten blir exakt som på iPad även på en Android-telefon eller laptop.
 
 ## 7. Kända risker och begränsningar
 
@@ -176,14 +197,22 @@ Kalenderkällor (Google/iCloud/laget.se/SportAdmin/Outlook/ICS/HA) är en egen, 
 - **Valbar startskärm:** rutor och flikar av/på och i valfri ordning.
 - **Leverantörer:** Hemköp (Axfood), eget sopschema, HA-elpris, enhetskort för värmepumpar (Husdata m.fl.), spabad med pumpar/ljus.
 
-Nästa omgång (förslag från granskningen): kollektivtrafik via Trafiklab, veckomeny för middagar, "vem hämtar?" på händelser, notisbanners från HA, större idag/imorgon med ikoner, tvåstegsinloggning (SMS-kod) för ICA/Coop.
+## 8c. Ändrat i omgång 2 (2026-10-18)
+
+- **Ny design 2026** (DESIGN.md): Nu-zon, bento-layout, glas, levande himmel efter tid och väder, avatarer, aktivitetsikoner, rullande siffror, svep, dra-för-att-uppdatera, händelseark, fotoram i viloläget.
+- **Dit/Hem (skjuts)** på barnens aktiviteter – "vem hämtar?" från förra granskningen (avsnitt 4.1b).
+- **Större Idag/Imorgon med ikoner** i veckan.
+- **iPad-vy** för att förhandsgranska på andra skärmar, och en demo som är en enda HTML-fil.
+
+Kvar från förslagen: kollektivtrafik via Trafiklab (skulle passa ihop med "Buss" – visa avgång), veckomeny för middagar, notisbanners från HA, tvåstegsinloggning (SMS-kod) för ICA/Coop, notis till den som ska skjutsa ("Du kör Ella 17:00"), sensor tillbaka till HA för dagens skjutsar.
 
 ## 9. Teknik och kvalitet
 
 - TypeScript strikt i server och webb, delade typer i `server/src/types.ts`.
-- Tester (vitest): barnvecka inkl. v53 och fredagsbyte, ISO-veckor, ICS med upprepning och sommartid, elpris (15-min → timme, billigaste block, nivå), EDP-datumformat, lagfilter, matcher-alltid-regeln, eget sopschema, elområdesgissning, HA-prissensorer.
+- Tester (vitest, 39 st): skjutsval (eget vs kalenderstandard, etiketter), aktivitetsikoner, Nu-zonens rubrik, initialer vid krock, barnvecka inkl. v53 och fredagsbyte, ISO-veckor, ICS med upprepning och sommartid, elpris (15-min → timme, billigaste block, nivå), EDP-datumformat, lagfilter, matcher-alltid-regeln, eget sopschema, elområdesgissning, HA-prissensorer.
 - Inga databaser – JSON-filer i `/data`.
-- Inga externa UI-bibliotek; egen CSS med tokens för mörkt/ljust tema.
+- Inga externa UI-bibliotek; egen CSS med tokens för mörkt/ljust tema (React 19 + Vite 7).
+- Demo-bygge (`npm run build:demo -w web`) byter API:t mot inspelad data i webbläsaren och paketerar allt i en HTML-fil.
 
 ## 10. Frågor till granskaren
 
@@ -194,4 +223,6 @@ Nästa omgång (förslag från granskningen): kollektivtrafik via Trafiklab, vec
 5. Bör Willys-kopplingen alls finnas med tanke på villkor och skörhet – eller hellre "kopiera listan" + djuplänk?
 6. Är fristående app + HA-tillägg rätt, eller borde kärnan vara en HACS-integration med ett Lovelace-kort?
 7. Vad är viktigast att bygga härnäst av punkterna i avsnitt 8?
-8. UX på iPad: är 3 kolumner + flikar rätt, eller bör hemvyn vara ännu enklare för barnen?
+8. UX på iPad: är Nu-zon + 3 kolumner + flikar rätt, eller bör hemvyn vara ännu enklare för barnen?
+9. Skjuts: räcker Dit/Hem med vuxen/skjutsad/buss/cykel? Behövs samåkning (flera barn i samma bil), avgångstid ("åk 16:50") eller notis till den som kör?
+10. Designen: är glas + levande himmel läsbart nog på 2–3 meter i ett ljust kök? Är fotoramen i viloläget rätt standard eller ska den vara avstängd?

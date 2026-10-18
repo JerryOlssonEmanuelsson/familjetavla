@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Dashboard, Reminder } from "../../../server/src/types";
 import { api } from "../api";
 import { Icon, type IconName } from "../Icon";
-import { AnimatedNumber, Avatar, EventIcon, eventLabel } from "./bits";
+import { AnimatedNumber, Avatar, EventIcon, eventLabel, TravelBadge, travelText } from "./bits";
 import type { Actions } from "./Dashboard";
 
 const REMINDER_ICON: Record<Reminder["icon"], IconName> = {
@@ -168,6 +168,7 @@ function NowZone({ data, actions }: { data: Dashboard; actions: Actions }) {
                   <span className="when">
                     {e.dayLabel === "idag" ? (e.inMinutes > 0 && e.inMinutes < 120 ? `om ${e.inMinutes} min` : "idag") : e.dayLabel}
                     {e.location ? ` · ${e.location}` : ""}
+                    {e.travel && ` · ${travelText(e.travel) || "välj skjuts"}`}
                   </span>
                 </span>
                 {e.who && e.initial && <Avatar initial={e.initial} color={e.color} name={e.who} size="lg" />}
@@ -225,6 +226,7 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
                   <EventIcon icon={e.icon} color={e.color} size={di < 2 ? 17 : 15} />
                   {e.time && <span className="t">{e.time}</span>}
                   <span className="title">{e.title}</span>
+                  <TravelBadge t={e.travel} />
                   {e.who && e.initial && <Avatar initial={e.initial} color={e.color} name={e.who} />}
                 </button>
               ))}

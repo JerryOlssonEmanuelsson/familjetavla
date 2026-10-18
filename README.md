@@ -4,7 +4,7 @@
 
 **En familjetavla för surfplattan i hallen eller köket** – byggd för svenska familjer, gärna med växelvis boende, som kör Home Assistant (men fungerar även utan).
 
-Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se), **skola** (schema, gympapåse, skolmat), **sophämtning**, **inköpslista** (som kan skickas till Willys), **elpris** med billigaste timmarna – och från Home Assistant: **bilar, ljus, värmepump, spabad, solel och grafer**. Allt sätts upp i en **visuell guide**, utan YAML.
+Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem** (vem skjutsar, buss eller skjuts), **skola** (schema, gympapåse, skolmat), **sophämtning**, **inköpslista** (som kan skickas till Willys), **elpris** med billigaste timmarna – och från Home Assistant: **bilar, ljus, värmepump, spabad, solel och grafer**. Allt sätts upp i en **visuell guide**, utan YAML.
 
 ![Familjetavlan på en iPad Pro](docs/screenshots/home-dark.png)
 

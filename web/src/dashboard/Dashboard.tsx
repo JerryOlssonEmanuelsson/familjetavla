@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import type { DashEvent, Dashboard as Dash } from "../../../server/src/types";
+import type { DashEvent, Dashboard as Dash, TravelChoice, TravelLeg } from "../../../server/src/types";
 import { api, isDemo } from "../api";
 import { Icon, type IconName } from "../Icon";
 import { INNER_NAME } from "../IpadFrame";
@@ -88,10 +88,93 @@ function IdleFrame({ data, clock, onWake }: { data: Dash; clock: string; onWake:
   );
 }
 
-function EventSheet({ e, onClose }: { e: DashEvent & { dayLabel?: string }; onClose: () => void }) {
+/** Latest copy of an event (after a travel change the dashboard is reloaded). */
+function findEvent(data: Dash, key: string): DashEvent | undefined {
+  for (const day of data.days) for (const e of day.events) if (e.travel?.key === key) return e;
+  return data.now.items.find((e) => e.travel?.key === key);
+}
+
+const MODE_ICON = (mode: string): IconName => (mode === "bus" ? "bus" : mode === "self" ? "bike" : "car");
+
+function TravelPicker({
+  label,
+  leg,
+  options,
+  onPick,
+}: {
+  label: string;
+  leg?: TravelLeg;
+  options: Dash["travelOptions"];
+  onPick: (leg: TravelLeg | undefined) => void;
+}) {
+  const [by, setBy] = useState(leg?.by ?? "");
+  useEffect(() => setBy(leg?.by ?? ""), [leg?.by]);
+  return (
+    <div className="travel-pick">
+      <div className="travel-pick-label">
+        <Icon name={label === "Dit" ? "arrowRight" : "arrowLeft"} size={18} />
+        {label}
+      </div>
+      <div className="seg" role="radiogroup" aria-label={label}>
+        {options.map((o) => {
+          const on = leg?.mode === o.mode;
+          return (
+            <button
+              key={o.mode}
+              role="radio"
+              aria-checked={on}
+              className={`seg-btn ${on ? "on" : ""}`}
+              onClick={() => onPick(on ? undefined : { mode: o.mode, ...(o.mode === "ride" && by ? { by } : {}) })}
+            >
+              <Icon name={MODE_ICON(o.mode)} size={18} />
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+      {leg?.mode === "ride" && (
+        <input
+          className="input"
+          placeholder="Med vem? (valfritt)"
+          value={by}
+          maxLength={40}
+          onChange={(x) => setBy(x.target.value)}
+          onBlur={() => by !== (leg.by ?? "") && onPick({ mode: "ride", ...(by.trim() ? { by: by.trim() } : {}) })}
+        />
+      )}
+    </div>
+  );
+}
+
+function EventSheet({
+  e: initial,
+  data,
+  onClose,
+  onChanged,
+}: {
+  e: DashEvent & { dayLabel?: string };
+  data: Dash;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const fresh = initial.travel ? findEvent(data, initial.travel.key) : undefined;
+  const e = { ...initial, ...(fresh ? { travel: fresh.travel } : {}) };
+  const t = e.travel;
+  const [busy, setBusy] = useState(false);
+  const save = async (choice: TravelChoice, forCalendar = false) => {
+    if (!t) return;
+    setBusy(true);
+    try {
+      await api.travel(t.key, choice.to || choice.home ? choice : null, forCalendar);
+      await onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const current: TravelChoice = { to: t?.to && { mode: t.to.mode, by: t.to.by }, home: t?.home && { mode: t.home.mode, by: t.home.by } };
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={e.title} onClick={(x) => x.stopPropagation()} style={{ maxWidth: 520 }}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={e.title} onClick={(x) => x.stopPropagation()} style={{ maxWidth: 620 }}>
         <div className="row gap">
           <EventIcon icon={e.icon} color={e.color} size={26} />
           <h2 className="grow" style={{ fontSize: 24 }}>
@@ -122,6 +205,23 @@ function EventSheet({ e, onClose }: { e: DashEvent & { dayLabel?: string }; onCl
             </div>
           )}
         </div>
+        {t && (
+          <div className={`travel-box ${busy ? "busy" : ""}`}>
+            <h3>Hur tar sig {e.who || "barnet"} dit och hem?</h3>
+            <TravelPicker label="Dit" leg={current.to} options={data.travelOptions} onPick={(to) => save({ ...current, to })} />
+            <TravelPicker label="Hem" leg={current.home} options={data.travelOptions} onPick={(home) => save({ ...current, home })} />
+            <div className="row gap wrap travel-foot">
+              <span className="muted grow">
+                {t.fromCalendar ? `Standard för ${t.calendarName ?? "kalendern"}.` : t.to || t.home ? "Gäller bara det här tillfället." : "Inget valt än."}
+              </span>
+              {t.calendarId && (t.to || t.home) && !t.fromCalendar && (
+                <button className="btn small ghost" onClick={() => save(current, true)}>
+                  Använd för alla i {t.calendarName ?? "kalendern"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -464,7 +564,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {eventOpen && <EventSheet e={eventOpen} onClose={() => setEventOpen(null)} />}
+      {eventOpen && <EventSheet e={eventOpen} data={data} onClose={() => setEventOpen(null)} onChanged={refresh} />}
 
       {idle && !sleeping && (
         <IdleFrame

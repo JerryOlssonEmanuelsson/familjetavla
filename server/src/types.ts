@@ -56,6 +56,23 @@ export interface CalendarSource {
    */
   visibility?: "custody" | "always";
   alwaysShow?: string[];
+  /** Standard för hur barnet tar sig till och från aktiviteterna i den här kalendern. */
+  travel?: TravelChoice;
+}
+
+/**
+ * Hur ett barn tar sig till/från en aktivitet:
+ * "adult:<id>" = den vuxna skjutsar, "ride" = blir skjutsad av någon annan, "bus" = buss, "self" = cyklar/går.
+ */
+export type TravelMode = "bus" | "self" | "ride" | `adult:${string}`;
+export interface TravelLeg {
+  mode: TravelMode;
+  /** Vem som skjutsar när mode är "ride", t.ex. "Saras pappa". */
+  by?: string;
+}
+export interface TravelChoice {
+  to?: TravelLeg;
+  home?: TravelLeg;
 }
 
 export const HOME_WIDGETS = ["now", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
@@ -308,6 +325,18 @@ export interface DashEvent {
   icon: ActivityIcon;
   location?: string;
   source?: string;
+  /** Finns på barnens aktiviteter: valt sätt dit och hem. */
+  travel?: DashTravel;
+}
+
+export interface DashTravel {
+  key: string;
+  calendarId?: string;
+  calendarName?: string;
+  to?: TravelLeg & { label: string };
+  home?: TravelLeg & { label: string };
+  /** Valen kommer från kalenderns standard, inte från just den här händelsen. */
+  fromCalendar: boolean;
 }
 
 export type Sky = "clear" | "partly" | "cloudy" | "rain" | "snow" | "fog";
@@ -346,6 +375,8 @@ export interface Dashboard {
     /** Dygnsfas för den levande bakgrunden. */
     phase: "dawn" | "day" | "dusk" | "night";
   };
+  /** Valen i "Dit/Hem" för barnens aktiviteter. */
+  travelOptions: { mode: TravelMode; label: string }[];
   /** "Nu"-zonen: det som händer de närmaste timmarna. */
   now: {
     headline: string;

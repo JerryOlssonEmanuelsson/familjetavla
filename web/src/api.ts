@@ -1,4 +1,4 @@
-import type { CarEntity, Config, ConfigResponse, Dashboard, Integration, NamedEntity, Schedule, TestResult } from "../../server/src/types";
+import type { CarEntity, Config, ConfigResponse, Dashboard, Integration, NamedEntity, Schedule, TestResult, TravelChoice } from "../../server/src/types";
 
 export interface Discovery {
   cars: (CarEntity & { deviceName: string; maker?: string })[];
@@ -105,6 +105,7 @@ const realApi = {
     request<ConfigResponse>("config", { method: "PUT", body: JSON.stringify({ config, secrets }) }),
   checkPin: () => post<{ ok: boolean }>("auth/check"),
   dashboard: () => request<Dashboard>("dashboard"),
+  travel: (key: string, choice: TravelChoice | null, forCalendar = false) => post<{ ok: true }>("travel", { key, choice, forCalendar }),
 
   testProvider: (integration: Integration, secrets: Record<string, string>) => post<TestResult>("providers/test", { integration, secrets }),
   testHa: (url?: string, token?: string) => post<TestResult>("test/ha", { url, token }),

@@ -13,6 +13,7 @@ import { haSocket } from "./connectors/haws.js";
 import { publishToHa } from "./publisher.js";
 import { MULTIPLE, allMeta, findProvider, makeCtx, secretKey } from "./providers/registry.js";
 import { calendarEvents, groceryIntegration } from "./sources.js";
+import { saveTravel } from "./travel.js";
 import {
   deletePhoto,
   getSecret,
@@ -85,7 +86,14 @@ const calendarSchema = z.object({
   exclude: z.array(z.string().max(60)).max(20).optional(),
   visibility: z.enum(["custody", "always"]).optional(),
   alwaysShow: z.array(z.string().max(60)).max(20).optional(),
+  travel: z.lazy(() => travelChoiceSchema).optional(),
 });
+
+const travelLegSchema = z.object({
+  mode: z.union([z.enum(["bus", "self", "ride"]), z.custom<`adult:${string}`>((v) => typeof v === "string" && /^adult:[a-z0-9-]{1,40}$/i.test(v))]),
+  by: z.string().trim().max(40).optional(),
+});
+const travelChoiceSchema = z.object({ to: travelLegSchema.optional(), home: travelLegSchema.optional() });
 
 const integrationSchema = z.object({
   id: z.string().regex(ID),
@@ -723,6 +731,27 @@ export async function registerRoutes(app: FastifyInstance) {
       invalidate("todo:");
     } else {
       saveLocalList(loadLocalList().map((i) => (i.id === id ? { ...i, done: Boolean(done) } : i)));
+    }
+    return { ok: true };
+  });
+
+  // Dit/hem for a child's activity: this occurrence, or (forCalendar) the default for the whole calendar.
+  app.post("/api/travel", async (req, reply) => {
+    const body = z
+      .object({ key: z.string().min(3).max(200), choice: travelChoiceSchema.nullable(), forCalendar: z.boolean().optional() })
+      .safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltigt val"));
+    const { key, choice, forCalendar } = body.data;
+    if (forCalendar) {
+      const calId = key.slice(0, key.lastIndexOf("@"));
+      const cfg = loadConfig();
+      const cal = cfg.calendars.find((c) => c.id === calId);
+      if (!cal) return fail(reply, new Error("Hittar inte kalendern"));
+      cal.travel = choice ?? undefined;
+      saveConfig(cfg);
+      saveTravel(key, null); // the event now follows the calendar
+    } else {
+      saveTravel(key, choice);
     }
     return { ok: true };
   });

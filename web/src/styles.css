@@ -1675,3 +1675,51 @@ a.btn {
   .board-header .people { margin-right: auto; }
   .board-header .sub { font-size: 14px; gap: 6px 8px; }
 }
+
+/* ---------- Dit/hem (skjuts) ---------- */
+.travel-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--glass-strong, rgba(127, 127, 127, 0.16));
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1;
+}
+.travel-badge i { font-style: normal; opacity: 0.55; font-size: 11px; }
+.travel-badge.unset { color: var(--muted); opacity: 0.7; }
+.travel-box {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--glass);
+  border: 1px solid var(--glass-edge);
+  transition: opacity 0.2s;
+}
+.travel-box.busy { opacity: 0.6; pointer-events: none; }
+.travel-box h3 { font-size: 18px; font-weight: 700; }
+.travel-pick { display: grid; gap: 8px; }
+.travel-pick-label { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s;
+}
+.seg-btn:active { transform: scale(0.96); }
+.seg-btn.on { background: var(--accent); border-color: var(--accent); color: #06231a; }
+.travel-foot { font-size: 14px; }

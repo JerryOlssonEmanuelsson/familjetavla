@@ -16,6 +16,7 @@ import {
   type SourcedEvent,
 } from "./sources.js";
 import { listPhotos, loadConfig, loadLocalList } from "./store.js";
+import { loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
 import {
   addDays,
   daysBetween,
@@ -29,7 +30,7 @@ import {
   shortWeekday,
   startOfDay,
 } from "./time.js";
-import type { ActivityIcon, Config, Control, DashDay, DashEvent, Dashboard, Person, Reminder } from "./types.js";
+import type { ActivityIcon, CalendarSource, Config, Control, DashDay, DashEvent, Dashboard, Person, Reminder, TravelChoice } from "./types.js";
 
 const MIN = 60_000;
 const WASTE_COLOR = "#9aa0bf";
@@ -58,7 +59,13 @@ export function withSwapCalendar(people: Person[], events: SourcedEvent[]): Pers
 }
 
 /** The next few timed things from now until tomorrow evening – the big "Nu" zone. */
-export function buildNow(events: SourcedEvent[], people: Map<string, Person>, now: Date): Dashboard["now"] {
+/** What toDash needs to attach "Dit/Hem" choices to children's activities. */
+export interface TravelCtx {
+  saved: Record<string, TravelChoice>;
+  calendars: Map<string, CalendarSource>;
+}
+
+export function buildNow(events: SourcedEvent[], people: Map<string, Person>, now: Date, travel?: TravelCtx): Dashboard["now"] {
   const until = addDays(startOfDay(now), 2);
   const upcoming = events
     .filter((e) => !e.allDay && e.end > now && e.start < until)
@@ -67,7 +74,7 @@ export function buildNow(events: SourcedEvent[], people: Map<string, Person>, no
     .sort((a, b) => a.start.getTime() - b.start.getTime())
     .slice(0, 3)
     .map((e) => ({
-      ...toDash(e, people),
+      ...toDash(e, people, travel),
       inMinutes: Math.round((e.start.getTime() - now.getTime()) / 60_000),
       dayLabel: daysBetween(now, e.start) === 0 ? "idag" : daysBetween(now, e.start) === 1 ? "imorgon" : shortWeekday(e.start).toLowerCase(),
     }));
@@ -125,9 +132,10 @@ export function activityIcon(title: string, category: DashEvent["category"]): Ac
   return "event";
 }
 
-function toDash(ev: SourcedEvent, people: Map<string, Person>): DashEvent {
+function toDash(ev: SourcedEvent, people: Map<string, Person>, travel?: TravelCtx): DashEvent {
   const p = ev.personId ? people.get(ev.personId) : undefined;
   return {
+    ...(travel && wantsTravel(ev, people) ? { travel: resolveTravel(ev, people, travel.calendars.get(ev.sourceId), travel.saved) } : {}),
     time: ev.allDay ? "" : hhmm(ev.start),
     end: ev.allDay ? undefined : hhmm(ev.end),
     title: ev.title,
@@ -203,6 +211,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
   const people = new Map(withSwapCalendar(cfg.people, calEvents.filter((e) => e.sourceId === swapCal)).map((p) => [p.id, p]));
   const children = [...people.values()].filter((p) => p.kind === "child");
   const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events];
+  const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map(cfg.calendars.map((c) => [c.id, c])) };
 
   // ---- Days ----
   const days: DashDay[] = [];
@@ -214,7 +223,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       // School lessons are noise on a family board – keep only gym (packing matters) and all-day items.
       .filter((e) => !e.sourceId.startsWith("school:") || e.gym || e.allDay)
       .sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.getTime() - b.start.getTime())
-      .map((e) => toDash(e, people));
+      .map((e) => toDash(e, people, travelCtx));
 
     const arriving = children.filter((c) => isHome(c.custody, day) && !isHome(c.custody, prev));
     const leaving = children.filter((c) => !isHome(c.custody, day) && isHome(c.custody, prev));
@@ -264,7 +273,8 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       tempNow: weather ? tempNow(weather, now) : undefined,
       phase: phaseOf(now),
     },
-    now: buildNow(all, people, now),
+    now: buildNow(all, people, now, travelCtx),
+    travelOptions: travelOptions(people),
     people: cfg.people.map((p) => ({
       name: p.name,
       color: p.color,
@@ -273,7 +283,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: buildReminders(now, all, people, waste, weather),
+    reminders: buildReminders(now, all, people, waste, weather, travelCtx),
     custody,
     legend: [
       ...cfg.people.map((p) => ({ name: p.name, color: p.color })),
@@ -551,6 +561,7 @@ export function buildReminders(
   people: Map<string, Person>,
   waste: { date: Date; type: string }[],
   weather: Forecast | null,
+  travel?: TravelCtx,
 ): Reminder[] {
   const out: Reminder[] = [];
   const today = startOfDay(now);
@@ -592,7 +603,14 @@ export function buildReminders(
       const key = `sport:${p.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ icon: "bag", title: `${p.name} · ${e.title} ${evening ? `${focusLabel} ` : ""}${e.allDay ? (evening ? "" : focusLabel) : hhmm(e.start)}`.trim(), sub: "Packa träningsväskan", tone: "blue" });
+      const asks = Boolean(travel && wantsTravel(e, people));
+      const ride = asks ? travelSummary(resolveTravel(e, people, travel!.calendars.get(e.sourceId), travel!.saved)) : "";
+      out.push({
+        icon: "bag",
+        title: `${p.name} · ${e.title} ${evening ? `${focusLabel} ` : ""}${e.allDay ? (evening ? "" : focusLabel) : hhmm(e.start)}`.trim(),
+        sub: ride ? `Packa väskan · ${ride}` : asks ? "Packa väskan · tryck i kalendern för att välja skjuts" : "Packa träningsväskan",
+        tone: "blue",
+      });
     } else if (e.gym) {
       const key = `gym:${p.id}`;
       if (seen.has(key)) continue;

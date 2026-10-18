@@ -8,7 +8,7 @@ import { HOME_WIDGETS, TAB_IDS, type Config, type SecretKey } from "./types.js";
  *   config.json  – non-secret settings, safe to back up and inspect
  *   secrets.json – passwords, tokens and private calendar URLs, AES-256-GCM encrypted
  *   secret.key   – the encryption key, created on first start (chmod 600)
- *   local.json   – the built-in shopping list when Home Assistant's is not used
+ *   local.json   – the built-in shopping list (when Home Assistant's is not used) and travel choices
  */
 export const DATA_DIR = process.env.DATA_DIR ?? join(process.cwd(), "data");
 
@@ -156,12 +156,27 @@ export interface LocalItem {
   done: boolean;
 }
 
+export interface LocalFile {
+  shopping?: LocalItem[];
+  /** Dit/hem-val per händelse, nyckel = travelKey(). */
+  travel?: Record<string, import("./types.js").TravelChoice>;
+}
+
+export function loadLocal(): LocalFile {
+  return readJson<LocalFile>(LOCAL_FILE, {});
+}
+
+/** Merge into local.json so the shopping list and travel choices never overwrite each other. */
+export function saveLocal(part: LocalFile) {
+  writeAtomic(LOCAL_FILE, JSON.stringify({ ...loadLocal(), ...part }, null, 2));
+}
+
 export function loadLocalList(): LocalItem[] {
-  return readJson<{ shopping?: LocalItem[] }>(LOCAL_FILE, {}).shopping ?? [];
+  return loadLocal().shopping ?? [];
 }
 
 export function saveLocalList(items: LocalItem[]) {
-  writeAtomic(LOCAL_FILE, JSON.stringify({ shopping: items }, null, 2));
+  saveLocal({ shopping: items });
 }
 
 // ---------- Photo frame ----------

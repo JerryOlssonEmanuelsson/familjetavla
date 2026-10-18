@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ActivityIcon, DashEvent } from "../../../server/src/types";
+import type { ActivityIcon, DashEvent, DashTravel } from "../../../server/src/types";
 import { Icon, type IconName } from "../Icon";
 
 const ICONS: Record<ActivityIcon, IconName> = {
@@ -70,5 +70,36 @@ export function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: nu
 
 /** Tap opens details; a long press does the same on touch screens without triggering scroll. */
 export function eventLabel(e: DashEvent) {
-  return [e.time, e.title, e.who].filter(Boolean).join(" · ");
+  return [e.time, e.title, e.who, travelText(e.travel)].filter(Boolean).join(" · ");
+}
+
+const travelIcon = (mode: string): IconName => (mode === "bus" ? "bus" : mode === "self" ? "bike" : "car");
+
+/** Small "→ 🚗 ← 🚌" on an event pill; a faint question mark when nobody has chosen yet. */
+export function TravelBadge({ t }: { t?: DashTravel }) {
+  if (!t) return null;
+  if (!t.to && !t.home)
+    return (
+      <span className="travel-badge unset" title="Välj skjuts">
+        <Icon name="car" size={14} />?
+      </span>
+    );
+  return (
+    <span className="travel-badge" title={travelText(t)}>
+      {t.to && <Icon name={travelIcon(t.to.mode)} size={14} />}
+      <i aria-hidden="true">⇄</i>
+      {t.home && <Icon name={travelIcon(t.home.mode)} size={14} />}
+    </span>
+  );
+}
+
+/** "Emil skjutsar dit · buss hem" */
+export function travelText(t?: DashTravel): string {
+  if (!t || (!t.to && !t.home)) return "";
+  if (t.to && t.home && t.to.label === t.home.label) return `${t.to.label} dit och hem`;
+  const low = (s: string) => (/^\p{Lu}\p{Ll}+ skjutsar/u.test(s) ? s : s[0].toLowerCase() + s.slice(1));
+  return [t.to && `${t.to.label} dit`, t.home && `${low(t.home.label)} hem`]
+    .filter(Boolean)
+    .join(" · ")
+    .replace(/^./, (c) => c.toUpperCase());
 }

@@ -1,6 +1,6 @@
 // Demo mode (VITE_DEMO=1): the whole app runs in the browser on recorded sample data.
 // Every button works against this in-memory copy; nothing leaves the page.
-import type { Config, ConfigResponse, Dashboard, Integration, Schedule, TestResult } from "../../../server/src/types";
+import type { Config, ConfigResponse, DashEvent, Dashboard, Integration, Schedule, TestResult, TravelChoice, TravelLeg } from "../../../server/src/types";
 import type { CalendarTest, CarDetails, Discovery, EntityOption, GraphData, GroceryLine, PostcodeInfo } from "../api";
 import fixtures from "./fixtures.json";
 
@@ -37,6 +37,48 @@ if (firstRun) {
 
 const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), ms));
 const d = fx.dashboard;
+
+// ---- Dit/hem in the demo: the same rules as server/src/travel.ts, on the recorded events ----
+d.travelOptions = [
+  { mode: "adult:emil", label: "Emil skjutsar" },
+  { mode: "ride", label: "Blir skjutsad" },
+  { mode: "bus", label: "Buss" },
+  { mode: "self", label: "Cyklar/går" },
+];
+const demoCal = (title: string) => (title.startsWith("F14") ? { id: "ella-sport", name: "Fotboll F14" } : { id: "leo-sim", name: "Simning" });
+const savedTravel: Record<string, TravelChoice> = {
+  "ella-sport@2026-10-19T17:30": { to: { mode: "adult:emil" }, home: { mode: "ride", by: "Saras pappa" } },
+};
+const calTravel: Record<string, TravelChoice> = { "leo-sim": { to: { mode: "bus" }, home: { mode: "adult:emil" } } };
+const legLabel = (l: TravelLeg) =>
+  l.mode === "bus" ? "Buss" : l.mode === "self" ? "Cyklar/går" : l.mode === "ride" ? (l.by ? `Skjuts med ${l.by}` : "Blir skjutsad") : "Emil skjutsar";
+function decorate(e: DashEvent, dayKey: string) {
+  if (e.category !== "sport" || !e.time) return;
+  const cal = demoCal(e.title);
+  const key = `${cal.id}@${dayKey}T${e.time}`;
+  const own = savedTravel[key];
+  const c = own ?? calTravel[cal.id] ?? {};
+  const fmt = (l?: TravelLeg) => (l ? { ...l, label: legLabel(l) } : undefined);
+  e.travel = { key, calendarId: cal.id, calendarName: cal.name, to: fmt(c.to), home: fmt(c.home), fromCalendar: !own && Boolean(calTravel[cal.id]) };
+}
+function summary(e: DashEvent) {
+  const t = e.travel;
+  if (!t || (!t.to && !t.home)) return "";
+  if (t.to && t.home && t.to.label === t.home.label) return `${t.to.label} dit och hem`;
+  const low = (x: string) => (x.startsWith("Emil") ? x : x[0].toLowerCase() + x.slice(1));
+  return [t.to && `${t.to.label} dit`, t.home && `${low(t.home.label)} hem`].filter(Boolean).join(" · ").replace(/^./, (c) => c.toUpperCase());
+}
+function syncTravel() {
+  for (const day of d.days) for (const e of day.events) decorate(e, day.key);
+  const tomorrow = d.days[1]?.key ?? "";
+  for (const e of d.now.items) decorate(e, e.dayLabel === "imorgon" ? tomorrow : d.days[0].key);
+  for (const r of d.reminders) {
+    if (r.icon !== "bag") continue;
+    const ev = d.days[1]?.events.find((e) => r.title.includes(e.title));
+    const s = ev ? summary(ev) : "";
+    r.sub = s ? `Packa väskan · ${s}` : "Packa väskan · tryck i kalendern för att välja skjuts";
+  }
+}
 
 function recountGroups() {
   const cfg = fx.config.config;
@@ -83,6 +125,7 @@ function syncNow() {
     else headline = first.dayLabel === "idag" ? `Senare idag kl ${first.time}` : `Imorgon kl ${first.time}`;
   }
   d.now = { headline, items };
+  syncTravel();
 }
 
 const providerTest = (i: Integration): TestResult => {
@@ -251,5 +294,16 @@ export const demoApi = {
   clearDone: () => {
     d.shopping.items = d.shopping.items.filter((i) => !i.done);
     return wait({});
+  },
+  travel: (key: string, choice: TravelChoice | null, forCalendar = false) => {
+    if (forCalendar) {
+      const calId = key.slice(0, key.lastIndexOf("@"));
+      if (choice) calTravel[calId] = choice;
+      else delete calTravel[calId];
+      delete savedTravel[key];
+    } else if (choice && (choice.to || choice.home)) savedTravel[key] = choice;
+    else delete savedTravel[key];
+    syncTravel();
+    return wait({ ok: true as const }, 150);
   },
 };
