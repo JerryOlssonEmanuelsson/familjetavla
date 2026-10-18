@@ -1449,10 +1449,9 @@ function OrderList<T extends { id: string; on: boolean }>({ items, labels, onCha
   );
 }
 
-export function DisplayStep({ cfg, set, secrets, setSecrets, resp }: StepProps) {
+export function DisplayStep({ cfg, set }: StepProps) {
   const d = cfg.dashboard;
   const setD = (patch: Partial<Config["dashboard"]>) => set({ ...cfg, dashboard: { ...d, ...patch } });
-  const pinSet = resp.secretsSet.includes("admin.pin");
   return (
     <div className="stack">
       <section className="card">
@@ -1489,7 +1488,14 @@ export function DisplayStep({ cfg, set, secrets, setSecrets, resp }: StepProps) 
         <small className="faint">Nattläge visar bara klockan på svart skärm. Tryck för att väcka.</small>
       </section>
       <PhotoFrame cfg={cfg} set={set} />
-      {
+    </div>
+  );
+}
+
+/** PIN + paired screens. Shown on the last step. */
+function PinCard({ secrets, setSecrets, resp }: Pick<StepProps, "secrets" | "setSecrets" | "resp">) {
+  const pinSet = resp.secretsSet.includes("admin.pin");
+  return (
         <section className="card">
           <h2>PIN-kod och skärmar</h2>
           <p className="muted">
@@ -1523,7 +1529,158 @@ export function DisplayStep({ cfg, set, secrets, setSecrets, resp }: StepProps) 
             </div>
           )}
         </section>
-      }
+  );
+}
+
+// ======================= Påminnelser =======================
+
+const BEFORE = [0, 15, 30, 45, 60, 90];
+
+export function NotifyStep({ cfg, set, resp }: StepProps) {
+  const [phones, setPhones] = useState<string[] | null>(null);
+  const [error, setError] = useState("");
+  const [results, setResults] = useState<Record<string, TestResult | string>>({});
+  const [feeds, setFeeds] = useState<Record<string, string>>({});
+  useEffect(() => {
+    api
+      .notifyServices()
+      .then(setPhones)
+      .catch((e: Error) => setError(e.message));
+  }, []);
+  const adults = cfg.people.filter((p) => p.kind === "adult");
+  const setNotify = (id: string, patch: Partial<NonNullable<Person["notify"]>>) =>
+    set({ ...cfg, people: cfg.people.map((p) => (p.id === id ? { ...p, notify: { before: 30, evening: true, weekly: true, ...p.notify, ...patch } } : p)) });
+  const nice = (s: string) => s.replace(/^mobile_app_/, "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  if (!adults.length) return <Result error="Lägg till de vuxna i steget Familjen först." />;
+  return (
+    <div className="stack">
+      {error && <Result error={error} />}
+      {adults.map((a) => {
+        const n = a.notify ?? {};
+        const r = results[a.id];
+        return (
+          <section className="card" key={a.id}>
+            <h2>{a.name || "(namnlös)"}</h2>
+            <div className="row gap" style={{ alignItems: "flex-end" }}>
+              <div className="grow">
+                <Select
+                  label="Telefon"
+                  value={n.service ?? ""}
+                  onChange={(v) => setNotify(a.id, { service: v || undefined })}
+                  options={[{ value: "", label: phones ? "Inga notiser" : "Hämtar telefoner…" }, ...(phones ?? []).map((p) => ({ value: p, label: nice(p) }))]}
+                  help={phones && !phones.some((p) => p.startsWith("mobile_app_")) ? "Installera Home Assistant-appen på telefonen och logga in – då dyker den upp här." : undefined}
+                />
+              </div>
+              <button
+                className="btn"
+                disabled={!n.service}
+                onClick={async () => {
+                  try {
+                    setResults({ ...results, [a.id]: await api.notifyTest(n.service!) });
+                  } catch (e) {
+                    setResults({ ...results, [a.id]: (e as Error).message });
+                  }
+                }}
+              >
+                Testa
+              </button>
+            </div>
+            {r && (typeof r === "string" ? <Result error={r} /> : <Result result={r} />)}
+            {n.service && (
+              <>
+                <Select
+                  label="Påminn före det jag lämnar, hämtar eller skjutsar"
+                  value={String(n.before ?? 30)}
+                  onChange={(v) => setNotify(a.id, { before: Number(v) })}
+                  options={BEFORE.map((m) => ({ value: String(m), label: m ? `${m} minuter innan` : "Ingen påminnelse" }))}
+                />
+                <Toggle label="Kvällen innan kl 20 – vad jag ansvarar för imorgon" checked={n.evening ?? true} onChange={(v) => setNotify(a.id, { evening: v })} />
+                <Toggle label="Söndag kl 19 – Planera veckan om något saknar ansvarig" checked={n.weekly ?? true} onChange={(v) => setNotify(a.id, { weekly: v })} />
+              </>
+            )}
+            <details>
+              <summary className="muted" style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>
+                Egen kalender i telefonen (utan Home Assistant-appen)
+              </summary>
+              <div className="stack" style={{ marginTop: 8 }}>
+                <p className="muted">En privat kalenderlänk med det {a.name || "personen"} lämnar, hämtar och skjutsar de kommande 7 dagarna. Prenumerera på den i telefonens kalender. Den uppdateras av sig själv när någon ändrar på tavlan.</p>
+                {feeds[a.id] ? (
+                  <>
+                    <input className="input" readOnly value={feeds[a.id]} onFocus={(e) => e.target.select()} />
+                    <div className="row gap wrap">
+                      <button className="btn small" onClick={() => navigator.clipboard?.writeText(feeds[a.id]).catch(() => {})}>
+                        Kopiera
+                      </button>
+                      <a className="btn small" href={feeds[a.id].replace(/^https?:/, "webcal:")}>
+                        Öppna i kalendern
+                      </a>
+                    </div>
+                    <small className="faint">
+                      Telefonen hämtar kalendern direkt från tavlan, så den uppdateras när telefonen är hemma på wifi:t (eller via VPN).
+                      {resp.runtime.supervisor ? " I Home Assistant-tillägget: öppna port 8099 och använd den adressen." : ""}
+                    </small>
+                  </>
+                ) : (
+                  <button
+                    className="btn small"
+                    style={{ alignSelf: "flex-start" }}
+                    onClick={async () => {
+                      try {
+                        const r = await api.newFeed(a.id);
+                        setFeeds({ ...feeds, [a.id]: new URL(r.path, location.href.split("#")[0]).toString() });
+                      } catch (e) {
+                        setResults({ ...results, [a.id]: (e as Error).message });
+                      }
+                    }}
+                  >
+                    {resp.secretsSet.includes(`feed.${a.id}`) ? "Skapa ny länk (den gamla slutar fungera)" : "Skapa kalenderlänk"}
+                  </button>
+                )}
+              </div>
+            </details>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+// ======================= Klart =======================
+
+export function DoneStep({ cfg, secrets, setSecrets, resp, haOk, addSteps }: StepProps) {
+  const ha = (ids: string[]) => (haOk ? ids : ["ha", ...ids]);
+  const adultsNotified = cfg.people.filter((p) => p.kind === "adult" && p.notify?.service).length;
+  const e = cfg.entities;
+  const tiles: { title: string; desc: string; ids: string[]; done: boolean }[] = [
+    { title: "Påminnelser till telefonen", desc: "Den som ska lämna, hämta eller skjutsa får en notis i tid.", ids: ha(["paminnelser"]), done: adultsNotified > 0 },
+    { title: "Hemmet", desc: "Bil, ljus, värme och energi från Home Assistant.", ids: ha(["hamta", "huset"]), done: e.cars.length + e.lights.length + e.climates.length > 0 },
+    { title: "Sophämtning", desc: "Påminnelse kvällen innan kärlen töms.", ids: ["sopor"], done: cfg.integrations.some((i) => i.category === "waste") },
+    { title: "Inköpslista", desc: "Lista på tavlan, och skicka till butikens varukorg.", ids: ["inkop"], done: cfg.shopping.source === "ha" || cfg.integrations.some((i) => i.category === "grocery") },
+    { title: "Elpris", desc: "Timpris och billigaste timmarna.", ids: ["el"], done: false },
+    { title: "Startskärm och utseende", desc: "Vad som visas, tema, nattläge och fotoram.", ids: ["visning"], done: false },
+  ];
+  const kids = cfg.people.filter((p) => p.kind === "child").length;
+  return (
+    <div className="stack">
+      <div className="result">
+        <b>
+          {cfg.people.length} {cfg.people.length === 1 ? "person" : "personer"} · {cfg.calendars.length} {cfg.calendars.length === 1 ? "kalender" : "kalendrar"}
+          {kids ? ` · ${kids} barn` : ""}
+        </b>
+        <span className="muted">Tryck på Planera veckan på tavlan för att bestämma vem som lämnar, hämtar och skjutsar.</span>
+      </div>
+      <h2 style={{ fontSize: 18 }}>Lägg till mer (valfritt)</h2>
+      <div className="tiles">
+        {tiles.map((t) => (
+          <button key={t.title} className={`tile ${t.done ? "selected" : ""}`} onClick={() => addSteps(t.ids)}>
+            <b>
+              {t.done && <Icon name="check" size={16} />} {t.title}
+            </b>
+            <small>{t.desc}</small>
+          </button>
+        ))}
+      </div>
+      <PinCard secrets={secrets} setSecrets={setSecrets} resp={resp} />
     </div>
   );
 }

@@ -13,9 +13,11 @@ import {
   hasPriceExtras,
   totalPrice,
   type SourceError,
+  type SchoolData,
   type SourcedEvent,
 } from "./sources.js";
 import { listPhotos, loadConfig, loadLocalList } from "./store.js";
+import { buildPlan } from "./plan.js";
 import { isCare, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
 import {
   addDays,
@@ -190,16 +192,38 @@ function formatTemp(states: Map<string, HaState>, id: string): string {
   return Number.isFinite(n) ? `${n.toFixed(1).replace(".", ",").replace(",0", "")}${unit === "°C" ? "°" : unit}` : v;
 }
 
+/** Everything about the family for the coming week: people (with swap calendar), events, care days, travel. */
+export interface Family {
+  people: Map<string, Person>;
+  children: Person[];
+  /** Calendars + school, without the swap calendar. */
+  all: SourcedEvent[];
+  /** `all` plus generated förskola/fritids days. */
+  withCare: SourcedEvent[];
+  travelCtx: TravelCtx;
+}
+
+export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]): Promise<Family & { schoolFood: SchoolData["food"] }> {
+  const today = startOfDay(now);
+  const horizon = addDays(today, 7);
+  const [calEvents, school] = await Promise.all([collectCalendars(cfg, today, horizon, errors), collectSchool(cfg, today, horizon, errors)]);
+  const swapCal = cfg.household.custodyCalendarId;
+  const people = new Map(withSwapCalendar(cfg.people, calEvents.filter((e) => e.sourceId === swapCal)).map((p) => [p.id, p]));
+  const children = [...people.values()].filter((p) => p.kind === "child");
+  const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events];
+  const careEvents = buildCareEvents([...people.values()], school.care, all, today, 7);
+  const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map([...cfg.calendars.map((c) => [c.id, c] as const), ...careCalendars([...people.values()])]) };
+  return { people, children, all, withCare: [...all, ...careEvents], travelCtx, schoolFood: school.food };
+}
+
 export async function buildDashboard(now = new Date()): Promise<Dashboard> {
   const cfg = loadConfig();
   const errors: SourceError[] = [];
   const today = startOfDay(now);
-  const horizon = addDays(today, 7);
 
   const conn = haConnection();
-  const [calEvents, school, waste, weather, prices, states, shopping] = await Promise.all([
-    collectCalendars(cfg, today, horizon, errors),
-    collectSchool(cfg, today, horizon, errors),
+  const [family, waste, weather, prices, states, shopping] = await Promise.all([
+    gatherFamily(cfg, now, errors),
     collectWaste(cfg, errors),
     cfg.household.lat != null && cfg.household.lon != null
       ? cached(`weather`, 30 * MIN, () => forecast(cfg.household.lat!, cfg.household.lon!)).catch((e) => {
@@ -219,13 +243,8 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     loadShopping(cfg, errors),
   ]);
   const stateMap = new Map(states.map((s) => [s.entity_id, s]));
-  const swapCal = cfg.household.custodyCalendarId;
-  const people = new Map(withSwapCalendar(cfg.people, calEvents.filter((e) => e.sourceId === swapCal)).map((p) => [p.id, p]));
-  const children = [...people.values()].filter((p) => p.kind === "child");
-  const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events];
-  const careEvents = buildCareEvents([...people.values()], school.care, all, today, 7);
-  const withCare = [...all, ...careEvents];
-  const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map([...cfg.calendars.map((c) => [c.id, c] as const), ...careCalendars([...people.values()])]) };
+  const { people, children, all, withCare, travelCtx } = family;
+  const plan = buildPlan(withCare, people, travelCtx, now, (e) => toDash(e, people, travelCtx));
 
   // ---- Days ----
   const days: DashDay[] = [];
@@ -281,7 +300,8 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: buildReminders(now, withCare, people, waste, weather, travelCtx),
+    reminders: [...planReminder(plan, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, 5),
+    plan,
     custody,
     legend: [
       ...cfg.people.map((p) => ({ name: p.name, color: p.color })),
@@ -296,7 +316,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     })(),
     prices: buildPrices(cfg, prices, now),
     energy: buildEnergy(cfg, stateMap),
-    schoolFood: todaysFood(school.food, now),
+    schoolFood: todaysFood(family.schoolFood, now),
     cars: cfg.entities.cars.map((c) => ({
       ...buildCar(c, stateMap, now),
       climate: c.climate ? { entityId: c.climate, on: isOnState(stateMap.get(c.climate)?.state) } : undefined,
@@ -773,4 +793,19 @@ export function buildCareEvents(
     }
   }
   return out;
+}
+
+/** "2 saker de närmaste dagarna saknar ansvarig" – only what is close (today and tomorrow). */
+export function planReminder(plan: Dashboard["plan"], now: Date): Reminder[] {
+  const soon = plan.items.filter((i) => (!i.travel.to || !i.travel.home) && (i.dayLabel === "idag" || i.dayLabel === "imorgon"));
+  if (!soon.length) return [];
+  const first = soon[0];
+  return [
+    {
+      icon: "kids",
+      title: soon.length === 1 ? `${first.who} · ${first.title.replace(/^Lämning · /, "")} ${first.dayLabel} saknar ansvarig` : `${soon.length} saker idag och imorgon saknar ansvarig`,
+      sub: "Tryck på Planera veckan",
+      tone: "amber",
+    },
+  ];
 }

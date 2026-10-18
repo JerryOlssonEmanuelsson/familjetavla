@@ -105,6 +105,9 @@ const realApi = {
   authStatus: () => request<{ paired: boolean; pinRequired: boolean; supervisor: boolean }>("auth/status"),
   pair: (pin: string, name: string) => post<{ ok: true }>("auth/pair", { pin, name }),
   forgetDevices: () => request<{ ok: true }>("auth/devices", { method: "DELETE" }),
+  notifyServices: () => request<string[]>("ha/notify-services"),
+  notifyTest: (service: string) => post<TestResult>("notify/test", { service }),
+  newFeed: (personId: string) => post<{ ok: true; path: string }>(`feed/${personId}/new`),
   config: () => request<ConfigResponse>("config"),
   saveConfig: (config: ConfigResponse["config"], secrets: Record<string, string | null> = {}) =>
     request<ConfigResponse>("config", { method: "PUT", body: JSON.stringify({ config, secrets }) }),

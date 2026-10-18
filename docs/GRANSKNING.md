@@ -89,6 +89,16 @@ Grundprincipen är att **ingen familjeform är standard**. En tidig version utgi
 
 Inte gjort ännu: bytestid (morgon/eftermiddag på bytesdagen), dygnsfaser från solens upp- och nedgång, temperaturbaserade klädtips, veckans middagar bredvid skollunchen.
 
+## 4c. Omtag efter egen granskning (version 0.3.0)
+
+Tavlan var bra på att *visa* men planeringen sker i telefonen och det svåra är det som *ingen* har tagit. Därför:
+
+- **Ansvar på allt + Planera veckan:** varje aktivitet och förskoledag de kommande 7 dagarna har Lämnar/Hämtar (eller Dit/Hem). Det som saknar ansvarig visas i gult, räknas på knappen "Planera veckan" och nämns i Kom ihåg om det gäller idag/imorgon.
+- **Påminnelser till rätt person:** via Home Assistants notify-tjänst (Companion-appen) X min innan, kvällen innan kl 20 och söndag kl 19. Alternativ: privat kalenderlänk (ICS) per vuxen – fungerar när telefonen är på hemmanätet.
+- **Kortare guide:** första start = Hem, Familjen, Kalendrar, Skola och förskola, Klart. Allt annat (hemmet, sopor, inköp, el, påminnelser, utseende) läggs till från Klart-steget.
+
+Medvetet inte gjort: delning med det andra hemmet (kräver att tavlan nås utanför hemnätet), egen mobilapp.
+
 ## 5. Kända svagheter (vi vet om dem)
 
 - Vklass, Willys och EDP (sopor) är **inofficiella** och kan sluta fungera, eller strida mot sajternas villkor. Vklass-flödet är inte verifierat mot ett riktigt förskolekonto ännu.

@@ -1,4 +1,4 @@
-export const UA = "familjetavla/0.2 (+https://github.com/murre87/familjetavla)";
+export const UA = "familjetavla/0.3 (+https://github.com/murre87/familjetavla)";
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {

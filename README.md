@@ -21,6 +21,10 @@ Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem
 
 ## Vad den gör
 
+**Planera veckan och påminnelser**
+- **Planera veckan:** allt de kommande 7 dagarna som behöver någon som lämnar, hämtar eller skjutsar – ett tryck per val. Det som saknar ansvarig syns i gult.
+- **Påminnelser till rätt telefon** (via Home Assistant-appen): "Om 30 min: Hämta Maja på förskolan 16:00", kvällen innan kl 20, och söndag kl 19 om något saknar ansvarig. Eller en egen kalenderlänk per vuxen.
+
 **Hemvyn**
 - **Kom ihåg:** "Regn i eftermiddag – ta regnjackan", "Ella · Fotboll imorgon 17:30 – packa väskan", "Idrott tis – gympapåse", "Matavfall hämtas imorgon – ställ ut kärlet ikväll", "Barnen kommer imorgon". Efter kl. 17 visar den morgondagen.
 - **Barnvecka:** nedräkning till nästa byte. Varannan vecka från valfritt datum (tål vecka 53), udda/jämna veckor, valfri bytesdag, **undantag** för lov och bytta helger, och en valfri **byteskalender**.

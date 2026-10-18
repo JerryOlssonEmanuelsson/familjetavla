@@ -12,6 +12,8 @@ import {
   HaStep,
   HomeStep,
   HouseStep,
+  NotifyStep,
+  DoneStep,
   SchoolStep,
   ShoppingStep,
   WasteStep,
@@ -29,20 +31,28 @@ export interface StepProps {
   setPostcode: (p: PostcodeInfo | null) => void;
   /** Save now (used before tests that read stored config, e.g. after connecting HA). */
   saveNow: () => Promise<void>;
+  /** Last step: add optional steps (first start) and jump to the first of them. */
+  addSteps: (ids: string[]) => void;
 }
 
-const STEPS: { id: string; label: string; title: string; lead: string; C: (p: StepProps) => React.ReactNode; needsHa?: boolean; optional?: boolean }[] = [
-  { id: "hem", label: "Hem", title: "Välkommen till Familjetavlan", lead: "Vi börjar med var ni bor – det ger väder, elområde och sophämtning.", C: HomeStep },
-  { id: "familj", label: "Familjen", title: "Vilka bor här?", lead: "Lägg till vuxna och barn. Bor ett barn växelvis i två hem väljer du det på barnet – annars behöver du inte tänka på det.", C: FamilyStep },
-  { id: "ha", label: "Home Assistant", title: "Home Assistant", lead: "Med Home Assistant kan tavlan visa bilar, ljus, värme och energi. Hoppa över om du inte har det.", C: HaStep },
+/**
+ * First start shows only the core (core: true) – home, family, calendars, school/förskola, done.
+ * Everything else is added from the last step ("Lägg till mer") or later under settings.
+ */
+const STEPS: { id: string; label: string; title: string; lead: string; C: (p: StepProps) => React.ReactNode; needsHa?: boolean; optional?: boolean; core?: boolean }[] = [
+  { id: "hem", label: "Hem", title: "Välkommen till Familjetavlan", lead: "Vi börjar med var ni bor – det ger väder och rätt dag för sopor och elpris. Fyra korta steg, sedan är tavlan igång.", C: HomeStep, core: true },
+  { id: "familj", label: "Familjen", title: "Vilka bor här?", lead: "Lägg till vuxna och barn. Bor ett barn växelvis i två hem väljer du det på barnet – annars behöver du inte tänka på det.", C: FamilyStep, core: true },
+  { id: "kalendrar", label: "Kalendrar", title: "Kalendrar", lead: "Lägg till familjens kalendrar och barnens aktiviteter – en kalender per lag eller aktivitet.", C: CalendarsStep, core: true },
+  { id: "skola", label: "Skola", title: "Skola och förskola", lead: "Skola och förskola: schema, idrott, omsorgstid och matsedel. Tavlan påminner om gympapåsen.", C: SchoolStep, optional: true, core: true },
+  { id: "ha", label: "Home Assistant", title: "Home Assistant", lead: "Behövs för påminnelser till telefonen och för bil, ljus, värme och energi.", C: HaStep },
+  { id: "paminnelser", label: "Påminnelser", title: "Påminnelser till telefonen", lead: "Den som ska lämna, hämta eller skjutsa får en notis i tid – via Home Assistant-appen. Eller prenumerera på en egen kalender.", C: NotifyStep, needsHa: true, optional: true },
   { id: "hamta", label: "Hämta", title: "Hämta från Home Assistant", lead: "Vi letar upp det du redan har integrerat – bilar, växelriktare, värmepump, spabad, lampor och mer. Bocka ur det du inte vill ha.", C: DiscoverStep, needsHa: true, optional: true },
-  { id: "kalendrar", label: "Kalendrar", title: "Kalendrar", lead: "Lägg till familjens kalendrar och barnens aktiviteter – en kalender per lag eller aktivitet.", C: CalendarsStep },
-  { id: "skola", label: "Skola", title: "Skola och förskola", lead: "Skola och förskola: schema, idrott, omsorgstid och matsedel. Tavlan påminner om gympapåsen.", C: SchoolStep, optional: true },
+  { id: "huset", label: "Huset", title: "Huset", lead: "Finjustera bilar, energi, ljus, värme och grafer.", C: HouseStep, needsHa: true, optional: true },
   { id: "sopor", label: "Sopor", title: "Sophämtning", lead: "Få en påminnelse kvällen innan kärlen töms.", C: WasteStep, optional: true },
   { id: "inkop", label: "Inköp", title: "Mat & inköp", lead: "Inköpslistan på tavlan – och skicka den till butikens varukorg.", C: ShoppingStep, optional: true },
   { id: "el", label: "El", title: "Elpris", lead: "Se timpriset och de billigaste timmarna. Lägg till ditt elbolags påslag för verkligt pris.", C: ElectricityStep, optional: true },
-  { id: "huset", label: "Huset", title: "Huset", lead: "Finjustera bilar, energi, ljus, värme och grafer.", C: HouseStep, needsHa: true, optional: true },
-  { id: "visning", label: "Startskärm", title: "Startskärm och utseende", lead: "Välj vad som ska synas och i vilken ordning.", C: DisplayStep },
+  { id: "visning", label: "Startskärm", title: "Startskärm och utseende", lead: "Välj vad som ska synas och i vilken ordning.", C: DisplayStep, optional: true },
+  { id: "klart", label: "Klart", title: "Klart!", lead: "Tavlan är redo. Lägg till mer nu eller när som helst under Inställningar.", C: DoneStep, core: true },
 ];
 
 export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse; startStep?: string; onDone: (r: ConfigResponse) => void }) {
@@ -53,9 +63,22 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
   const [postcode, setPostcode] = useState<PostcodeInfo | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const visible = STEPS.filter((s) => !s.needsHa || haOk);
+  // First start: only the core steps, plus what the user adds from "Lägg till mer".
+  const [firstRun] = useState(!initial.config.setupComplete);
+  const [extras, setExtras] = useState<string[]>([]);
+  const [jumpTo, setJumpTo] = useState("");
+  const visible = STEPS.filter((s) => (!firstRun || s.core || extras.includes(s.id)) && (!s.needsHa || haOk));
   const startIdx = Math.max(0, visible.findIndex((s) => s.id === startStep));
   const [idx, setIdx] = useState(initial.config.setupComplete && !startStep ? visible.length - 1 : startIdx);
+  useEffect(() => {
+    if (!jumpTo) return;
+    const i = visible.findIndex((s) => s.id === jumpTo);
+    if (i >= 0) {
+      setIdx(i);
+      setJumpTo("");
+      window.scrollTo({ top: 0 });
+    }
+  }, [jumpTo, visible]);
   const step = visible[Math.min(idx, visible.length - 1)];
 
   const save = async (next: Config = cfg) => {
@@ -109,6 +132,14 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
     setPostcode,
     saveNow: async () => {
       await save();
+    },
+    addSteps: (ids) => {
+      void save()
+        .then(() => {
+          setExtras((x) => [...new Set([...x, ...ids])]);
+          setJumpTo(ids[0]);
+        })
+        .catch(() => {});
     },
   };
   const last = idx >= visible.length - 1;
@@ -195,6 +226,8 @@ function stepHasData(cfg: Config, id: string): boolean {
       return has("grocery") || cfg.shopping.source === "ha";
     case "el":
       return has("price");
+    case "paminnelser":
+      return cfg.people.some((p) => p.notify?.service);
     default:
       return true;
   }
