@@ -1,0 +1,48 @@
+import { getSecret, setSecret } from "../store.js";
+import type { Integration, IntegrationCategory, ProviderMeta, SettingValue } from "../types.js";
+import { hemkop, willys } from "./grocery.js";
+import { haPrice, spotPrice } from "./price.js";
+import { schoolIcs, vklass } from "./school.js";
+import type { AnyProvider, GroceryProvider, PriceProvider, ProviderCtx, SchoolProvider, WasteProvider } from "./types.js";
+import { wasteEdp, wasteHa, wasteIcs, wasteManual } from "./waste.js";
+
+/**
+ * Every supported service, per category. To add one: implement the interface in
+ * providers/types.ts, add it here – the setup wizard draws its form from `meta.fields`.
+ */
+export const PROVIDERS = {
+  school: [vklass, schoolIcs] as SchoolProvider[],
+  grocery: [willys, hemkop] as GroceryProvider[],
+  waste: [wasteEdp, wasteManual, wasteIcs, wasteHa] as WasteProvider[],
+  price: [spotPrice, haPrice] as PriceProvider[],
+} satisfies Record<IntegrationCategory, AnyProvider[]>;
+
+/** Which categories allow several integrations at once (one school calendar per child). */
+export const MULTIPLE: Record<IntegrationCategory, boolean> = { school: true, grocery: false, waste: false, price: false };
+
+export function allMeta(): ProviderMeta[] {
+  return Object.values(PROVIDERS).flat().map((p) => p.meta);
+}
+
+export function findProvider<C extends IntegrationCategory>(category: C, id: string): (typeof PROVIDERS)[C][number] | undefined {
+  return (PROVIDERS[category] as AnyProvider[]).find((p) => p.meta.id === id) as (typeof PROVIDERS)[C][number] | undefined;
+}
+
+export const secretKey = (integrationId: string, field: string) => `int.${integrationId}.${field}` as const;
+
+/**
+ * Build a provider context. `overrides` lets the wizard test with values not yet saved
+ * (a typed password); secrets fall back to what is stored.
+ */
+export function makeCtx(integration: Integration, overrides: Record<string, string> = {}): ProviderCtx {
+  const settings: Record<string, SettingValue> = { ...integration.settings };
+  return {
+    integration,
+    settings,
+    str: (k) => String(overrides[k] ?? settings[k] ?? "").trim(),
+    secret: (k) => overrides[k] || getSecret(secretKey(integration.id, k)),
+    remember: (k, v) => {
+      if (!overrides[k]) setSecret(secretKey(integration.id, k), v);
+    },
+  };
+}
