@@ -217,6 +217,12 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
     <section className="card area-week week-swipe">
       <div className="card-head" style={{ flexWrap: "wrap" }}>
         <h2>Kommande 7 dagar</h2>
+        {data.plan.items.length > 0 && (
+          <button className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`} onClick={actions.openPlan}>
+            <Icon name="kids" size={18} />
+            {data.plan.missing ? `Planera veckan · ${data.plan.missing} utan ansvarig` : "Planera veckan"}
+          </button>
+        )}
         <div className="legend">
           {data.legend
             .filter((l) => !data.people.some((p) => p.name === l.name))

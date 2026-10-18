@@ -6,7 +6,8 @@ import { lookupPostcode } from "./connectors/geo.js";
 import { detectGroups, fetchIcs, filterEvents } from "./connectors/ics.js";
 import { ha, haConnection } from "./connectors/ha.js";
 import { geocode } from "./connectors/weather.js";
-import { buildDashboard } from "./dashboard.js";
+import { buildDashboard, gatherFamily } from "./dashboard.js";
+import { duties, dutiesIcs } from "./plan.js";
 import { carActions, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
 import { haSocket } from "./connectors/haws.js";
@@ -33,7 +34,7 @@ import { readFileSync } from "node:fs";
 import { addDays, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
-export const VERSION = "0.2.0";
+export const VERSION = "0.3.0";
 const ID = /^[a-z0-9-]{1,40}$/;
 const SUPERVISOR_IP = "172.30.32.2";
 
@@ -86,6 +87,8 @@ function issueDevice(req: FastifyRequest, reply: FastifyReply, name: string) {
 }
 
 const OPEN = new Set(["/api/health", "/api/auth/status", "/api/auth/pair"]);
+// Calendar subscriptions on the phones carry their own secret token in the URL.
+const OPEN_PREFIX = "/api/feed/";
 
 async function guard(req: FastifyRequest, reply: FastifyReply) {
   if (!pinOk(req)) await reply.code(401).send({ error: "PIN krävs för inställningar." });
@@ -112,6 +115,14 @@ const personSchema = z.object({
         .array(z.object({ from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), home: z.boolean(), note: z.string().max(60).optional() }))
         .max(60)
         .optional(),
+    })
+    .optional(),
+  notify: z
+    .object({
+      service: z.string().regex(/^[a-z0-9_]{1,80}$/).optional(),
+      before: z.number().int().min(0).max(240).optional(),
+      evening: z.boolean().optional(),
+      weekly: z.boolean().optional(),
     })
     .optional(),
   care: z
@@ -263,7 +274,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.addHook("onRequest", async (req, reply) => {
     const path = req.url.split("?")[0];
-    if (!path.startsWith("/api/") || OPEN.has(path) || trusted(req)) return;
+    if (!path.startsWith("/api/") || OPEN.has(path) || path.startsWith(OPEN_PREFIX) || trusted(req)) return;
     await reply.code(401).send({ error: "Den här skärmen är inte upplåst. Ange PIN-koden en gång.", code: "pair" });
   });
 
@@ -318,6 +329,8 @@ export async function registerRoutes(app: FastifyInstance) {
     // Clean up secrets of removed calendars and integrations; a new login drops the old session.
     const cals = new Set(next.calendars.map((c) => c.id));
     for (const c of prev.calendars) if (!cals.has(c.id)) setSecret(`calendar.${c.id}.url`, null);
+    const adults = new Set(next.people.filter((p) => p.kind === "adult").map((p) => p.id));
+    for (const k of listSecretKeys()) if (k.startsWith("feed.") && !adults.has(k.slice(5))) setSecret(k as SecretKey, null);
     const ints = new Set(next.integrations.map((i) => i.id));
     for (const k of listSecretKeys()) {
       const m = /^int\.([a-z0-9-]+)\./.exec(k);
@@ -330,6 +343,54 @@ export async function registerRoutes(app: FastifyInstance) {
     saveConfig(next);
     invalidate();
     return configResponse();
+  });
+
+  // ---------- Reminders to the phones ----------
+
+  /** Home Assistant's notify services (the Companion app registers notify.mobile_app_<telefon>). */
+  app.get("/api/ha/notify-services", { preHandler: guard }, async (_req, reply) => {
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Anslut Home Assistant först."));
+    try {
+      const domains = await ha.services(conn);
+      const names = Object.keys(domains.find((d) => d.domain === "notify")?.services ?? {});
+      return names.filter((n) => n !== "notify" && n !== "send_message" && n !== "persistent_notification").sort((a, b) => Number(b.startsWith("mobile_app_")) - Number(a.startsWith("mobile_app_")) || a.localeCompare(b));
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  app.post("/api/notify/test", { preHandler: guard }, async (req, reply) => {
+    const { service } = (req.body ?? {}) as { service?: string };
+    const conn = haConnection();
+    if (!conn || !service || !/^[a-z0-9_]{1,80}$/.test(service)) return fail(reply, new Error("Välj en telefon."));
+    try {
+      await ha.service(conn, "notify", service, { title: "Familjetavla", message: "Så här ser påminnelserna ut. Du får dem för det du lämnar, hämtar eller skjutsar." });
+      return { ok: true, message: "Skickat – titta i telefonen." };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  /** Create (or replace) a private calendar link for one grown-up: what they drop off, pick up and drive. */
+  app.post("/api/feed/:personId/new", { preHandler: guard }, async (req, reply) => {
+    const id = (req.params as { personId: string }).personId;
+    if (!loadConfig().people.some((p) => p.id === id && p.kind === "adult")) return fail(reply, new Error("Okänd person"));
+    const token = randomBytes(18).toString("base64url");
+    setSecret(`feed.${id}`, token);
+    return { ok: true, path: `api/feed/${token}.ics` };
+  });
+
+  app.get("/api/feed/:file", async (req, reply) => {
+    const token = (req.params as { file: string }).file.replace(/\.ics$/, "");
+    const cfg = loadConfig();
+    const person = cfg.people.find((p) => p.kind === "adult" && token.length > 10 && getSecret(`feed.${p.id}`) === token);
+    if (!person) return reply.code(404).send("Hittades inte");
+    const now = new Date();
+    const fam = await gatherFamily(cfg, now, []);
+    const mine = duties(fam.withCare, fam.people, fam.travelCtx, startOfDay(now), addDays(startOfDay(now), 7)).filter((d) => d.personId === person.id);
+    reply.header("content-type", "text/calendar; charset=utf-8").header("cache-control", "no-store");
+    return dutiesIcs(person.name, mine, person.notify?.before);
   });
 
   // ---------- Dashboard ----------

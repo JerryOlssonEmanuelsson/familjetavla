@@ -45,6 +45,7 @@ async function call<T>(conn: HaConn, path: string, init: RequestInit = {}): Prom
 export const ha = {
   ping: (c: HaConn) => call<{ message: string }>(c, "/"),
   states: (c: HaConn) => call<HaState[]>(c, "/states"),
+  services: (c: HaConn) => call<{ domain: string; services: Record<string, unknown> }[]>(c, "/services"),
   state: (c: HaConn, id: string) => call<HaState>(c, `/states/${encodeURIComponent(id)}`),
   service: (c: HaConn, domain: string, service: string, data: Record<string, unknown>, returnResponse = false) =>
     call<unknown>(c, `/services/${domain}/${service}${returnResponse ? "?return_response" : ""}`, {

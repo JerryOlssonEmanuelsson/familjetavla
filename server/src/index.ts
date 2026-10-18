@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { haConnection } from "./connectors/ha.js";
 import { initHaSocket } from "./connectors/haws.js";
+import { startNotifier } from "./notify.js";
 import { startPublisher } from "./publisher.js";
 import { registerRoutes } from "./routes.js";
 import { startScheduler } from "./scheduler.js";
@@ -35,3 +36,4 @@ if (existsSync(webDist)) {
 await app.listen({ host: "0.0.0.0", port });
 startScheduler(app.log);
 startPublisher(app.log);
+startNotifier(app.log);

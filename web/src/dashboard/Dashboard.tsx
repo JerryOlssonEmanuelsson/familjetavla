@@ -39,6 +39,8 @@ export interface Actions {
   openGrocery: () => void;
   /** Tap on an event: show its details in a sheet. */
   openEvent: (e: DashEvent & { dayLabel?: string }) => void;
+  /** "Planera veckan": set who drops off / picks up / drives for the whole week. */
+  openPlan: () => void;
 }
 
 const SKY_ICON: Record<string, IconName> = { clear: "sun", partly: "partly", cloudy: "cloud", rain: "rain", snow: "snow", fog: "cloud" };
@@ -146,6 +148,100 @@ function TravelPicker({
   );
 }
 
+/** For förskola: grown-ups by name and "Någon annan"; for activities: every way to get there. */
+function legOptions(data: Dash, care: boolean): Dash["travelOptions"] {
+  return care
+    ? data.travelOptions.filter((o) => o.mode.startsWith("adult:") || o.mode === "ride").map((o) => ({ ...o, label: o.mode === "ride" ? "Någon annan" : o.label.replace(/ skjutsar$/, "") }))
+    : data.travelOptions.map((o) => ({ ...o, label: o.label.replace(/ skjutsar$/, "") }));
+}
+
+/** Small row of choices inside the week plan. */
+function MiniPick({ label, leg, options, onPick }: { label: string; leg?: TravelLeg; options: Dash["travelOptions"]; onPick: (l: TravelLeg | undefined) => void }) {
+  return (
+    <div className={`mini-pick ${leg ? "" : "unset"}`}>
+      <span className="mini-label">{label}</span>
+      <div className="seg small" role="radiogroup" aria-label={label}>
+        {options.map((o) => {
+          const on = leg?.mode === o.mode;
+          return (
+            <button key={o.mode} role="radio" aria-checked={on} className={`seg-btn ${on ? "on" : ""}`} onClick={() => onPick(on ? undefined : { mode: o.mode })}>
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** "Planera veckan": everything in the next 7 days that needs someone, one tap per choice. */
+function PlanSheet({ data, onClose, onChanged }: { data: Dash; onClose: () => void; onChanged: () => Promise<void> }) {
+  const [busy, setBusy] = useState("");
+  const [onlyMissing, setOnlyMissing] = useState(data.plan.missing > 0);
+  const items = data.plan.items.filter((i) => !onlyMissing || !i.travel.to || !i.travel.home);
+  const days = [...new Set(items.map((i) => i.dayKey))];
+  const save = async (key: string, choice: TravelChoice) => {
+    setBusy(key);
+    try {
+      await api.travel(key, choice.to || choice.home ? choice : null);
+      await onChanged();
+    } finally {
+      setBusy("");
+    }
+  };
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet plan-sheet" role="dialog" aria-modal="true" aria-label="Planera veckan" onClick={(x) => x.stopPropagation()}>
+        <div className="row gap">
+          <h2 className="grow" style={{ fontSize: 26 }}>
+            Planera veckan
+          </h2>
+          <button className="btn icon" aria-label="Stäng" onClick={onClose}>
+            <Icon name="x" />
+          </button>
+        </div>
+        <div className="row gap wrap">
+          <span className={`chip ${data.plan.missing ? "warn" : "good"}`}>
+            {data.plan.missing ? `${data.plan.missing} saknar ansvarig` : "Allt har någon som ansvarar"}
+          </span>
+          <button className="btn small ghost" onClick={() => setOnlyMissing(!onlyMissing)}>
+            {onlyMissing ? "Visa allt" : "Bara det som saknas"}
+          </button>
+        </div>
+        {items.length === 0 && <p className="muted">{onlyMissing ? "Klart! Allt den här veckan har någon som lämnar, hämtar eller skjutsar." : "Inga aktiviteter eller förskoledagar de kommande 7 dagarna."}</p>}
+        <div className="stack plan-list">
+          {days.map((dk) => (
+            <div key={dk} className="stack" style={{ gap: 8 }}>
+              <span className="eyebrow">{items.find((i) => i.dayKey === dk)!.dayLabel}</span>
+              {items
+                .filter((i) => i.dayKey === dk)
+                .map((i) => {
+                  const t = i.travel;
+                  const care = t.kind === "care";
+                  const cur: TravelChoice = { to: t.to && { mode: t.to.mode, by: t.to.by }, home: t.home && { mode: t.home.mode, by: t.home.by } };
+                  const opts = legOptions(data, care);
+                  return (
+                    <div key={t.key} className={`plan-item ${!t.to || !t.home ? "missing" : ""} ${busy === t.key ? "busy" : ""}`}>
+                      <div className="row gap">
+                        <EventIcon icon={i.icon} color={i.color} size={22} />
+                        <b className="time">{i.time}</b>
+                        <span className="grow">{i.title.replace(/^Lämning · /, "")}</span>
+                        {i.initial && <Avatar initial={i.initial} color={i.color} name={i.who} />}
+                      </div>
+                      <MiniPick label={care ? "Lämnar" : "Dit"} leg={cur.to} options={opts} onPick={(to) => save(t.key, { ...cur, to })} />
+                      <MiniPick label={care ? "Hämtar" : "Hem"} leg={cur.home} options={opts} onPick={(home) => save(t.key, { ...cur, home })} />
+                    </div>
+                  );
+                })}
+            </div>
+          ))}
+        </div>
+        <small className="faint">Valen gäller bara den dagen. Standard för förskolan och för varje kalender ändrar du genom att trycka på händelsen.</small>
+      </div>
+    </div>
+  );
+}
+
 function EventSheet({
   e: initial,
   data,
@@ -174,9 +270,7 @@ function EventSheet({
   const current: TravelChoice = { to: t?.to && { mode: t.to.mode, by: t.to.by }, home: t?.home && { mode: t.home.mode, by: t.home.by } };
   // Förskola: who drops off and picks up – adults by name, or someone else.
   const care = t?.kind === "care";
-  const options = care
-    ? data.travelOptions.filter((o) => o.mode.startsWith("adult:") || o.mode === "ride").map((o) => ({ ...o, label: o.mode === "ride" ? "Någon annan" : o.label.replace(/ skjutsar$/, "") }))
-    : data.travelOptions;
+  const options = care ? legOptions(data, true) : data.travelOptions;
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={e.title} onClick={(x) => x.stopPropagation()} style={{ maxWidth: 620 }}>
@@ -243,6 +337,7 @@ export function Dashboard() {
   const [themeOverride, setThemeOverride] = useState(readThemeOverride);
   const [asking, setAsking] = useState<{ question: string; label: string; fn: () => Promise<unknown> } | null>(null);
   const [eventOpen, setEventOpen] = useState<(DashEvent & { dayLabel?: string }) | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
   const [idle, setIdle] = useState(false);
   const [pull, setPull] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -305,6 +400,7 @@ export function Dashboard() {
     run,
     confirm: (question, label, fn) => setAsking({ question, label, fn }),
     openEvent: setEventOpen,
+    openPlan: () => setPlanOpen(true),
   };
 
   // Theme: explicit choice (button) wins, else config: auto follows "dygnsfärger" (light dawn/day, dark dusk/night).
@@ -570,6 +666,7 @@ export function Dashboard() {
       )}
 
       {eventOpen && <EventSheet e={eventOpen} data={data} onClose={() => setEventOpen(null)} onChanged={refresh} />}
+      {planOpen && <PlanSheet data={data} onClose={() => setPlanOpen(false)} onChanged={refresh} />}
 
       {idle && !sleeping && (
         <IdleFrame

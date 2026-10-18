@@ -1,6 +1,6 @@
 // Demo mode (VITE_DEMO=1): the whole app runs in the browser on recorded sample data.
 // Every button works against this in-memory copy; nothing leaves the page.
-import type { Config, ConfigResponse, DashEvent, Dashboard, Integration, Schedule, TestResult, TravelChoice, TravelLeg } from "../../../server/src/types";
+import type { Config, ConfigResponse, DashEvent, Dashboard, Integration, PlanItem, Schedule, TestResult, TravelChoice, TravelLeg } from "../../../server/src/types";
 import type { CalendarTest, CarDetails, Discovery, EntityOption, GraphData, GroceryLine, PostcodeInfo } from "../api";
 import fixtures from "./fixtures.json";
 
@@ -38,6 +38,25 @@ if (firstRun) {
 const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), ms));
 const d = fx.dashboard;
 
+// ---- Förskola days for Maja in the demo: Emil drops off, Anna picks up – except Thursday, where
+// no one has said they pick up yet (shows the amber "saknar ansvarig" in Planera veckan). ----
+function careTravelFor(dayKey: string): import("../../../server/src/types").DashTravel {
+  const key = `care:maja@care@${dayKey}`;
+  const c = careSaved[key] ?? (dayKey === "2026-10-22" ? { to: { mode: "adult:emil" as const } } : careDefault);
+  const name = (l?: TravelLeg) => (!l ? "" : l.mode === "adult:anna" ? "Anna" : l.mode === "adult:emil" ? "Emil" : l.by || "Någon annan");
+  return {
+    key,
+    calendarId: "care:maja",
+    calendarName: "Förskola",
+    to: c.to && { ...c.to, label: name(c.to) },
+    home: c.home && { ...c.home, label: name(c.home) },
+    fromCalendar: !careSaved[key],
+    kind: "care",
+  };
+}
+const careDefault: TravelChoice = { to: { mode: "adult:emil" }, home: { mode: "adult:anna" } };
+const careSaved: Record<string, TravelChoice> = {};
+
 // ---- A mixed family like the one we build for: two children every other week (Ella, Leo) and
 // two at home all the time (Maja on förskola with drop-off/pick-up, Nils). Added on top of the
 // recorded data so the demo shows care days, a planning day and "Hos oss". ----
@@ -66,15 +85,7 @@ const d = fx.dashboard;
     { name: "Nils", color: "#ff9f5a", initial: "N", home: true, kind: "child" },
   ];
   dd.legend = [dd.legend[0], { name: "Anna", color: "#ff8fa3" }, ...dd.legend.slice(1, 3), { name: "Maja", color: "#34e0a1" }, { name: "Nils", color: "#ff9f5a" }, ...dd.legend.slice(3)];
-  const careTravel = {
-    key: "care:maja@care@2026-10-19",
-    calendarId: "care:maja",
-    calendarName: "Förskola",
-    to: { mode: "adult:emil" as const, label: "Emil" },
-    home: { mode: "adult:anna" as const, label: "Anna" },
-    fromCalendar: true,
-    kind: "care" as const,
-  };
+  const careTravel = careTravelFor("2026-10-19");
   dd.now.items.push({
     time: "07:30",
     end: "16:00",
@@ -137,6 +148,38 @@ function syncTravel() {
     const s = ev ? summary(ev) : "";
     r.sub = s ? `Packa väskan · ${s}` : "Packa väskan · tryck i kalendern för att välja skjuts";
   }
+  for (const e of d.now.items) if (e.travel?.kind === "care") e.travel = careTravelFor(e.travel.key.split("@")[2]);
+  const mon = careTravelFor("2026-10-19");
+  const r = d.reminders.find((x) => x.title.startsWith("Maja · förskola"));
+  if (r) r.sub = [mon.to && `${mon.to.label} lämnar`, mon.home && `${mon.home.label} hämtar`].filter(Boolean).join(" · ") || "Vem lämnar och hämtar? Tryck på lämningen i Nu";
+  syncPlan();
+}
+
+/** Planera veckan in the demo: the recorded activities plus Maja's förskola days (closed Friday). */
+function syncPlan() {
+  const items: PlanItem[] = [];
+  for (const day of d.days) {
+    const label = day.isToday ? "idag" : day.name === "Imorgon" ? "imorgon" : `${day.name.toLowerCase()} ${day.date}`;
+    for (const e of day.events) if (e.travel) items.push({ ...e, travel: e.travel, dayKey: day.key, dayLabel: label });
+    const wd = new Date(`${day.key}T12:00:00`).getDay();
+    if (wd >= 1 && wd <= 5 && day.key !== "2026-10-23") {
+      items.push({
+        time: wd === 5 ? "08:00" : "07:30",
+        end: wd === 5 ? "15:00" : "16:00",
+        title: "Förskola",
+        color: "#34e0a1",
+        who: "Maja",
+        initial: "M",
+        category: "school",
+        icon: "school",
+        travel: careTravelFor(day.key),
+        dayKey: day.key,
+        dayLabel: label,
+      });
+    }
+  }
+  items.sort((a, b) => a.dayKey.localeCompare(b.dayKey) || a.time.localeCompare(b.time));
+  d.plan = { missing: items.filter((i) => !i.travel.to || !i.travel.home).length, items };
 }
 
 function recountGroups() {
@@ -237,6 +280,9 @@ export const demoApi = {
   },
   checkPin: () => wait({ ok: true }),
   authStatus: () => wait({ paired: true, pinRequired: false, supervisor: false }),
+  notifyServices: () => wait(["mobile_app_emils_iphone", "mobile_app_annas_pixel", "family_group"], 400),
+  notifyTest: (_service: string) => wait<TestResult>({ ok: true, message: "Skickat – titta i telefonen. (demo)" }, 500),
+  newFeed: (personId: string) => wait({ ok: true as const, path: `api/feed/demo-${personId}.ics` }, 300),
   pair: (_pin: string, _name: string) => wait({ ok: true as const }),
   forgetDevices: () => wait({ ok: true as const }),
   dashboard: () => {
@@ -359,14 +405,14 @@ export const demoApi = {
   },
   travel: (key: string, choice: TravelChoice | null, forCalendar = false) => {
     if (key.startsWith("care:")) {
-      // Förskola in the demo: update the drop-off item and the reminder.
-      const name = (l?: TravelLeg) => (!l ? undefined : l.mode === "adult:anna" ? "Anna" : l.mode === "adult:emil" ? "Emil" : l.by || "Någon annan");
-      for (const e of [...baseNow.items, ...d.now.items]) {
-        if (e.travel?.key !== key) continue;
-        e.travel = { ...e.travel, to: choice?.to && { ...choice.to, label: name(choice.to)! }, home: choice?.home && { ...choice.home, label: name(choice.home)! }, fromCalendar: forCalendar };
-      }
-      const r = d.reminders.find((x) => x.title.startsWith("Maja · förskola"));
-      if (r) r.sub = [choice?.to && `${name(choice.to)} lämnar`, choice?.home && `${name(choice.home)} hämtar`].filter(Boolean).join(" · ") || "Vem lämnar och hämtar? Tryck på lämningen i Nu";
+      // Förskola in the demo: one day, or (forCalendar) the default for all days.
+      if (forCalendar) {
+        careDefault.to = choice?.to;
+        careDefault.home = choice?.home;
+        for (const k of Object.keys(careSaved)) delete careSaved[k];
+      } else careSaved[key] = choice ?? {};
+      for (const e of baseNow.items) if (e.travel?.kind === "care") e.travel = careTravelFor(e.travel.key.split("@")[2]);
+      syncTravel();
       return wait({ ok: true as const }, 150);
     }
     if (forCalendar) {

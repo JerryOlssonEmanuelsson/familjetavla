@@ -1900,3 +1900,67 @@ a.btn {
 .seg-btn:active { transform: scale(0.96); }
 .seg-btn.on { background: var(--accent); border-color: var(--accent); color: #06231a; }
 .travel-foot { font-size: 14px; }
+
+/* ---------- Planera veckan ---------- */
+.plan-btn {
+  margin-left: auto;
+  gap: 6px;
+}
+.plan-btn.warn {
+  background: color-mix(in srgb, var(--amber, #f5c84b) 18%, transparent);
+  border-color: color-mix(in srgb, var(--amber, #f5c84b) 45%, transparent);
+  color: var(--amber, #f5c84b);
+}
+.plan-sheet {
+  max-width: 680px;
+  max-height: min(88dvh, 900px);
+  overflow-y: auto;
+}
+.plan-list {
+  gap: 18px;
+}
+.plan-item {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--row);
+  border: 1px solid transparent;
+  transition: opacity 0.2s;
+}
+.plan-item.missing {
+  border-color: color-mix(in srgb, var(--amber, #f5c84b) 40%, transparent);
+}
+.plan-item.busy {
+  opacity: 0.6;
+}
+.plan-item .time {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  min-width: 52px;
+}
+.mini-pick {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.mini-label {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mini-pick.unset .mini-label {
+  color: var(--amber, #f5c84b);
+}
+.seg.small {
+  gap: 6px;
+}
+.seg.small .seg-btn {
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 14px;
+}

@@ -292,3 +292,57 @@ describe("skjutsval överlever flyttad tid", () => {
     expect(travelKey(a)).not.toBe(travelKey({ ...a, start: new Date(2026, 9, 27, 17, 30) }));
   });
 });
+
+describe("ansvar och påminnelser", () => {
+  const emil = { id: "emil", name: "Emil", color: "#c9a2ff", kind: "adult" as const, notify: { service: "mobile_app_emil", before: 30, evening: true, weekly: true } };
+  const anna = { id: "anna", name: "Anna", color: "#ff8fa3", kind: "adult" as const };
+  const maja = { id: "maja", name: "Maja", color: "#34e0a1", kind: "child" as const, care: { name: "Förskola", days: { "1": "07:30-16:00", "2": "07:30-16:00" }, travel: { to: { mode: "adult:emil" as const } } } };
+  const ella = { id: "ella", name: "Ella", color: "#5ab8ff", kind: "child" as const };
+  const people = new Map<string, Person>([emil, anna, maja, ella].map((p) => [p.id, p]));
+  const monday = new Date(2026, 9, 19);
+
+  async function family() {
+    const { buildCareEvents, careCalendars } = await import("./dashboard.js");
+    const care = buildCareEvents([...people.values()], [], [], monday, 7);
+    const training: SourcedEvent = { ...ev("F14 – Träning", { start: new Date(2026, 9, 19, 17, 30), end: new Date(2026, 9, 19, 19) }), sourceId: "fotboll", category: "sport", personId: "ella", uid: "t1" };
+    const ctx = { saved: {}, calendars: new Map(careCalendars([...people.values()])) };
+    return { events: [...care, training], ctx };
+  }
+
+  it("Planera veckan räknar det som saknar ansvarig", async () => {
+    const { buildPlan } = await import("./plan.js");
+    const { events, ctx } = await family();
+    const plan = buildPlan(events, people, ctx, new Date(2026, 9, 19, 6), () => ({ time: "", title: "", color: "", who: "", category: "family", icon: "event" }));
+    // Mån + tis förskola (hämtning saknas) och träningen (båda saknas)
+    expect(plan.items.length).toBe(3);
+    expect(plan.missing).toBe(3);
+  });
+
+  it("vuxnas ansvar med svenska formuleringar", async () => {
+    const { duties } = await import("./plan.js");
+    const { events, ctx } = await family();
+    const list = duties(events, people, ctx, new Date(2026, 9, 19, 0), new Date(2026, 9, 21));
+    expect(list.map((d) => `${d.personId}: ${d.text}`)).toEqual(["emil: Lämna Maja på förskolan 07:30", "emil: Lämna Maja på förskolan 07:30"]);
+  });
+
+  it("notis 30 min innan, kvällen innan och planera veckan på söndag", async () => {
+    const { duties } = await import("./plan.js");
+    const { dueNotifications } = await import("./notify.js");
+    const { events, ctx } = await family();
+    const list = duties(events, people, ctx, new Date(2026, 9, 18), new Date(2026, 9, 21));
+    const at = (h: number, m: number, d = 19) => dueNotifications([emil, anna], list, 3, 1, new Date(2026, 9, d, h, m));
+    expect(at(7, 0).map((n) => `${n.title}: ${n.message}`)).toEqual(["Om 30 min: Lämna Maja på förskolan 07:30"]);
+    expect(at(7, 1)).toEqual([]);
+    expect(at(20, 0)[0].message).toBe("Lämna Maja på förskolan 07:30 · 1 sak imorgon saknar ansvarig");
+    expect(at(19, 0, 18).map((n) => n.title)).toEqual(["Planera veckan"]); // söndag 18 okt
+  });
+
+  it("kalenderlänken är giltig ICS med påminnelse", async () => {
+    const { dutiesIcs } = await import("./plan.js");
+    const { parseIcs } = await import("./connectors/ics.js");
+    const ics = dutiesIcs("Emil", [{ personId: "emil", at: new Date(2026, 9, 19, 16), text: "Hämta Maja på förskolan 16:00", key: "care:maja@care@2026-10-19:home" }], 30);
+    expect(ics).toContain("TRIGGER:-PT30M");
+    const evs = parseIcs(ics, new Date(2026, 9, 19), new Date(2026, 9, 20));
+    expect(evs.map((e) => `${e.title} ${e.start.getHours()}`)).toEqual(["Hämta Maja på förskolan 16"]);
+  });
+});

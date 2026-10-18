@@ -39,6 +39,19 @@ export interface Person {
   custody?: Custody;
   /** Förskola/fritids: fasta omsorgstider per veckodag. Vklass dagens tider går före när de finns. */
   care?: CareSchedule;
+  /** Vuxna: påminnelser till telefonen via Home Assistant. */
+  notify?: NotifySettings;
+}
+
+export interface NotifySettings {
+  /** Home Assistants notify-tjänst utan "notify.", t.ex. "mobile_app_emils_iphone". */
+  service?: string;
+  /** Minuter före det man ansvarar för (lämna, hämta, skjutsa). 0 = av. */
+  before?: number;
+  /** Kl 20: vad man ansvarar för imorgon. */
+  evening?: boolean;
+  /** Söndag kl 19: "Planera veckan" om något saknar ansvarig. */
+  weekly?: boolean;
 }
 
 export interface CareSchedule {
@@ -295,6 +308,7 @@ export type SecretKey =
   | "ha.token"
   | "admin.pin"
   | `calendar.${string}.url`
+  | `feed.${string}`
   | `int.${string}.${string}`;
 
 export interface ConfigResponse {
@@ -345,6 +359,8 @@ export interface DashEvent {
   /** Finns på barnens aktiviteter: valt sätt dit och hem. */
   travel?: DashTravel;
 }
+
+export type PlanItem = DashEvent & { dayKey: string; dayLabel: string; travel: DashTravel };
 
 export interface DashTravel {
   key: string;
@@ -405,6 +421,8 @@ export interface Dashboard {
   /** Fotoram i viloläge. */
   idle: { minutes: number; photos: string[] };
   reminders: Reminder[];
+  /** "Planera veckan": allt som behöver någon som lämnar/hämtar/skjutsar de kommande 7 dagarna. */
+  plan: { missing: number; items: PlanItem[] };
   custody?: {
     headline: string;
     sub: string;
