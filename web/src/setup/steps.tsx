@@ -1546,12 +1546,12 @@ function OrderList<T extends { id: string; on: boolean; size?: string }>({
   return (
     <div className="stack" style={{ gap: 8 }}>
       {items.map((w, i) => (
-        <div className="item-row" key={w.id}>
+        <div className="item-row order-row" key={w.id}>
           <label className="switch">
             <input type="checkbox" checked={w.on} aria-label={`Visa ${labels[w.id]}`} onChange={(e) => onChange(items.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} />
             <span />
           </label>
-          <span className="grow" style={{ opacity: w.on ? 1 : 0.55 }}>
+          <span className="order-label" style={{ opacity: w.on ? 1 : 0.55 }}>
             {labels[w.id] ?? w.id}
           </span>
           {sizes && !FIXED_SIZE.has(w.id) && (

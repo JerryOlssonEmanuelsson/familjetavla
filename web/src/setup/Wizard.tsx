@@ -180,7 +180,7 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
             ))}
           </nav>
           {cfg.setupComplete && (
-            <a className="btn small" href="#/">
+            <a className="btn small" href="#/" style={{ flex: "none", whiteSpace: "nowrap" }}>
               Till tavlan
             </a>
           )}

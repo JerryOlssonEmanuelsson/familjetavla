@@ -315,7 +315,10 @@ export function Week({ data, actions, full = false }: { data: Dashboard; actions
           <span className="plan-long">
             {data.plan.missing ? `Planera veckan · ${data.plan.missing} att lösa` : data.plan.items.length ? "Planera veckan" : "Planera veckans mat"}
           </span>
-          <span className="plan-short">{data.plan.missing ? `Planera · ${data.plan.missing}` : "Planera"}</span>
+          <span className="plan-short">
+            <span className="plan-word">Planera</span>
+            {data.plan.missing ? <span className="plan-count">{data.plan.missing}</span> : null}
+          </span>
         </button>
         <div className="legend">
           {data.legend

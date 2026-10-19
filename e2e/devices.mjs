@@ -62,7 +62,12 @@ for (const [name0, dev, tablet] of DEVICES) {
       const de = document.documentElement;
       const out = { covered: [], overlap: [], cut: [], more: [...document.querySelectorAll(".fit-more")].map((m) => m.textContent.trim()), pageScroll: de.scrollHeight - window.innerHeight, sideways: de.scrollWidth - window.innerWidth, behind: [], overflow: [], scales: [], small: 0 };
       const bar = document.querySelector(".tabbar")?.getBoundingClientRect();
-      if (bar) {
+      const overlay = document.querySelector(".overlay");
+      if (bar && overlay) {
+        // A sheet must lie on top of the tab bar, not under it.
+        const hit = document.elementFromPoint(bar.left + bar.width / 2, bar.top + bar.height / 2);
+        if (hit && !hit.closest(".overlay")) out.behind.push("rutan ligger under flikraden");
+      } else if (bar) {
         // Visible content (cards, events, lessons, buttons) that sits under the floating tab bar.
         for (const el of document.querySelectorAll(".board .card, .board .event, .board .lesson, .board .btn, .board h2")) {
           if (el.closest(".tabbar")) continue;
@@ -86,6 +91,8 @@ for (const [name0, dev, tablet] of DEVICES) {
         if (!el || el.closest("svg, script, style, .sky, [aria-hidden=true], .fit-more")) continue;
         // With a sheet open, the board behind it is meant to be covered: check the sheet only.
         if (document.querySelector(".overlay") && !el.closest(".overlay")) continue;
+        // Inside a closed <details> or otherwise not rendered.
+        if (el.checkVisibility && !el.checkVisibility()) continue;
         const cs = getComputedStyle(el);
         if (cs.visibility === "hidden" || Number(cs.opacity) === 0) continue;
         const range = document.createRange();
