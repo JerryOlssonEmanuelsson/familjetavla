@@ -11,7 +11,9 @@
 - Startsidan visar sammanfattningar – Kom ihåg de 4 viktigaste, inköpslistan de 5 första, veckan 3 händelser per dag – och sidan bakom kortet visar allt.
 - **Prova i molnet**: knappen "Öppna i GitHub Codespaces" startar tavlan hos GitHub utan egen server, för att prova med Vklass och kalendrar.
 - **Självkontroll på alla skärmar** vid varje ändring: iPad liggande/stående, iPad mini, Android-platta liggande/stående, Android-mobil, iPhone, iPhone SE och iPhone liggande – 11 sidor var. Kontrollerar att inget hamnar bakom flikraden, att surfplattor inte scrollar, att inget sticker ut åt sidan och att inga fel uppstår.
-- Rättat: datum kring sommartid/vintertid i skolschemat.
+- Självkontrollen granskar också text: ingen text bakom eller ovanpå annan, inget kapat, i både ljust och mörkt läge, guiden och rutorna medräknade.
+- Rättat: **"String must contain at most 30 character(s)"** vid Hämta från Home Assistant. Långa namn från HA kortas nu i stället för att stoppa sparandet, och många givare eller rum ryms.
+- Rättat: aktivitetsnamn kapades till några bokstäver på smala mobiler; datum kring sommartid/vintertid i skolschemat.
 
 ## 0.7.0
 
