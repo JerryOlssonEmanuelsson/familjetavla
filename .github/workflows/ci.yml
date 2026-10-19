@@ -18,3 +18,19 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Build the real image and start it, so a missing runtime package is caught before release.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --build-arg WITH_CHROMIUM=false -t familjetavla-test .
+      - name: Start the image and wait for it to answer
+        run: |
+          docker run -d --name ft -p 8099:8099 familjetavla-test
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8099/ > /dev/null; then echo "up"; exit 0; fi
+            sleep 2
+          done
+          docker logs ft
+          exit 1

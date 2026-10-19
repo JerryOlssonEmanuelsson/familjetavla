@@ -29,6 +29,8 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/server/dist server/dist
+# npm puts some server deps in server/node_modules (version clashes), so copy that too
+COPY --from=build /app/server/node_modules server/node_modules
 COPY --from=build /app/server/package.json server/
 COPY --from=build /app/web/dist web/dist
 COPY package.json ./
