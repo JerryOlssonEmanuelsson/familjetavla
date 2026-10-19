@@ -346,3 +346,36 @@ describe("ansvar och påminnelser", () => {
     expect(evs.map((e) => `${e.title} ${e.start.getHours()}`)).toEqual(["Hämta Maja på förskolan 16"]);
   });
 });
+
+describe("veckans mat", () => {
+  it("lägger skollunch på rätt dag och slår ihop barn med samma meny", async () => {
+    const { buildMeals, menuDate } = await import("./meals.js");
+    const sun = new Date(2026, 9, 18, 19);
+    expect(menuDate("Måndag 19/10", sun)?.getDate()).toBe(19);
+    expect(menuDate("Tisdag", sun)?.getDate()).toBe(20); // Vklass utan datum → nästa tisdag
+    expect(menuDate("Fredag 2/1", new Date(2026, 11, 30))?.getFullYear()).toBe(2027);
+    const meals = buildMeals(
+      [
+        { child: "Maja", day: "Måndag 19/10", dishes: ["Pannkakor med sylt"] },
+        { child: "Nils", day: "Måndag 19/10", dishes: ["Pannkakor med sylt"] },
+        { child: "Nils", day: "Tisdag 20/10", dishes: ["Fiskgratäng"] },
+      ],
+      { "2026-10-19": "Tacos" },
+      sun,
+    );
+    expect(meals.length).toBe(7);
+    expect(meals[1]).toEqual({ dayKey: "2026-10-19", dayLabel: "imorgon", dinner: "Tacos", lunch: [{ child: "Maja och Nils", dishes: ["Pannkakor med sylt"] }] });
+    expect(meals[2].lunch[0].child).toBe("Nils");
+  });
+
+  it("varnar när middagen är samma som lunchen", async () => {
+    const { sameAsLunch } = await import("./meals.js");
+    const { dinnerReminder } = await import("./dashboard.js");
+    const lunch = [{ dishes: ["Pannkakor med sylt"] }];
+    expect(sameAsLunch("Pannkakor och bacon", lunch)).toBe("Pannkakor med sylt");
+    expect(sameAsLunch("Tacos", lunch)).toBeNull();
+    const day = { dayKey: "2026-10-19", dayLabel: "idag", dinner: "Pannkakor", lunch: [{ child: "Maja", dishes: ["Pannkakor med sylt"] }] };
+    expect(dinnerReminder([day], new Date(2026, 9, 19, 15))[0]).toMatchObject({ title: "Middag ikväll: Pannkakor", tone: "amber" });
+    expect(dinnerReminder([day], new Date(2026, 9, 19, 9))).toEqual([]);
+  });
+});

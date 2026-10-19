@@ -13,6 +13,7 @@ const REMINDER_ICON: Record<Reminder["icon"], IconName> = {
   kids: "kids",
   info: "info",
   school: "school",
+  food: "food",
 };
 
 export function Ring({ progress, size = 92, stroke = 9, children }: { progress: number; size?: number; stroke?: number; children: React.ReactNode }) {
@@ -217,7 +218,7 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
     <section className="card area-week week-swipe">
       <div className="card-head" style={{ flexWrap: "wrap" }}>
         <h2>Kommande 7 dagar</h2>
-        {data.plan.items.length > 0 && (
+        {(data.plan.items.length > 0 || data.meals.some((m) => m.lunch.length || m.dinner)) && (
           <button className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`} onClick={actions.openPlan}>
             <Icon name="kids" size={18} />
             {data.plan.missing ? `Planera veckan · ${data.plan.missing} utan ansvarig` : "Planera veckan"}

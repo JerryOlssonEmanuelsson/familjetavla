@@ -1964,3 +1964,26 @@ a.btn {
   padding: 0 12px;
   font-size: 14px;
 }
+
+/* ---------- Veckans mat ---------- */
+.meal-day {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--row);
+}
+.meal-lunch {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 15px;
+  color: var(--muted);
+}
+.meal-lunch b {
+  color: var(--text);
+  font-weight: 650;
+}
+.meal-day .chip {
+  justify-self: start;
+}

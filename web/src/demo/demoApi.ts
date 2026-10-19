@@ -107,6 +107,27 @@ const careSaved: Record<string, TravelChoice> = {};
   fri?.events.unshift({ time: "", title: "Planeringsdag – förskolan stängd", color: "#34e0a1", who: "Maja", initial: "M", category: "school", icon: "school" });
 }
 
+// ---- Veckans mat in the demo: school lunch for Maja and Nils, a few dinners (Wednesday = same as lunch). ----
+const LUNCH: Record<string, string> = {
+  "2026-10-19": "Fiskgratäng med potatis",
+  "2026-10-20": "Kycklinggryta med ris",
+  "2026-10-21": "Pannkakor med sylt",
+  "2026-10-22": "Köttbullar och makaroner",
+};
+const dinners: Record<string, string> = { "2026-10-18": "Tacos", "2026-10-19": "Lasagne", "2026-10-21": "Pannkakor och bacon" };
+function syncMeals() {
+  d.meals = d.days.map((day, i) => ({
+    dayKey: day.key,
+    dayLabel: i === 0 ? "idag" : i === 1 ? "imorgon" : `${day.name.toLowerCase()} ${day.date}`,
+    dinner: dinners[day.key],
+    lunch: LUNCH[day.key] ? [{ child: "Maja och Nils", dishes: [LUNCH[day.key]] }] : [],
+  }));
+  for (const day of d.days) {
+    day.events = day.events.filter((e) => !(e.icon === "food" && e.title.startsWith("Middag")) || day.isToday);
+    if (!day.isToday && dinners[day.key]) day.events.push({ time: "", title: `Middag: ${dinners[day.key]}`, color: "#34e0a1", who: "", category: "family", icon: "food" });
+  }
+}
+
 // ---- Dit/hem in the demo: the same rules as server/src/travel.ts, on the recorded events ----
 d.travelOptions = [
   { mode: "adult:emil", label: "Emil skjutsar" },
@@ -153,6 +174,7 @@ function syncTravel() {
   const r = d.reminders.find((x) => x.title.startsWith("Maja · förskola"));
   if (r) r.sub = [mon.to && `${mon.to.label} lämnar`, mon.home && `${mon.home.label} hämtar`].filter(Boolean).join(" · ") || "Vem lämnar och hämtar? Tryck på lämningen i Nu";
   syncPlan();
+  syncMeals();
 }
 
 /** Planera veckan in the demo: the recorded activities plus Maja's förskola days (closed Friday). */
@@ -280,6 +302,12 @@ export const demoApi = {
   },
   checkPin: () => wait({ ok: true }),
   authStatus: () => wait({ paired: true, pinRequired: false, supervisor: false }),
+  dinner: (day: string, text: string) => {
+    if (text.trim()) dinners[day] = text.trim();
+    else delete dinners[day];
+    syncMeals();
+    return wait({ ok: true as const }, 150);
+  },
   notifyServices: () => wait(["mobile_app_emils_iphone", "mobile_app_annas_pixel", "family_group"], 400),
   notifyTest: (_service: string) => wait<TestResult>({ ok: true, message: "Skickat – titta i telefonen. (demo)" }, 500),
   newFeed: (personId: string) => wait({ ok: true as const, path: `api/feed/demo-${personId}.ics` }, 300),

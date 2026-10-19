@@ -174,8 +174,87 @@ function MiniPick({ label, leg, options, onPick }: { label: string; leg?: Travel
   );
 }
 
+/** Same check as the server: a 5+ letter word shared by dinner and a lunch dish. */
+function sameAsLunch(dinner: string, lunch: { dishes: string[] }[]): string | null {
+  const words = (s: string) => new Set(s.toLowerCase().match(/[a-zåäöé]{5,}/g) ?? []);
+  const d = words(dinner);
+  for (const l of lunch) for (const dish of l.dishes) for (const w of words(dish)) if (d.has(w)) return dish;
+  return null;
+}
+
+/** One day in "Veckans mat": the kids' lunch, tonight's dinner and what to buy for it. */
+function MealRow({ day, onChanged, toast }: { day: Dash["meals"][number]; onChanged: () => Promise<void>; toast: (m: string) => void }) {
+  const [dinner, setDinner] = useState(day.dinner ?? "");
+  const [buy, setBuy] = useState("");
+  const [shopping, setShopping] = useState(false);
+  useEffect(() => setDinner(day.dinner ?? ""), [day.dinner]);
+  const save = async () => {
+    if (dinner.trim() === (day.dinner ?? "")) return;
+    await api.dinner(day.dayKey, dinner.trim());
+    await onChanged();
+  };
+  const twice = dinner.trim() ? sameAsLunch(dinner, day.lunch) : null;
+  return (
+    <div className="meal-day">
+      <span className="eyebrow">{day.dayLabel}</span>
+      {day.lunch.length > 0 ? (
+        day.lunch.map((l) => (
+          <div key={l.child + l.dishes.join()} className="meal-lunch">
+            <Icon name="school" size={16} />
+            <span>
+              <b>{l.child ? `${l.child}: ` : "Lunch: "}</b>
+              {l.dishes.join(" · ")}
+            </span>
+          </div>
+        ))
+      ) : (
+        <div className="meal-lunch faint">Ingen skollunch</div>
+      )}
+      <div className="row gap">
+        <Icon name="food" size={20} />
+        <input
+          className="input grow"
+          placeholder="Middag…"
+          value={dinner}
+          maxLength={80}
+          onChange={(e) => setDinner(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        />
+      </div>
+      {twice && <span className="chip warn">Samma som lunchen ({twice.toLowerCase()})</span>}
+      {dinner.trim() && !shopping && (
+        <button className="btn small ghost" style={{ justifySelf: "start" }} onClick={() => setShopping(true)}>
+          <Icon name="plus" size={16} /> Att handla
+        </button>
+      )}
+      {dinner.trim() && shopping && (
+        <form
+          className="row gap"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const items = buy.split(",").map((x) => x.trim()).filter(Boolean);
+            if (!items.length) return;
+            for (const it of items) await api.addItem(it);
+            setBuy("");
+            setShopping(false);
+            toast(`${items.length} ${items.length === 1 ? "vara" : "varor"} i inköpslistan`);
+            await onChanged();
+          }}
+        >
+          <input className="input grow" autoFocus placeholder="T.ex. tacoskal, ost, gräddfil" value={buy} onChange={(e) => setBuy(e.target.value)} />
+          <button className="btn small" disabled={!buy.trim()}>
+            <Icon name="plus" size={16} /> Inköpslistan
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 /** "Planera veckan": everything in the next 7 days that needs someone, one tap per choice. */
-function PlanSheet({ data, onClose, onChanged }: { data: Dash; onClose: () => void; onChanged: () => Promise<void> }) {
+function PlanSheet({ data, onClose, onChanged, toast, startTab = "who" }: { data: Dash; onClose: () => void; onChanged: () => Promise<void>; toast: (m: string) => void; startTab?: "who" | "food" }) {
+  const [tab, setTab] = useState<"who" | "food">(startTab);
   const [busy, setBusy] = useState("");
   const [onlyMissing, setOnlyMissing] = useState(data.plan.missing > 0);
   // Rows you just filled in stay put (so "Alltid så" can be tapped) until the sheet is closed.
@@ -203,6 +282,23 @@ function PlanSheet({ data, onClose, onChanged }: { data: Dash; onClose: () => vo
             <Icon name="x" />
           </button>
         </div>
+        <div className="seg small" role="tablist" aria-label="Planera">
+          <button role="tab" aria-selected={tab === "who"} className={`seg-btn ${tab === "who" ? "on" : ""}`} onClick={() => setTab("who")}>
+            Vem gör vad{data.plan.missing ? ` · ${data.plan.missing}` : ""}
+          </button>
+          <button role="tab" aria-selected={tab === "food"} className={`seg-btn ${tab === "food" ? "on" : ""}`} onClick={() => setTab("food")}>
+            Veckans mat
+          </button>
+        </div>
+        {tab === "food" && (
+          <div className="stack plan-list">
+            <p className="muted">Skriv in middagarna – barnens lunch står bredvid så ni slipper laga samma sak.</p>
+            {data.meals.map((m) => (
+              <MealRow key={m.dayKey} day={m} onChanged={onChanged} toast={toast} />
+            ))}
+          </div>
+        )}
+        {tab === "who" && <>
         <div className="row gap wrap">
           <span className={`chip ${data.plan.missing ? "warn" : "good"}`}>
             {data.plan.missing ? `${data.plan.missing} saknar ansvarig` : "Allt har någon som ansvarar"}
@@ -245,6 +341,7 @@ function PlanSheet({ data, onClose, onChanged }: { data: Dash; onClose: () => vo
           ))}
         </div>
         <small className="faint">Valen gäller bara den dagen. Tryck "Alltid så" för att göra dem till standard – standard räknas som planerat och syns inte här igen.</small>
+        </>}
       </div>
     </div>
   );
@@ -674,7 +771,7 @@ export function Dashboard() {
       )}
 
       {eventOpen && <EventSheet e={eventOpen} data={data} onClose={() => setEventOpen(null)} onChanged={refresh} />}
-      {planOpen && <PlanSheet data={data} onClose={() => setPlanOpen(false)} onChanged={refresh} />}
+      {planOpen && <PlanSheet data={data} onClose={() => setPlanOpen(false)} onChanged={refresh} toast={showToast} />}
 
       {idle && !sleeping && (
         <IdleFrame

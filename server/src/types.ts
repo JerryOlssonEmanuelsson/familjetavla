@@ -360,6 +360,14 @@ export interface DashEvent {
   travel?: DashTravel;
 }
 
+export interface MealDay {
+  dayKey: string;
+  /** "idag", "imorgon", "ons 21/10" */
+  dayLabel: string;
+  dinner?: string;
+  lunch: { child: string; dishes: string[] }[];
+}
+
 export type PlanItem = DashEvent & { dayKey: string; dayLabel: string; travel: DashTravel };
 
 export interface DashTravel {
@@ -386,7 +394,7 @@ export interface DashDay {
 }
 
 export interface Reminder {
-  icon: "rain" | "bag" | "gym" | "trash" | "kids" | "info" | "school";
+  icon: "rain" | "bag" | "gym" | "trash" | "kids" | "info" | "school" | "food";
   title: string;
   sub: string;
   tone: "blue" | "amber" | "neutral" | "green";
@@ -452,6 +460,8 @@ export interface Dashboard {
     batteryPct?: number;
   };
   schoolFood?: { child: string; day: string; dishes: string[] }[];
+  /** Veckans mat: skollunch per barn och familjens middag, kommande 7 dagar. */
+  meals: MealDay[];
   cars: {
     name: string;
     battery: number | null;

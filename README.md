@@ -23,6 +23,7 @@ Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem
 
 **Planera veckan och påminnelser**
 - **Planera veckan:** allt de kommande 7 dagarna som behöver någon som lämnar, hämtar eller skjutsar – ett tryck per val. Det som saknar ansvarig syns i gult.
+- **Veckans mat:** barnens skollunch bredvid familjens middagar – med varning om ni tänkt laga samma sak, och varorna rakt in i inköpslistan.
 - **Påminnelser till rätt telefon** (via Home Assistant-appen): "Om 30 min: Hämta Maja på förskolan 16:00", kvällen innan kl 20, och söndag kl 19 om något saknar ansvarig. Eller en egen kalenderlänk per vuxen.
 
 **Hemvyn**

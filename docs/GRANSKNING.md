@@ -2,7 +2,7 @@
 
 > **Till dig som granskar (människa eller AI):** Läs hela filen och svara sedan enligt *Så vill vi ha svaret* längst ner.
 > Var konkret och kritisk. "Det här ser bra ut" hjälper oss inte, men "det här går sönder när …" gör det.
-> **Status:** version 0.3.1, 2026-10-19. Hela dokumentet beskriver nuläget. Repo (publikt, MIT): https://github.com/murre87/familjetavla
+> **Status:** version 0.4.0, 2026-10-19. Hela dokumentet beskriver nuläget. Repo (publikt, MIT): https://github.com/murre87/familjetavla
 
 Mer detaljer om du behöver dem: [PROJEKT.md](PROJEKT.md) (arkitektur), [DESIGN.md](DESIGN.md) (designsystem), och en klickbar demo med låtsasdata i `docs/demo/familjetavla-demo.html`.
 
@@ -15,6 +15,7 @@ En **familjetavla för en surfplatta i hallen eller köket**, som även används
 - **Nu-zonen:** det som händer härnäst, läsbart på 2–3 meters avstånd, till exempel "07:30 Lämning · Förskola – Emil lämnar · Anna hämtar".
 - **Planera veckan:** allt de kommande 7 dagarna som behöver en vuxen (förskolans lämning och hämtning, skjuts till aktiviteter). Det som saknar ansvarig syns i gult.
 - **Påminnelser till rätt telefon** via Home Assistant-appen: "Om 30 min: Hämta Maja på förskolan 16:00".
+- **Veckans mat:** skol-/förskolelunch per barn bredvid familjens middag, varning vid samma rätt, varor till inköpslistan.
 - **Kom ihåg:** regn, gympapåse, sopor, planeringsdag på förskolan (en vecka i förväg), och det som saknar ansvarig idag eller imorgon.
 - **Kommande 7 dagar** med en färg per person.
 - **Barn:** skola och förskola (Vklass eller kalenderlänk), matsedel, sport (SportAdmin, laget.se).
@@ -59,6 +60,7 @@ Tavlan körs lokalt (Node + React). Den installeras som tillägg i Home Assistan
 - **0.1.0:** första versionen.
 - **0.2.0:** ingen familjeform som standard, 14-dagarsmönster, "Hos oss", förskola med lämning och hämtning, stängda dagar, matcher alla veckor, upplåsning med PIN.
 - **0.3.0:** Planera veckan, påminnelser till rätt telefon, guide med 5 steg.
+- **0.4.0:** Veckans mat i Planera veckan.
 - **0.3.1 (efter granskning 2):** standard för skjuts kan sättas i guiden per kalender och med "Alltid så" i Planera veckan, så att självgående barn inte ger varningar. Vklass-namn matchas på alla delnamn. Ärlig text om kalenderlänkens begränsningar. Det här dokumentet är omskrivet till ett enda nuläge.
 
 ## 5. Kända svagheter
@@ -72,7 +74,7 @@ Tavlan körs lokalt (Node + React). Den installeras som tillägg i Home Assistan
 ## 6. Frågor vi vill ha svar på
 
 1. Är **Planera veckan** rätt verktyg för söndagskvällen, eller saknas något för att det ska bli en vana?
-2. Behövs **"Veckans middagar"** bredvid skollunchen, eller blir tavlan rörigare av det?
+2. **Veckans mat** finns nu (lunch bredvid middag, varning vid samma rätt). Hjälper det, eller saknas t.ex. recept/favoriter?
 3. Är **notiserna** lagom: 30 min innan, kvällen innan kl 20, söndag kl 19? Är något brus?
 4. Förskolan: räcker lämning/hämtning, stängda dagar och matsedel, eller saknas något dagligt (utflykt, "ta med extrakläder")?
 5. Finns det fortfarande ställen som utgår från en viss familjeform?
