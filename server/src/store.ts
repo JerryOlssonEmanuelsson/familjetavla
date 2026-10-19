@@ -117,6 +117,11 @@ export function loadConfig(): Config {
   }
   // "now" (the big Nu-zon) is the headline of the 2026 layout, so it goes first and on.
   if (!d.home.some((w) => w.id === "now")) d.home.unshift({ id: "now", on: true });
+  // "Maten" (school lunch and tonight's dinner) is what the kids look for: on, and first under the Nu zone.
+  if (!d.home.some((w) => w.id === "meals")) {
+    const at = d.home.findIndex((w) => w.id === "reminders");
+    d.home.splice(at >= 0 ? at : d.home.length, 0, { id: "meals", on: true });
+  }
   for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: false });
   for (const id of TAB_IDS) if (!d.tabs.some((t) => t.id === id)) d.tabs.push({ id, on: true });
   return cached;

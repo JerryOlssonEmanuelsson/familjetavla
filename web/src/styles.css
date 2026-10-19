@@ -2052,3 +2052,23 @@ a.btn {
   font-size: 18px;
   font-weight: 700;
 }
+
+/* ---------- Maten (skollunch + middag) ---------- */
+.meals-card .meal-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.meals-card .meal-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 19px;
+  line-height: 1.3;
+}
+.meals-card .meal-line svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}

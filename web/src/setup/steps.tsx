@@ -1500,7 +1500,8 @@ function PhotoFrame({ cfg, set }: { cfg: Config; set: (c: Config) => void }) {
 
 const WIDGET_LABELS: Record<string, string> = {
   now: "Nu – det närmaste, stort",
-  reminders: "Kom ihåg (och skolmat)",
+  reminders: "Kom ihåg",
+  meals: "Maten – skollunch och kvällens middag",
   custody: "Hos oss (växelvis boende)",
   week: "Kommande 7 dagar",
   shopping: "Inköpslista",
