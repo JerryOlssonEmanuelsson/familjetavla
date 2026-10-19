@@ -50,3 +50,55 @@ describe("Skolan idag", () => {
     expect(r.map((x) => x.name)).toEqual(["Ella"]);
   });
 });
+
+import { buildSchoolWeek, taskKind } from "./schoolday.js";
+import { newer } from "./updates.js";
+
+describe("Skolsidan", () => {
+  const evs: SourcedEvent[] = [
+    lesson("ella", 20, 8, 10, 9, 0, { title: "Matematik", location: "B12" }),
+    lesson("ella", 20, 13, 0, 14, 30, { title: "Idrott", gym: true }),
+    lesson("ella", 22, 8, 10, 12, 0, { title: "Svenska" }),
+    lesson("ella", 21, 0, 0, 0, 0, { allDay: true, end: at(22, 0), title: "Läxa: glosor kap 3" }),
+    lesson("ella", 23, 9, 0, 10, 0, { title: "Prov i NO" }),
+    lesson("ella", 24, 0, 0, 0, 0, { allDay: true, end: at(25, 0), title: "Studiedag" }),
+  ];
+
+  it("lists the week's lessons Monday–Friday and the coming tasks", () => {
+    const [ella] = buildSchoolWeek(evs, people, at(20, 7));
+    expect(ella.days.map((d) => [d.label, d.lessons.length])).toEqual([
+      ["Måndag", 0],
+      ["Tisdag", 2],
+      ["Onsdag", 0],
+      ["Torsdag", 1],
+      ["Fredag", 0],
+    ]);
+    expect(ella.days[1].today).toBe(true);
+    expect(ella.days[1].lessons[0]).toEqual({ start: "08:10", end: "09:00", title: "Matematik", location: "B12", gym: false });
+    expect(ella.tasks.map((t) => [t.label, t.kind, t.title])).toEqual([
+      ["imorgon", "läxa", "Läxa: glosor kap 3"],
+      ["fre 23/10", "prov", "Prov i NO"],
+    ]);
+  });
+
+  it("shows next week on the weekend", () => {
+    const sat = [lesson("ella", 26, 8, 0, 9, 0)];
+    const [ella] = buildSchoolWeek(sat, people, at(24, 10));
+    expect(ella.days[0].dayKey).toBe("2026-10-26");
+  });
+
+  it("names the kind of task", () => {
+    expect(taskKind("Glosor vecka 44")).toBe("läxa");
+    expect(taskKind("Förhör kap 2")).toBe("prov");
+    expect(taskKind("Lämna in rapport")).toBe("inlämning");
+    expect(taskKind("Uppgift: bok")).toBe("uppgift");
+  });
+});
+
+describe("Ny version", () => {
+  it("compares versions as numbers", () => {
+    expect(newer("0.10.0", "0.9.3")).toBe(true);
+    expect(newer("0.7.0", "0.7.0")).toBe(false);
+    expect(newer("0.6.9", "0.7.0")).toBe(false);
+  });
+});

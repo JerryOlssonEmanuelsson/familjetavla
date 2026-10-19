@@ -1,4 +1,5 @@
-import { buildSchoolDays } from "./schoolday.js";
+import { updateAvailable } from "./updates.js";
+import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
 import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
@@ -284,6 +285,12 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
 
   // ---- Custody card ----
   const custody = buildCustodyCard(children, now);
+  if (custody) {
+    // Four weeks ahead per shared child, for the Hos oss page.
+    custody.calendar = children
+      .filter((c) => c.custody && c.custody.mode !== "always")
+      .map((c) => ({ name: c.name, color: c.color, days: Array.from({ length: 28 }, (_, i) => isHome(c.custody, addDays(today, i))) }));
+  }
 
   return {
     generatedAt: now.toISOString(),
@@ -328,6 +335,8 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     energy: buildEnergy(cfg, stateMap),
     schoolFood: todaysFood(family.schoolFood, now),
     schoolDay: buildSchoolDays(all, people, now, (e, day) => visibleOn(e, people, day)),
+    school: buildSchoolWeek(all, people, now, (e, day) => visibleOn(e, people, day)),
+    update: updateAvailable(),
     cars: cfg.entities.cars.map((c) => ({
       ...buildCar(c, stateMap, now),
       climate: c.climate ? { entityId: c.climate, on: isOnState(stateMap.get(c.climate)?.state) } : undefined,

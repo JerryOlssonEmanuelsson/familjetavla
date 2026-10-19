@@ -8,9 +8,15 @@ import { INNER_NAME } from "../IpadFrame";
 import { Avatar, EventIcon } from "./bits";
 import { GroceryModal } from "./GroceryModal";
 import { Home } from "./Home";
+import { DetailPage, PageBar, PAGE_TITLES, type PageId } from "./Detail";
+import { navigate, useHash } from "../route";
+import { InstallHelp } from "../InstallHelp";
+import { isInstalled } from "../install";
 import { CarsPage, EnergyPage, GraphsPage, HousePage, LightsPage } from "./Pages";
 
-type Tab = "home" | "cars" | "lights" | "house" | "energy" | "graphs";
+export type Tab = "home" | "cars" | "lights" | "house" | "energy" | "graphs";
+const TAB_IDS: Tab[] = ["home", "cars", "lights", "house", "energy", "graphs"];
+const PAGE_IDS = Object.keys(PAGE_TITLES) as PageId[];
 
 const TABS: { id: Tab; label: string; icon: IconName; show: (d: Dash) => boolean }[] = [
   { id: "home", label: "Hem", icon: "calendar", show: () => true },
@@ -40,8 +46,11 @@ export interface Actions {
   openGrocery: () => void;
   /** Tap on an event: show its details in a sheet. */
   openEvent: (e: DashEvent & { dayLabel?: string }) => void;
-  /** "Planera veckan": set who drops off / picks up / drives for the whole week. */
-  openPlan: () => void;
+  /** "Planera veckan": set who drops off / picks up / drives for the whole week (or plan the food). */
+  openPlan: (tab?: "who" | "food") => void;
+  /** Open a card's own page (Veckans mat, Skolan …) or one of the tabs. */
+  openPage: (page: PageId) => void;
+  openTab: (tab: Tab) => void;
 }
 
 const SKY_ICON: Record<string, IconName> = { clear: "sun", partly: "partly", cloudy: "cloud", rain: "rain", snow: "snow", fog: "cloud" };
@@ -516,10 +525,69 @@ function EventSheet({
   );
 }
 
+/** "Ny version finns": how to update depends on how the board is installed. */
+function UpdateBanner({ update }: { update: NonNullable<Dash["update"]> }) {
+  const [open, setOpen] = useState(false);
+  const key = `familjetavla.update.${update.latest}`;
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(key) === "dold";
+    } catch {
+      return false;
+    }
+  });
+  if (hidden) return null;
+  return (
+    <div className="card update-banner" role="status">
+      <div className="row gap" style={{ alignItems: "center" }}>
+        <Icon name="alert" size={20} />
+        <b className="grow">Ny version {update.latest} finns (ni har {update.current})</b>
+        <button className="btn small" onClick={() => setOpen(!open)}>
+          {open ? "Stäng" : "Så uppdaterar du"}
+        </button>
+        <button
+          className="btn small ghost"
+          aria-label="Dölj tills nästa version"
+          onClick={() => {
+            setHidden(true);
+            try {
+              localStorage.setItem(key, "dold");
+            } catch {
+              /* ignore */
+            }
+          }}
+        >
+          <Icon name="x" size={18} />
+        </button>
+      </div>
+      {open && (
+        <div className="stack" style={{ gap: 6, marginTop: 10 }}>
+          <span>
+            <b>Home Assistant-tillägg:</b> Inställningar → Tillägg → Familjetavla → Uppdatera. (Syns ingen uppdatering: tryck ⋮ → Sök efter
+            uppdateringar i tilläggsbutiken.)
+          </span>
+          <span>
+            <b>Docker:</b> kör <code>docker compose pull &amp;&amp; docker compose up -d</code> i mappen med docker-compose.yml.
+          </span>
+          <small className="muted">Inställningarna ligger kvar. Vad som är nytt står i ändringsloggen på GitHub.</small>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Dashboard() {
   const [data, setData] = useState<Dash | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("home");
+  // Where we are comes from the address: #/flik/ljus-style tabs and #/sida/maten-style pages,
+  // so Android's back button and "Tillbaka" walk back the same way.
+  const hash = useHash();
+  const [, kind, id] = hash.split("/");
+  const page = kind === "sida" && PAGE_IDS.includes(id as PageId) ? (id as PageId) : null;
+  const tab: Tab = kind === "flik" && TAB_IDS.includes(id as Tab) ? (id as Tab) : "home";
+  const setTab = (t: Tab) => navigate(t === "home" ? "/" : `/flik/${t}`);
+  const [planTab, setPlanTab] = useState<"who" | "food">("who");
+  const [installOpen, setInstallOpen] = useState(false);
   const [now, setNow] = useState(new Date());
   const [toast, setToast] = useState("");
   const [grocery, setGrocery] = useState(false);
@@ -601,7 +669,18 @@ export function Dashboard() {
     run,
     confirm: (question, label, fn) => setAsking({ question, label, fn }),
     openEvent: setEventOpen,
-    openPlan: () => setPlanOpen(true),
+    openPlan: (t = "who") => {
+      setPlanTab(t);
+      setPlanOpen(true);
+    },
+    openPage: (p) => {
+      navigate(`/sida/${p}`);
+      window.scrollTo({ top: 0 });
+    },
+    openTab: (t) => {
+      setTab(t);
+      window.scrollTo({ top: 0 });
+    },
   };
 
   // Theme: explicit choice (button) wins, else config: auto follows "dygnsfärger" (light dawn/day, dark dusk/night).
@@ -637,10 +716,8 @@ export function Dashboard() {
     if (next === tab) return;
     const dir = list.indexOf(next) > list.indexOf(tab) ? 1 : -1;
     document.documentElement.style.setProperty("--dir", String(dir));
-    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-    if (doc.startViewTransition && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      doc.startViewTransition(() => flushSync(() => setTab(next)));
-    } else setTab(next);
+    // The tab lives in the address now (so Android's back button works); the slide comes from CSS.
+    setTab(next);
     window.scrollTo({ top: 0 });
   };
 
@@ -789,6 +866,11 @@ export function Dashboard() {
             <button className="btn icon" aria-label={theme === "dark" ? "Byt till ljust tema" : "Byt till mörkt tema"} onClick={toggleTheme}>
               <Icon name={theme === "dark" ? "moon" : "sun"} size={24} />
             </button>
+            {!isInstalled() && !isDemo && (
+              <button className="btn icon" aria-label="Installera som app" title="Lägg tavlan på hemskärmen" onClick={() => setInstallOpen(true)}>
+                <Icon name="install" size={24} />
+              </button>
+            )}
             <a className="btn icon" aria-label="Inställningar" href="#/setup">
               <Icon name="gear" size={24} />
             </a>
@@ -815,7 +897,13 @@ export function Dashboard() {
           </details>
         )}
 
+        {data.update && <UpdateBanner update={data.update} />}
+
+        {page ? (
+          <DetailPage page={page} data={data} actions={actions} />
+        ) : (
         <div className="tab-page">
+          {tab !== "home" && <PageBar title={TABS.find((t) => t.id === tab)?.label ?? ""} />}
           {tab === "home" && <Home data={data} actions={actions} />}
           {tab === "cars" && <CarsPage data={data} actions={actions} />}
           {tab === "lights" && <LightsPage data={data} actions={actions} />}
@@ -823,6 +911,7 @@ export function Dashboard() {
           {tab === "energy" && <EnergyPage data={data} />}
           {tab === "graphs" && <GraphsPage data={data} />}
         </div>
+        )}
       </div>
 
       {tabs.length > 1 && (
@@ -871,8 +960,24 @@ export function Dashboard() {
         </div>
       )}
 
+      {installOpen && (
+        <div className="overlay" onClick={() => setInstallOpen(false)}>
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="Lägg tavlan på hemskärmen" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <div className="row gap" style={{ alignItems: "center" }}>
+              <h2 className="grow" style={{ fontSize: 24 }}>
+                Lägg tavlan på hemskärmen
+              </h2>
+              <button className="btn icon" aria-label="Stäng" onClick={() => setInstallOpen(false)}>
+                <Icon name="x" size={22} />
+              </button>
+            </div>
+            <InstallHelp />
+          </div>
+        </div>
+      )}
+
       {eventOpen && <EventSheet e={eventOpen} data={data} onClose={() => setEventOpen(null)} onChanged={refresh} />}
-      {planOpen && <PlanSheet data={data} onClose={() => setPlanOpen(false)} onChanged={refresh} toast={showToast} />}
+      {planOpen && <PlanSheet data={data} onClose={() => setPlanOpen(false)} onChanged={refresh} toast={showToast} startTab={planTab} />}
 
       {idle && !sleeping && (
         <IdleFrame

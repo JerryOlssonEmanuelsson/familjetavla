@@ -2119,3 +2119,177 @@ a.btn {
   padding: 6px 8px;
   font-size: 14px;
 }
+
+/* ---------- Kort som öppnar sin egen sida ---------- */
+.opens > .card {
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.opens > .card:active {
+  transform: scale(0.985);
+}
+
+/* ---------- Sidor: Tillbaka · rubrik · Hem ---------- */
+.page-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.page-bar h1 {
+  font-size: 28px;
+  margin: 0;
+  text-align: center;
+}
+.page-bar .btn {
+  min-height: 48px;
+}
+.detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+.detail-page > .card .meal-line,
+.meal-day-card .meal-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 18px;
+  margin-top: 8px;
+}
+.meal-day-card .meal-line svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.update-banner {
+  padding: 12px 18px;
+  border: 1px solid var(--accent);
+}
+.update-banner code {
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--row);
+}
+
+/* ---------- Skolan ---------- */
+.school-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) {
+  .school-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.lessons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+.lesson {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  font-size: 18px;
+}
+.lesson + .lesson {
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.18));
+}
+.lesson-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 108px;
+}
+.lessons.compact .lesson {
+  font-size: 14px;
+  padding: 3px 0;
+}
+.lessons.compact .lesson-time {
+  min-width: 46px;
+  font-weight: 500;
+}
+.lesson .gym,
+.task-kind {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft, rgba(52, 224, 161, 0.18));
+}
+.task-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 17px;
+}
+.task-row + .task-row {
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.18));
+}
+.task-kind.kind-prov {
+  background: rgba(255, 180, 60, 0.25);
+}
+.task-kind.kind-inlämning {
+  background: rgba(255, 120, 140, 0.22);
+}
+.school-week {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.school-day {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--row);
+}
+.school-day.today {
+  outline: 2px solid var(--accent);
+}
+
+/* ---------- Hos oss: fyra veckor ---------- */
+.custody-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0;
+}
+.cday {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  border-radius: 10px;
+  background: var(--row);
+  opacity: 0.55;
+}
+.cday.home {
+  background: var(--accent-soft, rgba(52, 224, 161, 0.25));
+  opacity: 1;
+}
+.cday b {
+  font-size: 17px;
+}
+
+.steps-list {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 17px;
+}
+.cday-head {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.6;
+}

@@ -1,5 +1,15 @@
 # Ändringar
 
+## 0.8.0
+
+- **Tryck på ett kort** så öppnas dess egen sida: Maten → veckans mat, Skolan → skolsidan, Kom ihåg, Inköpslista och Hos oss (kommande fyra veckor). Elpris, bil, ljus och värme går till sina flikar. Knappar och kryssrutor i korten fungerar som vanligt.
+- **Tillbaka och Hem** överst på alla sidor och flikar. Androids bakåtknapp och webbläsarens bakåt fungerar också.
+- **Skolsidan** per barn: dagens hela schema (tid, ämne, sal), läxor, prov och inlämningar de kommande två veckorna, och veckan måndag–fredag.
+- **Ny version finns**: tavlan säger till när en nyare version är publicerad och hur man uppdaterar (tillägg eller Docker). Kollar GitHub var sjätte timme i bakgrunden; stängs av med `UPDATE_CHECK=off`.
+- **Installera som app**: knapp på tavlan och i guidens sista steg – installerar direkt där webbläsaren tillåter det, annars stegen för iPad, Android eller dator, och tips om kioskapp för väggplattan.
+- Provat som Android-surfplatta (Chrome, pekskärm): alla kort, sidor, flikar och bakåtknappen.
+- Rättat: datum kring sommartid/vintertid i skolschemat.
+
 ## 0.7.0
 
 - Nytt kort: **Skolan idag** – när varje barn börjar och slutar ("Ella 08:10–14:30"), med Idrott-märke. Visar nästa skoldag när dagens är slut, och bara barn som bor hos er just då. Kommer från schemat i Vklass, SchoolSoft eller kalenderlänken; kvällsmöten räknas inte.

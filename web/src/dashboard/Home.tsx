@@ -110,7 +110,7 @@ function SchoolDay({ rows }: { rows: NonNullable<Dashboard["schoolDay"]> }) {
   );
 }
 
-function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["schoolFood"] }) {
+export function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["schoolFood"] }) {
   if (!items.length && !food?.length) return null;
   return (
     <section className="card strong">
@@ -141,7 +141,7 @@ function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["school
   );
 }
 
-function Custody({ c }: { c: NonNullable<Dashboard["custody"]> }) {
+export function Custody({ c }: { c: NonNullable<Dashboard["custody"]> }) {
   if (c.rows) {
     // Children with different rhythms: one row each, nearest change first.
     return (
@@ -174,7 +174,7 @@ function Custody({ c }: { c: NonNullable<Dashboard["custody"]> }) {
   );
 }
 
-function Shopping({ data, actions }: { data: Dashboard; actions: Actions }) {
+export function Shopping({ data, actions }: { data: Dashboard; actions: Actions }) {
   const [text, setText] = useState("");
   const items = data.shopping.items;
   const open = items.filter((i) => !i.done).length;
@@ -289,7 +289,7 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
       <div className="card-head" style={{ flexWrap: "wrap" }}>
         <h2>Kommande 7 dagar</h2>
         {/* Always there: it is also where the week's dinners are planned, even with nothing to drive to. */}
-        <button className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`} onClick={actions.openPlan}>
+        <button className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`} onClick={() => actions.openPlan()}>
           <Icon name="kids" size={18} />
           {data.plan.missing ? `Planera veckan · ${data.plan.missing} att lösa` : data.plan.items.length ? "Planera veckan" : "Planera veckans mat"}
         </button>
@@ -601,8 +601,22 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
     cut = i + 1;
     if (acc >= total * 0.6) break;
   }
+  // A tap anywhere on a card (but not on its buttons, boxes and fields) opens its own page or tab.
+  const open = (id: string) => {
+    const page = ({ meals: "maten", schoolday: "skolan", reminders: "komihag", shopping: "inkop", custody: "hososs" } as const)[id as "meals"];
+    if (page) return actions.openPage(page);
+    const tab = ({ prices: "energy", energy: "energy", cars: "cars", lights: "lights", temps: "house", climates: "house" } as const)[id as "prices"];
+    if (tab) actions.openTab(tab);
+  };
   const rest = shown.map((w) => (
-    <div className={`wsize wsize-${w.sz}`} key={w.id}>
+    <div
+      className={`wsize wsize-${w.sz} opens`}
+      key={w.id}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("button, input, select, textarea, a, label, .no-open")) return;
+        open(w.id);
+      }}
+    >
       {render(w.id)}
     </div>
   ));

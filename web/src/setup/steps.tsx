@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { InstallHelp } from "../InstallHelp";
 import { CUSTODY_PRESETS, isHome } from "../../../server/src/custody";
 import type {
   CalendarCategory,
@@ -1820,6 +1821,11 @@ export function DoneStep({ cfg, secrets, setSecrets, resp, haOk, addSteps }: Ste
         ))}
       </div>
       <PinCard secrets={secrets} setSecrets={setSecrets} resp={resp} />
+      <section className="card">
+        <h2>Lägg tavlan på hemskärmen</h2>
+        <p className="muted">Då startar den som en egen app bland de andra, i helskärm.</p>
+        <InstallHelp />
+      </section>
     </div>
   );
 }

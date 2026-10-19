@@ -448,6 +448,8 @@ export interface Dashboard {
     progress: number; // 0–1
     /** När barnen har olika rytm: en rad per grupp av barn med samma status. */
     rows?: { names: string; color: string; home: boolean; text: string; daysLeft: number }[];
+    /** De kommande fyra veckorna per barn som bor växelvis: true = hos oss. Visas på sidan Hos oss. */
+    calendar?: { name: string; color: string; days: boolean[] }[];
   };
   legend: { name: string; color: string }[];
   days: DashDay[];
@@ -470,6 +472,10 @@ export interface Dashboard {
     batteryPct?: number;
   };
   schoolFood?: { child: string; day: string; dishes: string[] }[];
+  /** Sidan Skolan: veckans schema, läxor och uppgifter per barn. */
+  school?: SchoolChild[];
+  /** En nyare version finns publicerad. */
+  update?: { latest: string; current: string };
   /** "Skolan idag": when each child's school day starts and ends (today, or the next school day). */
   schoolDay?: { personId: string; name: string; color: string; dayLabel: string; start: string; end: string; gym: boolean }[];
   /** Veckans mat: skollunch per barn och familjens middag, kommande 7 dagar. */
@@ -523,4 +529,15 @@ export interface Dashboard {
   daypart: "day" | "night";
   night: boolean;
   errors: { source: string; message: string }[];
+}
+
+/** Sidan Skolan för ett barn. */
+export interface SchoolChild {
+  personId: string;
+  name: string;
+  color: string;
+  /** Måndag–fredag den här veckan (nästa vecka på helgen). */
+  days: { dayKey: string; label: string; today: boolean; lessons: { start: string; end: string; title: string; location?: string; gym: boolean }[] }[];
+  /** Läxor, prov och uppgifter de kommande två veckorna. */
+  tasks: { dayKey: string; label: string; title: string; kind: "läxa" | "prov" | "inlämning" | "uppgift" }[];
 }

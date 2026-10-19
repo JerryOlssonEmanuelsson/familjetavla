@@ -139,6 +139,19 @@ if (scenario === "addon") {
   await expectText(page, "Ella är här");
   await shot(page, "6-tavlan");
 
+  // Every card opens its own page, with Tillbaka and Hem; the browser's back button works too.
+  await page.locator(".custody").first().click();
+  await expectText(page, "kommande fyra veckor");
+  await page.getByRole("button", { name: "Tillbaka" }).click();
+  await expectText(page, "Kommande 7 dagar");
+  await page.locator(".card").filter({ hasText: "Inköpslista" }).first().locator("h2").click();
+  await expectText(page, "Lägg till vara");
+  await page.getByRole("button", { name: "Till startsidan" }).click();
+  await expectText(page, "Ella är här");
+  await page.locator(".custody").first().click();
+  await page.goBack();
+  await expectText(page, "Kommande 7 dagar");
+
   // A second screen on the network must unlock with the PIN before it sees anything.
   const other = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "sv-SE", timezoneId: "Europe/Stockholm" });
   const phone = await other.newPage();

@@ -140,6 +140,51 @@ function syncSchoolDay() {
 }
 syncSchoolDay();
 
+// Demo school week (Mon 19 – Fri 23 Oct) and homework for Ella and Leo.
+const L = (start: string, end: string, title: string, location?: string, gym = false) => ({ start, end, title, location, gym });
+const week = (rows: ReturnType<typeof L>[][]) =>
+  ["Måndag", "Tisdag", "Onsdag", "Torsdag", "Fredag"].map((label, i) => ({ dayKey: `2026-10-${19 + i}`, label, today: false, lessons: rows[i] ?? [] }));
+d.school = [
+  {
+    personId: "ella",
+    name: "Ella",
+    color: "#5ab8ff",
+    days: week([
+      [L("08:10", "09:00", "Matematik", "B12"), L("09:15", "10:30", "Svenska", "B12"), L("10:45", "11:30", "Engelska", "B14"), L("12:30", "14:30", "Idrott och hälsa", "Hallen", true)],
+      [L("08:10", "09:30", "NO", "Lab 2"), L("09:45", "11:00", "Matematik", "B12"), L("12:20", "15:00", "Bild", "Ateljén")],
+      [L("09:00", "10:00", "Svenska", "B12"), L("10:15", "11:30", "SO", "B10"), L("12:30", "13:40", "Musik", "Musiksalen")],
+      [L("08:10", "09:00", "Engelska", "B14"), L("09:15", "11:30", "Slöjd", "Trä"), L("12:30", "15:10", "Matematik", "B12")],
+      [L("08:10", "09:30", "Idrott och hälsa", "Hallen", true), L("09:45", "11:30", "Svenska", "B12")],
+    ]),
+    tasks: [
+      { dayKey: "2026-10-20", label: "tis 20/10", title: "Glosor engelska kap 4", kind: "läxa" },
+      { dayKey: "2026-10-22", label: "tor 22/10", title: "Prov i NO – kroppen", kind: "prov" },
+      { dayKey: "2026-10-23", label: "fre 23/10", title: "Lämna in bokrecension", kind: "inlämning" },
+    ],
+  },
+  {
+    personId: "leo",
+    name: "Leo",
+    color: "#f5c84b",
+    days: week([
+      [L("08:20", "09:30", "Svenska", "A3"), L("09:45", "11:00", "Matematik", "A3"), L("12:20", "15:10", "Fritids-utflykt", "Skogen")],
+      [L("08:20", "10:00", "Engelska", "A3"), L("10:15", "11:30", "Idrott", "Hallen", true), L("12:30", "14:00", "NO", "A5")],
+      [L("08:20", "11:30", "Svenska", "A3"), L("12:30", "13:30", "Bild", "Ateljén")],
+      [L("08:20", "09:30", "Matematik", "A3"), L("09:45", "11:30", "SO", "A4"), L("12:30", "14:30", "Musik", "Musiksalen")],
+      [L("08:20", "10:00", "Svenska", "A3"), L("10:15", "11:30", "Idrott", "Hallen", true)],
+    ]),
+    tasks: [{ dayKey: "2026-10-21", label: "ons 21/10", title: "Läsläxa: 10 sidor", kind: "läxa" }],
+  },
+];
+// Ella and Leo: here from Monday 19 Oct for a week, then a week at the other home.
+if (d.custody) {
+  const days = Array.from({ length: 28 }, (_, i) => i >= 1 && i <= 7 ? true : i >= 15 && i <= 21);
+  d.custody.calendar = [
+    { name: "Ella", color: "#5ab8ff", days },
+    { name: "Leo", color: "#f5c84b", days },
+  ];
+}
+
 function syncMeals() {
   d.meals = d.days.map((day, i) => ({
     dayKey: day.key,
