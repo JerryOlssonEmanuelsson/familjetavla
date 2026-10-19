@@ -62,8 +62,8 @@ Det som inte finns i HA sköts av **leverantörsmoduler**:
 | Skolmat | Skolmat-integrationen i HA | Mashie, Matilda, FoodIT, Mateo, skolmat.info | stabil |
 | Skola och förskola | **Vklass** | Schema, idrott, omsorgstid, matsedel. Användarnamn + lösenord (inte BankID) | beta |
 | Skola | **SchoolSoft** | Kalender och matsedel. Användarnamn + lösenord (inte BankID) | beta, nytt |
-| Sopor | Sök på adress | ~30 kommuner/renhållare (EDP Future) | beta |
-| Sopor | **SRV Återvinning** | Botkyrka, Haninge, Huddinge, Nynäshamn, Salem – sök på adress | beta |
+| Sopor | Sök på adress | 18 renhållare (EDP Future) – provas mot riktiga adresser varje vecka | stabil |
+| Sopor | **SRV Återvinning** | Botkyrka, Haninge, Huddinge, Nynäshamn, Salem – sök på adress, provas varje vecka | stabil |
 | Sopor | Eget schema | Kärl, en hämtdag, intervall, ev. vissa månader | stabil |
 | Sopor | ICS eller HA-kalender | t.ex. Waste Collection Schedule (~50 svenska renhållare) | stabil |
 | Mataffär | **Willys** | Inloggning via dold webbläsare, sedan varukorgen | beta |

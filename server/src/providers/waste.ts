@@ -1,6 +1,6 @@
 import { fetchIcs } from "../connectors/ics.js";
 import { ha, haConnection } from "../connectors/ha.js";
-import { EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest, type Pickup } from "../connectors/waste.js";
+import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest, type Pickup } from "../connectors/waste.js";
 import { addDays, daysBetween, parseDayKey, shortDate, shortWeekday, startOfDay } from "../time.js";
 import type { ManualPickup } from "../types.js";
 import type { ProviderCtx, WasteProvider } from "./types.js";
@@ -11,6 +11,8 @@ function edpUrl(ctx: ProviderCtx): string {
   const key = ctx.str("municipality");
   if (key && key !== "custom") {
     const p = EDP_PROVIDERS[key];
+    const parked = EDP_PARKED[key];
+    if (!p && parked) throw new Error(`${parked.title} går inte att hämta från just nu (${parked.reason}). Välj Eget schema, eller Från Home Assistant med Waste Collection Schedule.`);
     if (!p) throw new Error("Välj kommun eller renhållare.");
     return p.apiUrl;
   }
@@ -24,8 +26,8 @@ export const wasteEdp: WasteProvider = {
     id: "edp",
     category: "waste",
     name: "Sök på adress",
-    description: "För kommuner och renhållare som använder EDP Future – ett 30-tal i Sverige.",
-    status: "beta",
+    description: "18 kommuner och renhållare som använder EDP Future – provade mot riktiga adresser varje vecka.",
+    status: "stable",
     fields: [
       {
         key: "municipality",
@@ -74,7 +76,7 @@ export const wasteSrv: WasteProvider = {
     category: "waste",
     name: "SRV Återvinning",
     description: "Botkyrka, Haninge, Huddinge, Nynäshamn och Salem – sök på adress.",
-    status: "beta",
+    status: "stable",
     fields: [
       { key: "address", label: "Gatuadress", type: "text", placeholder: "Skolvägen 10" },
       { key: "building", label: "Välj din adress", type: "select", optional: true, help: "Tryck Testa för att söka." },

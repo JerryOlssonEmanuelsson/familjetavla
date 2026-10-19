@@ -7,7 +7,7 @@
 // Writes a Markdown report to $REPORT (default sources-report.md); exit 1 if anything fails.
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest } from "../server/dist/connectors/waste.js";
+import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest } from "../server/dist/connectors/waste.js";
 import { fetchPrices } from "../server/dist/connectors/elpris.js";
 import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
@@ -62,11 +62,14 @@ function addressesFor(key, apiUrl) {
     .map((t) => t.address);
 }
 
-// ---- Every EDP Future company in the wizard's list ----
+// ---- Every EDP Future company in the wizard's list (and the parked ones) ----
 const edpRows = [];
-for (const [key, p] of Object.entries(EDP_PROVIDERS)) {
+const parkedNotes = [];
+for (const [key, p] of [...Object.entries(EDP_PROVIDERS), ...Object.entries(EDP_PARKED)]) {
+  const isParked = key in EDP_PARKED;
   const addresses = [...new Set([...(cfg.edp?.[key]?.extra ?? []), ...addressesFor(key, p.apiUrl)])].slice(0, 4);
   if (!addresses.length) {
+    if (isParked) { parkedNotes.push(`${p.title}: ingen testadress`); continue; }
     problems.push(`**${p.title}:** ingen testadress finns – lägg till en under edp.${key}.extra i .github/upstream-sources.json.`);
     edpRows.push(`| ${p.title} | – | ingen testadress |`);
     continue;
@@ -85,7 +88,8 @@ for (const [key, p] of Object.entries(EDP_PROVIDERS)) {
         tried.push(`"${found[0]}": inga kommande hämtningar`);
         continue;
       }
-      ok.push(`${p.title}: ${found[0]} → ${pickups.length} kärl, nästa ${day(pickups[0].date)} ${pickups[0].type}`);
+      if (isParked) problems.push(`**${p.title} fungerar igen** (${found[0]} → ${pickups.length} kärl) – flytta tillbaka från EDP_PARKED till EDP_PROVIDERS.`);
+      else ok.push(`${p.title}: ${found[0]} → ${pickups.length} kärl, nästa ${day(pickups[0].date)} ${pickups[0].type}`);
       edpRows.push(`| ${p.title} | ${found[0]} | ✅ ${pickups.length} kärl, nästa ${day(pickups[0].date)} |`);
       done = true;
       break;
@@ -100,6 +104,10 @@ for (const [key, p] of Object.entries(EDP_PROVIDERS)) {
       tried.push(`startsidan svarar ${r.status}`);
     } catch (e) {
       tried.push(`startsidan nås inte (${e.cause?.code ?? e.cause?.message ?? e.message})`);
+    }
+    if (isParked) {
+      parkedNotes.push(`${p.title}: fortfarande ur funktion – ${tried[tried.length - 1]}`);
+      continue;
     }
     problems.push(`**${p.title} fungerar inte:** ${tried.join("; ")}`);
     edpRows.push(`| ${p.title} | ${addresses[0]} | ❌ ${tried[tried.length - 1]} |`);
@@ -154,6 +162,7 @@ for (const url of cfg.skolmaten ?? []) {
 const report = [
   problems.length ? "## Behöver ses över\n" + problems.map((p) => `- ${p}`).join("\n") : "## Allt fungerar",
   "\n## Sopor – Sök på adress\n| Renhållare | Provad adress | Resultat |\n|---|---|---|\n" + edpRows.join("\n"),
+  parkedNotes.length ? "\n## Ej valbara (provas varje vecka)\n" + parkedNotes.map((p) => `- ${p}`).join("\n") : "",
   ok.length ? "\n## OK\n" + ok.map((p) => `- ${p}`).join("\n") : "",
 ].join("\n");
 writeFileSync(process.env.REPORT ?? "sources-report.md", report + "\n");
