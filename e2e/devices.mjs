@@ -70,7 +70,7 @@ for (const [name0, dev, tablet] of DEVICES) {
       await p.locator(".event-text").scrollIntoViewIfNeeded();
     }
     if (open === "care4") {
-      await p.getByLabel("Schema").first().selectOption("4");
+      await p.locator(".care-box").first().locator("label.field", { has: p.locator("span", { hasText: /^Schema$/ }) }).locator("select").selectOption("4");
       await p.locator(".care-box").first().scrollIntoViewIfNeeded();
     }
     if (open === "task") await p.locator(".task-row", { hasText: "Prov i NO" }).first().click();
