@@ -178,12 +178,15 @@ function MiniPick({ label, leg, options, onPick }: { label: string; leg?: Travel
 function PlanSheet({ data, onClose, onChanged }: { data: Dash; onClose: () => void; onChanged: () => Promise<void> }) {
   const [busy, setBusy] = useState("");
   const [onlyMissing, setOnlyMissing] = useState(data.plan.missing > 0);
-  const items = data.plan.items.filter((i) => !onlyMissing || !i.travel.to || !i.travel.home);
+  // Rows you just filled in stay put (so "Alltid så" can be tapped) until the sheet is closed.
+  const [touched, setTouched] = useState<Set<string>>(new Set());
+  const items = data.plan.items.filter((i) => !onlyMissing || !i.travel.to || !i.travel.home || touched.has(i.travel.key));
   const days = [...new Set(items.map((i) => i.dayKey))];
-  const save = async (key: string, choice: TravelChoice) => {
+  const save = async (key: string, choice: TravelChoice, forCalendar = false) => {
     setBusy(key);
+    setTouched((t) => new Set(t).add(key));
     try {
-      await api.travel(key, choice.to || choice.home ? choice : null);
+      await api.travel(key, choice.to || choice.home ? choice : null, forCalendar);
       await onChanged();
     } finally {
       setBusy("");
@@ -230,13 +233,18 @@ function PlanSheet({ data, onClose, onChanged }: { data: Dash; onClose: () => vo
                       </div>
                       <MiniPick label={care ? "Lämnar" : "Dit"} leg={cur.to} options={opts} onPick={(to) => save(t.key, { ...cur, to })} />
                       <MiniPick label={care ? "Hämtar" : "Hem"} leg={cur.home} options={opts} onPick={(home) => save(t.key, { ...cur, home })} />
+                      {t.calendarId && t.to && t.home && !t.fromCalendar && (
+                        <button className="btn small ghost" style={{ justifySelf: "start" }} onClick={() => save(t.key, cur, true)}>
+                          {care ? `Gör till standard för ${i.who}` : `Alltid så för ${t.calendarName ?? "kalendern"}`}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
             </div>
           ))}
         </div>
-        <small className="faint">Valen gäller bara den dagen. Standard för förskolan och för varje kalender ändrar du genom att trycka på händelsen.</small>
+        <small className="faint">Valen gäller bara den dagen. Tryck "Alltid så" för att göra dem till standard – standard räknas som planerat och syns inte här igen.</small>
       </div>
     </div>
   );
