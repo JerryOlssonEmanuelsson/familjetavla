@@ -122,6 +122,11 @@ export function loadConfig(): Config {
     const at = d.home.findIndex((w) => w.id === "reminders");
     d.home.splice(at >= 0 ? at : d.home.length, 0, { id: "meals", on: true });
   }
+  // "Skolan idag" (when the school day ends) sits next to Maten; it hides itself without a schedule.
+  if (!d.home.some((w) => w.id === "schoolday")) {
+    const at = d.home.findIndex((w) => w.id === "meals");
+    d.home.splice(at >= 0 ? at + 1 : d.home.length, 0, { id: "schoolday", on: true });
+  }
   for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: false });
   for (const id of TAB_IDS) if (!d.tabs.some((t) => t.id === id)) d.tabs.push({ id, on: true });
   return cached;

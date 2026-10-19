@@ -678,7 +678,7 @@ a.btn {
   display: grid;
   gap: 18px;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "now" "left" "week" "side";
+  grid-template-areas: "now" "side" "week" "left";
 }
 .area-now {
   grid-area: now;
@@ -695,7 +695,7 @@ a.btn {
 @media (min-width: 760px) {
   .home-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas: "now now" "week week" "left side";
+    grid-template-areas: "now now" "week week" "side left";
   }
 }
 @media (min-width: 1180px) {
@@ -744,7 +744,8 @@ a.btn {
   .home-grid > .area-week::-webkit-scrollbar {
     display: none;
   }
-  .home-grid > .col > * {
+  .home-grid > .col > *,
+  .home-grid > .col > .wsize > * {
     flex-shrink: 0;
   }
   /* Columns of cards: keep a little room so card shadows are not cut at the edges. */
@@ -2071,4 +2072,50 @@ a.btn {
   flex: none;
   margin-top: 2px;
   color: var(--accent);
+}
+
+/* ---------- Skolan idag ---------- */
+.schoolday-card .school-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 18px;
+}
+.schoolday-card .school-row + .school-row {
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.18));
+}
+.schoolday-card .school-times b {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.schoolday-card .gym {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft, rgba(52, 224, 161, 0.18));
+}
+
+/* ---------- Startskärmens storlekar (Inställningar → Startskärm) ---------- */
+.wsize {
+  display: contents;
+}
+.wsize-s > .card,
+.wsize-l > .card {
+  /* zoom scales text, icons and spacing together; supported in Safari and Chromium */
+  zoom: var(--wzoom);
+}
+.wsize-s {
+  --wzoom: 0.88;
+}
+.wsize-l {
+  --wzoom: 1.18;
+}
+.size-select {
+  width: auto;
+  min-width: 92px;
+  padding: 6px 8px;
+  font-size: 14px;
 }

@@ -1502,6 +1502,7 @@ const WIDGET_LABELS: Record<string, string> = {
   now: "Nu – det närmaste, stort",
   reminders: "Kom ihåg",
   meals: "Maten – skollunch och kvällens middag",
+  schoolday: "Skolan idag – när barnen börjar och slutar",
   custody: "Hos oss (växelvis boende)",
   week: "Kommande 7 dagar",
   shopping: "Inköpslista",
@@ -1514,7 +1515,26 @@ const WIDGET_LABELS: Record<string, string> = {
 };
 const TAB_LABELS: Record<string, string> = { cars: "Bil", lights: "Ljus", house: "Hus", energy: "Energi", graphs: "Grafer" };
 
-function OrderList<T extends { id: string; on: boolean }>({ items, labels, onChange }: { items: T[]; labels: Record<string, string>; onChange: (v: T[]) => void }) {
+const SIZE_OPTIONS = [
+  { value: "auto", label: "Auto" },
+  { value: "s", label: "Liten" },
+  { value: "m", label: "Normal" },
+  { value: "l", label: "Stor" },
+];
+/** Cards that always fill their own area and have no size choice. */
+const FIXED_SIZE = new Set(["now", "week"]);
+
+function OrderList<T extends { id: string; on: boolean; size?: string }>({
+  items,
+  labels,
+  onChange,
+  sizes = false,
+}: {
+  items: T[];
+  labels: Record<string, string>;
+  onChange: (v: T[]) => void;
+  sizes?: boolean;
+}) {
   const move = (i: number, d: number) => {
     const j = i + d;
     if (j < 0 || j >= items.length) return;
@@ -1533,6 +1553,21 @@ function OrderList<T extends { id: string; on: boolean }>({ items, labels, onCha
           <span className="grow" style={{ opacity: w.on ? 1 : 0.55 }}>
             {labels[w.id] ?? w.id}
           </span>
+          {sizes && !FIXED_SIZE.has(w.id) && (
+            <select
+              className="size-select"
+              aria-label={`Storlek på ${labels[w.id]}`}
+              value={w.size ?? "auto"}
+              disabled={!w.on}
+              onChange={(e) => onChange(items.map((x, j) => (j === i ? { ...x, size: e.target.value } : x)))}
+            >
+              {SIZE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          )}
           <button className="btn small" aria-label={`Flytta upp ${labels[w.id]}`} disabled={i === 0} onClick={() => move(i, -1)}>
             ↑
           </button>
@@ -1552,8 +1587,11 @@ export function DisplayStep({ cfg, set }: StepProps) {
     <div className="stack">
       <section className="card">
         <h2>Startskärmen</h2>
-        <p className="muted">Slå på det du vill se och flytta i den ordning du vill. Rutor utan data döljs automatiskt.</p>
-        <OrderList items={d.home} labels={WIDGET_LABELS} onChange={(home) => setD({ home })} />
+        <p className="muted">
+          Slå på det du vill se och flytta i den ordning du vill. Rutor utan data döljs automatiskt. Storlek <b>Auto</b> gör rutorna större när
+          ni visar få och mer kompakta när ni visar många.
+        </p>
+        <OrderList items={d.home} labels={WIDGET_LABELS} onChange={(home) => setD({ home })} sizes />
       </section>
       <section className="card">
         <h2>Flikar</h2>

@@ -80,6 +80,36 @@ function Meals({ data }: { data: Dashboard }) {
   );
 }
 
+/** When each child's school day starts and ends – "Ella slutar 14:30". */
+function SchoolDay({ rows }: { rows: NonNullable<Dashboard["schoolDay"]> }) {
+  if (!rows.length) return null;
+  const day = rows[0].dayLabel;
+  const sameDay = rows.every((r) => r.dayLabel === day);
+  return (
+    <section className="card schoolday-card">
+      <h2>Skolan {sameDay ? (day === "idag" || day === "imorgon" ? day : `på ${day}`) : ""}</h2>
+      {rows.map((r) => (
+        <div className="school-row" key={r.personId}>
+          <span className="dot" style={{ background: r.color }} aria-hidden="true" />
+          <b className="grow">
+            {r.name}
+            {!sameDay && <small className="muted"> {r.dayLabel}</small>}
+          </b>
+          {r.gym && (
+            <span className="gym" title="Idrott – ta med gympapåsen">
+              Idrott
+            </span>
+          )}
+          <span className="school-times">
+            <small className="muted">{r.start}–</small>
+            <b>{r.end}</b>
+          </span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["schoolFood"] }) {
   if (!items.length && !food?.length) return null;
   return (
@@ -493,6 +523,8 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
         return <Reminders key={id} items={data.reminders} food={mealsOn ? undefined : data.schoolFood} />;
       case "meals":
         return <Meals key={id} data={data} />;
+      case "schoolday":
+        return data.schoolDay?.length ? <SchoolDay key={id} rows={data.schoolDay} /> : null;
       case "custody":
         return data.custody ? <Custody key={id} c={data.custody} /> : null;
       case "shopping":
@@ -524,6 +556,8 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
         const food = mealsOn ? 0 : (data.schoolFood?.length ?? 0);
         return data.reminders.length || food ? 1 + data.reminders.length + food : 0;
       }
+      case "schoolday":
+        return data.schoolDay?.length ? 1 + data.schoolDay.length : 0;
       case "meals": {
         const lunchRows = data.meals.slice(0, 5).find((d) => d.lunch.length)?.lunch.length ?? 0;
         const dinner = data.meals[0]?.dinner || data.meals[1]?.dinner ? 1 : 0;
@@ -549,24 +583,36 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
         return 0;
     }
   };
-  const shown = chosen.filter((w) => w.id !== "week" && w.id !== "now").map((w) => ({ id: w.id, h: size(w.id) })).filter((w) => w.h > 0);
-  // The left column sits under the Nu zone and is shorter than the side column, so it gets ~40 %.
+  // Size per card: chosen in Startskärm, or "auto" – few cards get bigger, many get more compact.
+  const withData = chosen.filter((w) => w.id !== "week" && w.id !== "now" && size(w.id) > 0);
+  const autoSize = withData.length <= 2 ? "l" : withData.length <= 5 ? "m" : "s";
+  const scale = { s: 0.88, m: 1, l: 1.18 } as const;
+  const shown = withData.map((w) => {
+    const sz = !w.size || w.size === "auto" ? autoSize : w.size;
+    return { id: w.id, sz, h: size(w.id) * scale[sz] };
+  });
+  // The first cards in the user's order go to the tall side column (top right on the iPad, right
+  // under Nu on a phone), so what matters most is always in view. The rest goes under the Nu zone.
   const total = shown.reduce((a, w) => a + w.h, 0);
   let acc = 0;
-  let cut = shown.length > 1 ? 1 : shown.length;
+  let cut = shown.length;
   for (let i = 0; i < shown.length - 1; i++) {
     acc += shown[i].h;
     cut = i + 1;
-    if (acc >= total * 0.4) break;
+    if (acc >= total * 0.6) break;
   }
-  const rest = shown.map((w) => render(w.id));
+  const rest = shown.map((w) => (
+    <div className={`wsize wsize-${w.sz}`} key={w.id}>
+      {render(w.id)}
+    </div>
+  ));
   const half = cut;
   return (
     <main className="home-grid">
       {nowOn && <NowZone data={data} actions={actions} />}
-      <div className="col area-left">{rest.slice(0, half)}</div>
+      <div className="col area-left">{rest.slice(half)}</div>
       {weekOn ? <Week data={data} actions={actions} /> : <div className="area-week" />}
-      <div className="col area-side">{rest.slice(half)}</div>
+      <div className="col area-side">{rest.slice(0, half)}</div>
     </main>
   );
 }

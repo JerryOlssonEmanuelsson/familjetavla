@@ -1,5 +1,11 @@
 # Ändringar
 
+## 0.7.0
+
+- Nytt kort: **Skolan idag** – när varje barn börjar och slutar ("Ella 08:10–14:30"), med Idrott-märke. Visar nästa skoldag när dagens är slut, och bara barn som bor hos er just då. Kommer från schemat i Vklass, SchoolSoft eller kalenderlänken; kvällsmöten räknas inte.
+- Startskärm: välj **storlek** per ruta – Auto, Liten, Normal eller Stor. Auto gör rutorna större när ni visar få och mer kompakta när ni visar många.
+- De rutor som ligger först i er ordning hamnar högst upp i högerkolumnen på iPad (och direkt under Nu på telefonen), så det viktigaste alltid syns.
+
 ## 0.6.2
 
 - Nytt kort på startsidan: **Maten** – dagens skollunch per barn (efter kl 14 morgondagens, efter fredagslunchen måndagens) och kvällens middag, i stor text. Slås på av sig självt och hamnar först under Nu-rutan; flyttas eller stängs av under Startskärm.

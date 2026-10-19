@@ -1,3 +1,4 @@
+import { buildSchoolDays } from "./schoolday.js";
 import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
@@ -326,6 +327,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     prices: buildPrices(cfg, prices, now),
     energy: buildEnergy(cfg, stateMap),
     schoolFood: todaysFood(family.schoolFood, now),
+    schoolDay: buildSchoolDays(all, people, now, (e, day) => visibleOn(e, people, day)),
     cars: cfg.entities.cars.map((c) => ({
       ...buildCar(c, stateMap, now),
       climate: c.climate ? { entityId: c.climate, on: isOnState(stateMap.get(c.climate)?.state) } : undefined,
