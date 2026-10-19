@@ -131,6 +131,15 @@ const LUNCH: Record<string, string> = {
   "2026-10-22": "Köttbullar och makaroner",
 };
 const dinners: Record<string, string> = { "2026-10-18": "Tacos", "2026-10-19": "Lasagne", "2026-10-21": "Pannkakor och bacon" };
+// Demo Sunday: the school week starts tomorrow (Ella and Leo come back on Monday).
+function syncSchoolDay() {
+  d.schoolDay = [
+    { personId: "ella", name: "Ella", color: "#5ab8ff", dayLabel: "imorgon", start: "08:10", end: "14:30", gym: true },
+    { personId: "leo", name: "Leo", color: "#f5c84b", dayLabel: "imorgon", start: "08:20", end: "15:10", gym: false },
+  ];
+}
+syncSchoolDay();
+
 function syncMeals() {
   d.meals = d.days.map((day, i) => ({
     dayKey: day.key,

@@ -107,8 +107,10 @@ export interface TravelChoice {
   home?: TravelLeg;
 }
 
-export const HOME_WIDGETS = ["now", "meals", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
+export const HOME_WIDGETS = ["now", "meals", "schoolday", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
 export type HomeWidget = (typeof HOME_WIDGETS)[number];
+/** Startskärmens rutor: "auto" följer hur många rutor som visas, annars liten/normal/stor. */
+export type WidgetSize = "auto" | "s" | "m" | "l";
 export const TAB_IDS = ["cars", "lights", "house", "energy", "graphs"] as const;
 export type TabId = (typeof TAB_IDS)[number];
 
@@ -295,7 +297,7 @@ export interface Config {
     accent: string;
     theme: "auto" | "dark" | "light";
     /** Startskärmens rutor i ordning; av/på per ruta. */
-    home: { id: HomeWidget; on: boolean }[];
+    home: { id: HomeWidget; on: boolean; size?: WidgetSize }[];
     /** Vilka flikar som visas. */
     tabs: { id: TabId; on: boolean }[];
     nightFrom: string; // "22:00"
@@ -468,6 +470,8 @@ export interface Dashboard {
     batteryPct?: number;
   };
   schoolFood?: { child: string; day: string; dishes: string[] }[];
+  /** "Skolan idag": when each child's school day starts and ends (today, or the next school day). */
+  schoolDay?: { personId: string; name: string; color: string; dayLabel: string; start: string; end: string; gym: boolean }[];
   /** Veckans mat: skollunch per barn och familjens middag, kommande 7 dagar. */
   meals: MealDay[];
   /** Familjens vanligaste middagar (lärda från tidigare veckor) med det man brukar handla. */
@@ -513,7 +517,7 @@ export interface Dashboard {
   graphs: { index: number; title: string }[];
   accent: string;
   theme: "auto" | "dark" | "light";
-  home: { id: HomeWidget; on: boolean }[];
+  home: { id: HomeWidget; on: boolean; size?: WidgetSize }[];
   tabs: { id: TabId; on: boolean }[];
   /** Dygnsfärger: "day" eller "night" utifrån klockan. */
   daypart: "day" | "night";
