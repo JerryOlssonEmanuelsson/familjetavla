@@ -67,7 +67,11 @@ export function Fit({
     const ro = new ResizeObserver(() => fit());
     ro.observe(o);
     window.addEventListener("resize", fit);
+    // Text measured before the web font has loaded is the wrong size: measure again once it has.
+    let alive = true;
+    document.fonts?.ready.then(() => alive && fit());
     return () => {
+      alive = false;
       ro.disconnect();
       window.removeEventListener("resize", fit);
     };
