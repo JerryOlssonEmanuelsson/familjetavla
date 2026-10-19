@@ -652,6 +652,33 @@ const CAL_PROVIDERS: { id: CalendarProvider; name: string; desc: string; guide: 
   { id: "ha", name: "Kalender i Home Assistant", desc: "Använd en kalender du redan har i HA", category: "family", guide: [] },
 ];
 
+/**
+ * How the child usually gets to and from this calendar's activities. A default counts as planned,
+ * so "Planera veckan" only lights up what really has no one – e.g. older kids who cycle never nag.
+ */
+function TravelDefault({ cal, cfg, name, onChange }: { cal: CalendarSource; cfg: Config; name: string; onChange: (c: CalendarSource) => void }) {
+  const opts = [
+    { value: "", label: "Varierar – välj per gång" },
+    ...cfg.people.filter((x) => x.kind === "adult").map((a) => ({ value: `adult:${a.id}`, label: `${a.name} skjutsar` })),
+    { value: "ride", label: "Blir skjutsad" },
+    { value: "bus", label: "Buss" },
+    { value: "self", label: "Cyklar/går själv" },
+  ];
+  const set = (k: "to" | "home", v: string) => {
+    const travel = { ...cal.travel, [k]: v ? { mode: v as NonNullable<TravelChoice["to"]>["mode"] } : undefined };
+    onChange({ ...cal, travel: travel.to || travel.home ? travel : undefined });
+  };
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      <div className="grid-2">
+        <Select label={`${name} brukar ta sig dit`} value={cal.travel?.to?.mode ?? ""} onChange={(v) => set("to", v)} options={opts} />
+        <Select label="… och hem" value={cal.travel?.home?.mode ?? ""} onChange={(v) => set("home", v)} options={opts} />
+      </div>
+      <small className="faint">Ett standardval räknas som planerat – Planera veckan visar bara det som avviker eller saknas. Kan ändras per gång på tavlan.</small>
+    </div>
+  );
+}
+
 function CalendarEditor({
   cal,
   cfg,
@@ -788,6 +815,7 @@ function CalendarEditor({
           help={cal.visibility !== "always" && cal.alwaysShow?.length ? `Räknas som match: ${cal.alwaysShow.join(", ")} (ändra under Filtrera nedan).` : undefined}
         />
       )}
+      {person?.kind === "child" && <TravelDefault cal={cal} cfg={cfg} name={person.name} onChange={onChange} />}
       <details>
         <summary className="muted" style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>
           Filtrera
@@ -949,8 +977,13 @@ export function SchoolStep({ cfg, set, secrets, setSecrets, resp, haOk }: StepPr
                     let changed = false;
                     for (const n of found) {
                       if (map[n] !== undefined) continue;
-                      const first = n.trim().split(/\s+/)[0].toLowerCase();
-                      const match = children.find((c) => c.name.trim().toLowerCase() === first || c.name.trim().toLowerCase() === n.trim().toLowerCase());
+                      // Any name in "Karl Leo Andersson" may be the one used at home ("Leo").
+                      const tokens = n.toLowerCase().split(/[\s-]+/).filter(Boolean);
+                      const hits = children.filter((c) => {
+                        const k = c.name.trim().toLowerCase();
+                        return k && (k === n.trim().toLowerCase() || tokens.includes(k));
+                      });
+                      const match = hits.length === 1 ? hits[0] : undefined;
                       if (match) {
                         map[n] = match.id;
                         changed = true;
@@ -1600,7 +1633,7 @@ export function NotifyStep({ cfg, set, resp }: StepProps) {
             )}
             <details>
               <summary className="muted" style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>
-                Egen kalender i telefonen (utan Home Assistant-appen)
+                Kalenderlänk (reserv – notiserna ovan är huvudspåret)
               </summary>
               <div className="stack" style={{ marginTop: 8 }}>
                 <p className="muted">En privat kalenderlänk med det {a.name || "personen"} lämnar, hämtar och skjutsar de kommande 7 dagarna. Prenumerera på den i telefonens kalender. Den uppdateras av sig själv när någon ändrar på tavlan.</p>
@@ -1616,7 +1649,8 @@ export function NotifyStep({ cfg, set, resp }: StepProps) {
                       </a>
                     </div>
                     <small className="faint">
-                      Telefonen hämtar kalendern direkt från tavlan, så den uppdateras när telefonen är hemma på wifi:t (eller via VPN).
+                      Fungerar i iPhone/Mac-kalendern när telefonen är hemma på wifi:t (eller via VPN) – inte i Google Kalender, som hämtar från internet.
+                      Vill du ha det i Home Assistant: lägg till integrationen <b>Remote Calendar</b> med den här adressen, så blir det en kalender per vuxen där.
                       {resp.runtime.supervisor ? " I Home Assistant-tillägget: öppna port 8099 och använd den adressen." : ""}
                     </small>
                   </>
