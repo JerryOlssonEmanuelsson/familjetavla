@@ -94,6 +94,13 @@ for (const [key, p] of Object.entries(EDP_PROVIDERS)) {
     }
   }
   if (!done) {
+    // Tell "the site is down or blocks us" apart from "the site answers but finds nothing".
+    try {
+      const r = await fetch(p.apiUrl, { signal: AbortSignal.timeout(15_000) });
+      tried.push(`startsidan svarar ${r.status}`);
+    } catch (e) {
+      tried.push(`startsidan nås inte (${e.cause?.code ?? e.cause?.message ?? e.message})`);
+    }
     problems.push(`**${p.title} fungerar inte:** ${tried.join("; ")}`);
     edpRows.push(`| ${p.title} | ${addresses[0]} | ❌ ${tried[tried.length - 1]} |`);
   }

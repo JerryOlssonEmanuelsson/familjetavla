@@ -89,18 +89,24 @@ export interface EdpAddress {
 }
 
 export async function edpSearch(apiUrl: string, address: string): Promise<string[]> {
-  const url = `${apiUrl.replace(/\/+$/, "")}/SearchAdress?searchText=${encodeURIComponent(address)}`;
-  // Most EDP sites read searchText from the URL; June Avfall's own source sends it as a form body. Send both.
-  const res = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ searchText: address }).toString(),
-    timeoutMs: 20_000,
-  });
-  if (!res.ok) throw new Error(`Renhållaren svarade ${res.status}`);
-  const data = (await res.json()) as { Succeeded?: boolean; Buildings?: string[] };
-  if (!data.Succeeded) throw new Error("Renhållaren kunde inte söka just nu.");
-  return data.Buildings ?? [];
+  // "Storgatan 1, Lund (19120)" from an earlier pick: search on the address part only.
+  const text = address.split("(")[0].trim();
+  const url = `${apiUrl.replace(/\/+$/, "")}/SearchAdress?searchText=${encodeURIComponent(text)}`;
+  // Most EDP sites read searchText from the URL or a form body; some (Lund) only from JSON.
+  const bodies = [
+    { type: "application/x-www-form-urlencoded", body: new URLSearchParams({ searchText: text }).toString() },
+    { type: "application/json", body: JSON.stringify({ searchText: text }) },
+  ];
+  let last: string[] = [];
+  for (const b of bodies) {
+    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": b.type }, body: b.body, timeoutMs: 20_000 });
+    if (!res.ok) throw new Error(`Renhållaren svarade ${res.status}`);
+    const data = (await res.json()) as { Succeeded?: boolean; Buildings?: string[] };
+    if (!data.Succeeded) throw new Error("Renhållaren kunde inte söka just nu.");
+    last = data.Buildings ?? [];
+    if (last.length) return last;
+  }
+  return last;
 }
 
 export async function edpSchedule(apiUrl: string, building: string): Promise<Pickup[]> {
