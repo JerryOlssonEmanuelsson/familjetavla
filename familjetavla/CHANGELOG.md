@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.4.0
+
+- **Veckans mat** i Planera veckan: barnens skol- och förskolelunch per dag bredvid familjens middag. Varnar när middagen är samma som lunchen, och "Att handla" lägger varorna i inköpslistan.
+- Middagen syns i veckan på tavlan, och "Middag ikväll" i Kom ihåg på eftermiddagen.
+
 ## 0.3.1
 
 - **Standard för skjuts i guiden** per kalender ("Ella brukar ta sig dit/hem: cyklar själv"), och knappen "Alltid så" i Planera veckan. Ett standardval räknas som planerat – självgående barn ger inga gula varningar.

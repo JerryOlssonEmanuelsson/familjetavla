@@ -8,6 +8,7 @@ import { ha, haConnection } from "./connectors/ha.js";
 import { geocode } from "./connectors/weather.js";
 import { buildDashboard, gatherFamily } from "./dashboard.js";
 import { duties, dutiesIcs } from "./plan.js";
+import { saveDinner } from "./meals.js";
 import { carActions, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
 import { haSocket } from "./connectors/haws.js";
@@ -34,7 +35,7 @@ import { readFileSync } from "node:fs";
 import { addDays, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
-export const VERSION = "0.3.1";
+export const VERSION = "0.4.0";
 const ID = /^[a-z0-9-]{1,40}$/;
 const SUPERVISOR_IP = "172.30.32.2";
 
@@ -877,6 +878,14 @@ export async function registerRoutes(app: FastifyInstance) {
     } else {
       saveLocalList(loadLocalList().map((i) => (i.id === id ? { ...i, done: Boolean(done) } : i)));
     }
+    return { ok: true };
+  });
+
+  // Veckans mat: tonight's (or any day's) dinner, from the board.
+  app.post("/api/dinner", async (req, reply) => {
+    const body = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), text: z.string().max(80) }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltig middag"));
+    saveDinner(body.data.day, body.data.text);
     return { ok: true };
   });
 

@@ -18,6 +18,7 @@ import {
 } from "./sources.js";
 import { listPhotos, loadConfig, loadLocalList } from "./store.js";
 import { buildPlan } from "./plan.js";
+import { buildMeals, loadDinners, sameAsLunch } from "./meals.js";
 import { isCare, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
 import {
   addDays,
@@ -245,6 +246,8 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
   const stateMap = new Map(states.map((s) => [s.entity_id, s]));
   const { people, children, all, withCare, travelCtx } = family;
   const plan = buildPlan(withCare, people, travelCtx, now, (e) => toDash(e, people, travelCtx));
+  const dinners = loadDinners();
+  const meals = buildMeals(family.schoolFood, dinners, now);
 
   // ---- Days ----
   const days: DashDay[] = [];
@@ -263,6 +266,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     const extra: DashEvent[] = [];
     if (arriving.length) extra.push({ time: "", title: `${joinNames(arriving.map((c) => c.name))} kommer`, color: FAMILY_COLOR, who: "", category: "family", icon: "kids" });
     if (leaving.length) extra.push({ time: "", title: `${joinNames(leaving.map((c) => c.name))} byter hem`, color: FAMILY_COLOR, who: "", category: "family", icon: "kids" });
+    if (dinners[dayKey(day)]) extra.push({ time: "", title: `Middag: ${dinners[dayKey(day)]}`, color: FAMILY_COLOR, who: "", category: "family", icon: "food" });
     for (const w of waste.filter((p) => daysBetween(day, p.date) === 0)) {
       extra.push({ time: "", title: w.type, color: WASTE_COLOR, who: "", category: "waste", icon: "trash" });
     }
@@ -300,8 +304,9 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: [...planReminder(plan, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, 5),
+    reminders: [...planReminder(plan, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, 5),
     plan,
+    meals,
     custody,
     legend: [
       ...cfg.people.map((p) => ({ name: p.name, color: p.color })),
@@ -808,4 +813,13 @@ export function planReminder(plan: Dashboard["plan"], now: Date): Reminder[] {
       tone: "amber",
     },
   ];
+}
+
+/** In the afternoon: tonight's dinner, and a heads-up if the kids already had it for lunch. */
+export function dinnerReminder(meals: Dashboard["meals"], now: Date): Reminder[] {
+  const h = now.getHours();
+  const today = meals[0];
+  if (!today?.dinner || h < 13 || h >= 19) return [];
+  const twice = sameAsLunch(today.dinner, today.lunch);
+  return [{ icon: "food", title: `Middag ikväll: ${today.dinner}`, sub: twice ? `Obs – lunchen var ${twice.toLowerCase()}` : "Från veckans mat", tone: twice ? "amber" : "neutral" }];
 }

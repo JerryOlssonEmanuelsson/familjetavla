@@ -159,6 +159,8 @@ export interface LocalItem {
 
 export interface LocalFile {
   shopping?: LocalItem[];
+  /** Veckans middagar: YYYY-MM-DD → "Tacos". */
+  dinners?: Record<string, string>;
   /** Dit/hem-val per händelse, nyckel = travelKey(). */
   travel?: Record<string, import("./types.js").TravelChoice>;
 }
