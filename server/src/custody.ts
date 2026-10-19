@@ -102,3 +102,18 @@ export const CUSTODY_PRESETS: { id: string; label: string; pattern: boolean[] }[
   { id: "everyday-but-weekend", label: "Alla dagar utom varannan helg", pattern: [1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1].map(Boolean) },
   { id: "7-7", label: "Varannan vecka (mån–sön)", pattern: [1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0].map(Boolean) },
 ];
+
+/**
+ * Care times ("07:30-16:00") for one day. With a rolling 2- or 4-week schedule the week is
+ * counted from the anchor date's Monday, like "alternating" custody, so week 53 never shifts it.
+ */
+export function careTimesFor(care: Person["care"], date: Date): string | undefined {
+  if (!care) return undefined;
+  const wd = String(isoWeekday(date));
+  const extra = care.weeks ?? [];
+  if (!extra.length || !care.anchorDate) return care.days[wd];
+  const n = extra.length + 1;
+  const weeks = Math.round(daysBetween(custodyWeekStart(parseDayKey(care.anchorDate), 1), custodyWeekStart(date, 1)) / 7);
+  const i = ((weeks % n) + n) % n;
+  return i === 0 ? care.days[wd] : extra[i - 1]?.[wd];
+}

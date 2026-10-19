@@ -5,7 +5,7 @@ import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.j
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
 import { haSocket } from "./connectors/haws.js";
 import { forecast, rainBetween, skyNow, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
-import { custodyStatus, isHome } from "./custody.js";
+import { careTimesFor, custodyStatus, isHome } from "./custody.js";
 import {
   collectCalendars,
   collectPrices,
@@ -682,7 +682,7 @@ export function buildReminders(
     const place = p.care!.name || "Förskola";
     if (shelf[p.id]?.length) out.push({ icon: "bag", title: `${p.name} · ta med ${careAt(place).replace(/^(på|hos) /, "till ")}: ${shelf[p.id].join(", ").toLowerCase()}`, sub: "Bocka av när det är lämnat – tryck på lämningen", tone: "amber" });
     const note = p.care!.notes?.[String(isoWeekday(focusDay))];
-    if (note && p.care!.days[String(isoWeekday(focusDay))]) out.push({ icon: "bag", title: `${p.name} · ${note}`, sub: `${place} ${evening ? "imorgon" : "idag"}`, tone: "blue" });
+    if (note && careTimesFor(p.care, focusDay)) out.push({ icon: "bag", title: `${p.name} · ${note}`, sub: `${place} ${evening ? "imorgon" : "idag"}`, tone: "blue" });
   }
 
   // Förskola/fritids: who drops off and picks up (today, or tomorrow in the evening).
@@ -852,7 +852,7 @@ export function buildCareEvents(
     if (!p.care && !live) continue;
     for (let i = 0; i < days; i++) {
       const day = addDays(today, i);
-      const text = i === 0 && live && TIME_RANGE.test(live) ? live : p.care?.days[String(isoWeekday(day))];
+      const text = i === 0 && live && TIME_RANGE.test(live) ? live : careTimesFor(p.care, day);
       const m = text ? TIME_RANGE.exec(text) : null;
       if (!m || !isHome(p.custody, day) || closed.has(`${p.name}@${dayKey(day)}`)) continue;
       const at = (h: string, min: string) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), Number(h), Number(min));

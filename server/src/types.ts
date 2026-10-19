@@ -59,6 +59,13 @@ export interface CareSchedule {
   name?: string;
   /** ISO-veckodag "1"–"7" → "07:30-16:00". Saknas en dag = ingen omsorg den dagen. */
   days: Record<string, string>;
+  /**
+   * Rullande schema (skift): vecka 2, 3, 4 … i samma format som `days`, som då är vecka 1.
+   * Saknas = samma tider varje vecka.
+   */
+  weeks?: Record<string, string>[];
+  /** Ett datum (YYYY-MM-DD) i schemats vecka 1. Krävs när `weeks` finns. */
+  anchorDate?: string;
   /** Vem som brukar lämna (to) och hämta (home). */
   travel?: TravelChoice;
   /** Återkommande per veckodag ("1"–"5"), t.ex. tisdag "Utflykt – packa ryggsäck och frukt". */

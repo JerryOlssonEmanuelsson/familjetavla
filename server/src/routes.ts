@@ -105,6 +105,7 @@ function fail(reply: FastifyReply, e: unknown, code = 400) {
 
 // ---------- Validation ----------
 
+const careDays = z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().regex(/^\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}$/));
 const personSchema = z.object({
   id: z.string().regex(ID),
   name: z.string().min(1).max(40),
@@ -133,7 +134,9 @@ const personSchema = z.object({
   care: z
     .object({
       name: z.string().max(30).optional(),
-      days: z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().regex(/^\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}$/)),
+      days: careDays,
+      weeks: z.array(careDays).max(3).optional(),
+      anchorDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       travel: z.lazy(() => travelChoiceSchema).optional(),
       notes: z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().max(60)).optional(),
     })
