@@ -159,3 +159,8 @@ export function isGymLesson(ev: CalEvent): boolean {
   const s = `${ev.title} ${ev.description ?? ""}`.toLowerCase();
   return /\bidh\b|idrott|gympa|\bidr\b/.test(s);
 }
+
+/** Any page on the custodian site, logged in (used by the live check to look at page structure). */
+export async function vklassPage(s: VklassSession, path: string): Promise<string> {
+  return (await follow(s.jar, new URL(path, CUSTODIAN).toString())).text();
+}
