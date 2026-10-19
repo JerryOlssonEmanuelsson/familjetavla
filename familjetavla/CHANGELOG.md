@@ -1,5 +1,11 @@
 # Ändringar
 
+## 0.8.3
+
+- **Läxor och prov från Vklass** syns på skolsidan under läxor, prov och inlämningar (Vklass "Uppgifter"), i stället för att blandas in bland lektionerna.
+- Lektionsnamnen städas: "Svenska (5:a:TH-26__SV)" blir "Svenska". Lärarnas planeringar visas inte.
+- Rättat: uppdateringen kunde ge **"manifest unknown"** om man uppdaterade inom en halvtimme från en ny version. Nu annonseras en version till Home Assistant först när den går att hämta.
+
 ## 0.8.2
 
 - **Skolmaten från Vklass kommer fram.** Matsedeln för idag, imorgon och resten av veckan hämtas för varje barn – provat mot ett riktigt Vklass-konto.

@@ -208,7 +208,7 @@ if (process.env.VKLASS_USERNAME && process.env.VKLASS_PASSWORD) {
     const now = new Date();
     const r = await vklass.fetch(ctx, now, new Date(now.getTime() + 14 * 86_400_000));
     if (withId && !r.events.length) throw new Error(`${withId} barn med schema men inga lektioner två veckor framåt`);
-    return `${kids.length} barn (${withId} med schema), mat för ${withFood} barn (${days} dagar), omsorgstid för ${care}, ${r.events.length} lektioner/händelser (${r.events.filter((e) => e.gym).length} med idrott) två veckor framåt`;
+    return `${kids.length} barn (${withId} med schema), mat för ${withFood} barn (${days} dagar), omsorgstid för ${care}, ${r.events.filter((e) => !e.task).length} lektioner (${r.events.filter((e) => e.gym).length} med idrott), ${r.events.filter((e) => e.task).length} läxor/prov/uppgifter två veckor framåt`;
   });
 } else {
   ok.push("Vklass: hoppas över (inga VKLASS_USERNAME/VKLASS_PASSWORD i repots hemliga nycklar)");

@@ -182,25 +182,35 @@ export async function vklassRawEvents(s: VklassSession, studentId: string, from:
   return (await res.json()) as Record<string, unknown>[];
 }
 
-export async function vklassEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<CalEvent[]> {
-  const body = new URLSearchParams({ students: studentId, start: from.toISOString(), end: to.toISOString() });
-  const res = await follow(s.jar, `${CUSTODIAN}/Events/FullCalendar`, {
-    method: "POST",
-    body,
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json, text/html" },
-  });
-  if (!res.ok) throw new Error(`Vklass kalender svarade ${res.status}`);
-  const list = (await res.json()) as { title?: string; text?: string; start: string; end?: string; allDay?: boolean }[];
-  return list.map((e) => {
-    const start = new Date(e.start);
-    return {
-      start,
-      end: e.end ? new Date(e.end) : new Date(start.getTime() + 3_600_000),
-      allDay: Boolean(e.allDay) || !/T\d/.test(e.start),
-      title: (e.title || e.text || "Skola").trim(),
-      description: e.text,
-    };
-  });
+/** "Svenska (5:a:TH-26__SV)" / "Matematik (KLA.5_MA)" → "Svenska" / "Matematik". */
+export function cleanLessonTitle(t: string): string {
+  return t.replace(/\s*\((?=[^)]*[_:.])[^()\s]+\)\s*$/, "").trim() || t.trim();
+}
+
+type VklassItem = { title?: string; text?: string; start: string; end?: string; allDay?: boolean; eventType?: number; className?: string; location?: string };
+
+/**
+ * Calendar items per child. Vklass marks the kind (checked against a real account):
+ * eventType 1 = lesson, 2 = assignment ("Uppgift": läxa, prov, inlämning), 8 = day off, 16 = teacher's planning.
+ */
+export async function vklassEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<(CalEvent & { task?: boolean })[]> {
+  const list = (await vklassRawEvents(s, studentId, from, to)) as VklassItem[];
+  return list
+    .filter((e) => e.eventType !== 16 && !/plan/.test(e.className ?? ""))
+    .map((e) => {
+      const start = new Date(e.start);
+      const task = e.eventType === 2 || /assignment/.test(e.className ?? "");
+      const raw = (e.title || e.text || "Skola").trim();
+      return {
+        start,
+        end: e.end ? new Date(e.end) : new Date(start.getTime() + 3_600_000),
+        allDay: Boolean(e.allDay) || !/T\d/.test(e.start),
+        title: task ? raw : cleanLessonTitle(raw),
+        location: typeof e.location === "string" && e.location.trim() ? e.location.trim() : undefined,
+        description: e.text,
+        task,
+      };
+    });
 }
 
 /** Lessons that mean "bring gym clothes". Vklass uses short codes like "idh". */

@@ -22,6 +22,8 @@ export interface SchoolEvent extends CalEvent {
   child?: string;
   /** Lesson that needs gym clothes. */
   gym?: boolean;
+  /** Homework, test or hand-in (the provider says so, whatever the title). */
+  task?: boolean;
 }
 
 export interface SchoolProvider {

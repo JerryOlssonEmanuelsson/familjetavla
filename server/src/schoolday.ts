@@ -21,7 +21,7 @@ export function buildSchoolDays(
   isHere: (ev: SourcedEvent, day: Date) => boolean = () => true,
 ): Dashboard["schoolDay"] {
   const lessons = events.filter((e) => {
-    if (!e.sourceId.startsWith("school:") || e.allDay || !e.personId) return false;
+    if (!e.sourceId.startsWith("school:") || e.allDay || e.task || !e.personId) return false;
     const h = e.start.getHours();
     const endsBy = e.end.getHours() + e.end.getMinutes() / 60;
     return h >= 6 && h < 17 && endsBy <= 18 && e.end > e.start;
@@ -96,7 +96,7 @@ export function buildSchoolWeek(
       const day = plusDays(monday, i);
       const next = plusDays(day, 1);
       const lessons = mine
-        .filter((e) => !e.allDay && e.start >= day && e.start < next && !TASK.test(e.title) && isHere(e, day))
+        .filter((e) => !e.allDay && !e.task && e.start >= day && e.start < next && !TASK.test(e.title) && isHere(e, day))
         .sort((a, b) => a.start.getTime() - b.start.getTime())
         .map((e) => ({ start: hm(e.start), end: hm(e.end), title: e.title, location: e.location || undefined, gym: Boolean(e.gym) }));
       days.push({ dayKey: dayKey(day), label: LONG[day.getDay()], today: day.getTime() === today.getTime(), lessons });
@@ -104,7 +104,7 @@ export function buildSchoolWeek(
     const until = plusDays(today, 14);
     const CLOSED = /stängt|stängd|lov\b|studiedag|planeringsdag|apt\b/i;
     const tasks = mine
-      .filter((e) => e.end > today && e.start < until && (TASK.test(e.title) || (e.allDay && !CLOSED.test(e.title))))
+      .filter((e) => e.end > today && e.start < until && (e.task || TASK.test(e.title) || (e.allDay && !CLOSED.test(e.title))))
       .sort((a, b) => a.start.getTime() - b.start.getTime())
       .map((e) => {
         const d = startOfDay(e.start);

@@ -49,3 +49,35 @@ describe("Vklass start page", () => {
     expect(vklassDayLabel("måndag", new Date(2026, 9, 23))).toBe("måndag 26/10");
   });
 });
+
+import { cleanLessonTitle } from "./connectors/vklass.js";
+import { buildSchoolWeek } from "./schoolday.js";
+
+describe("Vklass lessons and assignments", () => {
+  it("drops the course code from lesson names", () => {
+    expect(cleanLessonTitle("Svenska (5:a:TH-26__SV)")).toBe("Svenska");
+    expect(cleanLessonTitle("Matematik (KLA.5_MA)")).toBe("Matematik");
+    expect(cleanLessonTitle("Idrott och hälsa (5:a:TH-26__IDH)")).toBe("Idrott och hälsa");
+    expect(cleanLessonTitle("Utflykt (heldag)")).toBe("Utflykt (heldag)");
+  });
+
+  it("puts assignments under homework, not among the lessons", () => {
+    const now = new Date(2026, 9, 20, 9); // tisdag
+    const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m);
+    const people = new Map([["e", { id: "e", name: "Kim", color: "#fff", kind: "child" as const }]]);
+    const ev = (title: string, start: Date, task = false) => ({ title, start, end: new Date(start.getTime() + 3_600_000), allDay: false, sourceId: "school:vk", personId: "e", category: "school" as const, task });
+    const week = buildSchoolWeek(
+      [ev("Svenska", at(20, 8)), ev("SV-läxa", at(22, 12, 35), true), ev("Matematikprov i talområdet", at(22, 8), true), ev("Bokrecension", at(23, 8), true)],
+      people as never,
+      now,
+    );
+    const kim = week[0];
+    expect(kim.days[1].lessons.map((l) => l.title)).toEqual(["Svenska"]);
+    expect(kim.days[3].lessons).toEqual([]);
+    expect(kim.tasks.map((t) => `${t.label} ${t.kind} ${t.title}`)).toEqual([
+      "tor 22/10 prov Matematikprov i talområdet",
+      "tor 22/10 läxa SV-läxa",
+      "fre 23/10 uppgift Bokrecension",
+    ]);
+  });
+});

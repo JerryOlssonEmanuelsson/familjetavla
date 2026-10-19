@@ -11,7 +11,6 @@ on:
     paths:
       - server/src/connectors/waste.ts
       - server/src/connectors/vklass.ts
-      - e2e/vklass-kinds.mjs
       - server/src/connectors/axfood.ts
       - server/src/connectors/ics.ts
       - server/src/providers/school.ts
@@ -34,12 +33,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build -w server
-      - name: Vklass-posttyper (tillfälligt)
-        run: node e2e/vklass-kinds.mjs
-        continue-on-error: true
-        env:
-          VKLASS_USERNAME: ${{ secrets.VKLASS_USERNAME }}
-          VKLASS_PASSWORD: ${{ secrets.VKLASS_PASSWORD }}
       - id: run
         run: node e2e/sources.mjs
         env:
