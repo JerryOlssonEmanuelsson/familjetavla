@@ -13,6 +13,7 @@ import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
 import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
 import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
+import { vklassChildren, vklassLogin } from "../server/dist/connectors/vklass.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
@@ -194,14 +195,20 @@ for (const [name, key] of [["SportAdmin", "SPORTADMIN_ICS"], ["laget.se", "LAGET
 // Only counts are reported – never names or other details from the account.
 if (process.env.VKLASS_USERNAME && process.env.VKLASS_PASSWORD) {
   await check("Vklass (riktigt konto)", async () => {
+    const kids = await vklassChildren(await vklassLogin(process.env.VKLASS_USERNAME, process.env.VKLASS_PASSWORD));
+    const withFood = kids.filter((k) => k.food.length).length;
+    const days = kids.reduce((n, k) => n + k.food.length, 0);
+    const care = kids.filter((k) => k.careTime).length;
+    const withId = kids.filter((k) => k.id).length;
+    // A school week always has a menu on the start page; weekends may not.
+    const weekday = new Date().getDay() % 6 !== 0;
+    if (weekday && withFood < kids.length) throw new Error(`matsedel för bara ${withFood} av ${kids.length} barn`);
     const settings = { username: process.env.VKLASS_USERNAME };
     const ctx = { integration: {}, settings, str: (k) => settings[k] ?? "", secret: (k) => (k === "password" ? process.env.VKLASS_PASSWORD : undefined), remember: () => {} };
     const now = new Date();
     const r = await vklass.fetch(ctx, now, new Date(now.getTime() + 14 * 86_400_000));
-    const kids = new Set([...r.events.map((e) => e.child), ...r.food.map((f) => f.child)].filter(Boolean)).size;
-    if (!kids) throw new Error("inloggningen gick men inga barn hittades");
-    if (!r.events.length && !r.food.length) throw new Error(`${kids} barn men varken schema eller mat de kommande två veckorna`);
-    return `${kids} barn, ${r.events.length} lektioner/händelser (${r.events.filter((e) => e.gym).length} med idrott), ${r.food.length} dagar mat, ${r.care?.length ?? 0} omsorgstider – två veckor framåt`;
+    if (withId && !r.events.length) throw new Error(`${withId} barn med schema men inga lektioner två veckor framåt`);
+    return `${kids.length} barn (${withId} med schema), mat för ${withFood} barn (${days} dagar), omsorgstid för ${care}, ${r.events.length} lektioner/händelser (${r.events.filter((e) => e.gym).length} med idrott) två veckor framåt`;
   });
 } else {
   ok.push("Vklass: hoppas över (inga VKLASS_USERNAME/VKLASS_PASSWORD i repots hemliga nycklar)");

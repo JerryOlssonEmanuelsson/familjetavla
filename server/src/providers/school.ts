@@ -52,6 +52,7 @@ export const vklass: SchoolProvider = {
     const kids = await vklassChildren(s);
     const events: SchoolEvent[] = [];
     for (const k of kids) {
+      if (!k.id) continue; // preschool child without lessons: menu and care time only
       for (const e of await vklassEvents(s, k.id, from, to)) events.push({ ...e, child: k.name, gym: isGymLesson(e) });
     }
     const food = kids.flatMap((k) => k.food.map((f) => ({ child: k.name, ...f })));

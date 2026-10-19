@@ -1,5 +1,12 @@
 # Ändringar
 
+## 0.8.2
+
+- **Skolmaten från Vklass kommer fram.** Matsedeln för idag, imorgon och resten av veckan hämtas för varje barn – provat mot ett riktigt Vklass-konto.
+- **Förskolebarn i Vklass** följer med: barn utan lektioner (t.ex. på förskolan) hoppades förut över helt. Nu syns deras mat och omsorgstid.
+- Omsorgstiden ("07:15 - 16:00") läses rätt.
+- Veckokollen provar nu även Vklass, SportAdmin och laget.se med riktiga konton/kalendrar och Willys/Hemköps produktsökning (bara antal syns i rapporten).
+
 ## 0.8.1
 
 - **Sophämtning från SRV Återvinning** (Botkyrka, Haninge, Huddinge, Nynäshamn och Salem): skriv gatuadress, tryck Testa och välj din adress. Bygger på samma öppna tjänst som Waste Collection Schedule i Home Assistant.

@@ -13,7 +13,6 @@ on:
       - server/src/connectors/vklass.ts
       - server/src/connectors/axfood.ts
       - server/src/connectors/ics.ts
-      - e2e/vklass-shape.mjs
       - server/src/providers/school.ts
       - e2e/sources.mjs
       - .github/upstream-sources.json
@@ -34,12 +33,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build -w server
-      - name: Vklass-sidans struktur (tillfälligt)
-        run: node e2e/vklass-shape.mjs
-        continue-on-error: true
-        env:
-          VKLASS_USERNAME: ${{ secrets.VKLASS_USERNAME }}
-          VKLASS_PASSWORD: ${{ secrets.VKLASS_PASSWORD }}
       - id: run
         run: node e2e/sources.mjs
         env:
