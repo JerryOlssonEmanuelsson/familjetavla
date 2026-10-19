@@ -27,6 +27,11 @@ const external = (url) => /\/api\/(postcode|geocode)\b/.test(url);
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 
 function watch(page, who) {
+  // After 22:00 the board dims behind a night veil that needs a tap first – as on the wall.
+  // CI runs at any hour, so tap it away whenever it shows up.
+  page.addLocatorHandler(page.locator(".night-veil"), async (veil) => {
+    await veil.click();
+  });
   page.on("console", (m) => {
     if (m.type() !== "error") return;
     // The browser logs every 4xx/5xx as a console error too; those are judged by the response handler.
