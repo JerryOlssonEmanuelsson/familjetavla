@@ -43,7 +43,7 @@ jobs:
           wait_for() { for i in $(seq 1 45); do curl -fsS -o /dev/null "$1" && return 0; sleep 2; done; echo "svarar inte: $1"; return 1; }
           docker network create --subnet 172.30.32.0/23 hassio
           docker run -d --name supervisor --network hassio --ip 172.30.32.2 --network-alias supervisor -p 8123:80 \
-            -v "$PWD/e2e:/e2e:ro" -e ADDON_URL=http://familjetavla:8099 -e HA_TOKEN=e2e-supervisor-token \
+            -v "$PWD/e2e:/e2e:ro" -e ADDON_URL=http://familjetavla:8099 -e HA_TOKEN=e2e-supervisor-token -e TZ=Europe/Stockholm \
             node:22-slim node /e2e/mock-supervisor.mjs
           docker run -d --name familjetavla --network hassio --ip 172.30.33.10 --network-alias familjetavla \
             -e SUPERVISOR_TOKEN=e2e-supervisor-token -v addon-data:/data familjetavla-test
