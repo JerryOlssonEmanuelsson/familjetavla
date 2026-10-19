@@ -72,7 +72,12 @@ const careSaved: Record<string, TravelChoice> = {};
       color: "#34e0a1",
       kind: "child",
       custody: { mode: "always" },
-      care: { name: "Förskola", days: { "1": "07:30-16:00", "2": "07:30-16:00", "3": "07:30-16:00", "4": "07:30-16:00", "5": "08:00-15:00" }, travel: { to: { mode: "adult:emil" }, home: { mode: "adult:anna" } } },
+      care: {
+        name: "Förskola",
+        days: { "1": "07:30-16:00", "2": "07:30-16:00", "3": "07:30-16:00", "4": "07:30-16:00", "5": "08:00-15:00" },
+        travel: { to: { mode: "adult:emil" }, home: { mode: "adult:anna" } },
+        notes: { "2": "Utflykt – packa ryggsäck och frukt" },
+      },
     },
     { id: "nils", name: "Nils", color: "#ff9f5a", kind: "child", custody: { mode: "always" } },
   ];
@@ -103,6 +108,17 @@ const careSaved: Record<string, TravelChoice> = {};
   dd.reminders.splice(1, 0, { icon: "school", title: "Maja · Planeringsdag – förskolan stängd fre 23 okt", sub: "Om 5 dagar – ordna barnomsorg", tone: "amber" });
   dd.reminders = dd.reminders.map((r) => (r.icon === "kids" && r.sub === "Barnvecka börjar" ? { ...r, sub: "Byte" } : r));
   if (dd.custody) dd.custody.sub = "Byte mån 19 okt · v43";
+  dd.mealFavorites = [
+    { name: "Tacos", shopping: "tacoskal, ost, gräddfil" },
+    { name: "Lasagne", shopping: "lasagneplattor, krossade tomater, ost" },
+    { name: "Lax i ugn" },
+    { name: "Korv stroganoff" },
+    { name: "Kycklinggryta" },
+    { name: "Fiskpinnar" },
+    { name: "Köttfärssås och spagetti" },
+  ];
+  dd.shelf = [{ personId: "maja", name: "Maja", items: ["Extrakläder"] }];
+  dd.reminders.splice(3, 0, { icon: "bag", title: "Maja · ta med till förskolan: extrakläder", sub: "Bocka av när det är lämnat – tryck på lämningen", tone: "amber" });
   const fri = dd.days.find((x) => x.key === "2026-10-23");
   fri?.events.unshift({ time: "", title: "Planeringsdag – förskolan stängd", color: "#34e0a1", who: "Maja", initial: "M", category: "school", icon: "school" });
 }
@@ -165,7 +181,8 @@ function syncTravel() {
   for (const e of d.now.items) decorate(e, e.dayLabel === "imorgon" ? tomorrow : d.days[0].key);
   for (const r of d.reminders) {
     if (r.icon !== "bag") continue;
-    const ev = d.days[1]?.events.find((e) => r.title.includes(e.title));
+    const ev = d.days[1]?.events.find((e) => e.travel && r.title.includes(e.title));
+    if (!ev) continue; // not a sport reminder (e.g. "ta med till förskolan")
     const s = ev ? summary(ev) : "";
     r.sub = s ? `Packa väskan · ${s}` : "Packa väskan · tryck i kalendern för att välja skjuts";
   }
@@ -200,8 +217,15 @@ function syncPlan() {
       });
     }
   }
+  // Grown-ups' own calendars in the demo: Emil has a customer meeting before Wednesday's training,
+  // Anna travels on Thursday.
+  for (const it of items) {
+    if (it.dayKey === "2026-10-21" && it.title.includes("Träning")) it.busy = [{ personId: "emil", leg: "to", title: "Kundmöte 16:00–17:15" }];
+    if (it.dayKey === "2026-10-22" && it.title === "Förskola") it.busy = [{ personId: "anna", leg: "to", title: "Tjänsteresa Malmö" }, { personId: "anna", leg: "home", title: "Tjänsteresa Malmö" }];
+  }
   items.sort((a, b) => a.dayKey.localeCompare(b.dayKey) || a.time.localeCompare(b.time));
-  d.plan = { missing: items.filter((i) => !i.travel.to || !i.travel.home).length, items };
+  const attention = (i: PlanItem) => !i.travel.to || !i.travel.home || (i.busy ?? []).some((b) => (b.leg === "to" ? i.travel.to : i.travel.home)?.mode === `adult:${b.personId}`);
+  d.plan = { missing: items.filter(attention).length, items };
 }
 
 function recountGroups() {
@@ -302,7 +326,13 @@ export const demoApi = {
   },
   checkPin: () => wait({ ok: true }),
   authStatus: () => wait({ paired: true, pinRequired: false, supervisor: false }),
-  dinner: (day: string, text: string) => {
+  shelf: (personId: string, items: string[]) => {
+    d.shelf = items.length ? [{ personId, name: "Maja", items }] : [];
+    d.reminders = d.reminders.filter((r) => !r.title.startsWith("Maja · ta med"));
+    if (items.length) d.reminders.splice(1, 0, { icon: "bag", title: `Maja · ta med till förskolan: ${items.join(", ").toLowerCase()}`, sub: "Bocka av när det är lämnat – tryck på lämningen", tone: "amber" });
+    return wait({ ok: true as const }, 150);
+  },
+  dinner: (day: string, text: string, _shopping?: string) => {
     if (text.trim()) dinners[day] = text.trim();
     else delete dinners[day];
     syncMeals();

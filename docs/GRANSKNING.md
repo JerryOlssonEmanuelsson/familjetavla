@@ -2,7 +2,7 @@
 
 > **Till dig som granskar (människa eller AI):** Läs hela filen och svara sedan enligt *Så vill vi ha svaret* längst ner.
 > Var konkret och kritisk. "Det här ser bra ut" hjälper oss inte, men "det här går sönder när …" gör det.
-> **Status:** version 0.4.0, 2026-10-19. Hela dokumentet beskriver nuläget. Repo (publikt, MIT): https://github.com/murre87/familjetavla
+> **Status:** version 0.5.0, 2026-10-19. Hela dokumentet beskriver nuläget. Repo (publikt, MIT): https://github.com/murre87/familjetavla
 
 Mer detaljer om du behöver dem: [PROJEKT.md](PROJEKT.md) (arkitektur), [DESIGN.md](DESIGN.md) (designsystem), och en klickbar demo med låtsasdata i `docs/demo/familjetavla-demo.html`.
 
@@ -54,7 +54,7 @@ Tavlan körs lokalt (Node + React). Den installeras som tillägg i Home Assistan
 - **Vklass** (inofficiellt, skrapar vårdnadshavarwebben med lösenord): barn, kalender, matsedel och omsorgstid från startsidan. Barn kopplas automatiskt om ett av Vklass-namnen ("Karl Leo Andersson") är exakt barnets namn på tavlan ("Leo") och bara ett barn matchar, annars väljer man i en lista.
 - **Veckans mat:** matsedelsrader ("Måndag 19/10" eller bara "Måndag" från Vklass) placeras på rätt dag de kommande 7 dagarna; barn med samma meny slås ihop. Middagen skrivs in per dag och sparas lokalt. Varning om middagen delar ett ord (5+ bokstäver) med lunchen. "Att handla" lägger varor i inköpslistan.
 - **Säkerhet:** med PIN låses varje skärm upp en gång (HttpOnly-cookie, bara hash sparas). Oupplåsta enheter får 401, även för vardagsknappar. Inställningar kräver alltid PIN.
-- **Tester:** 50 automatiska tester. Bland annat barnvecka och v53, 14-dagarsmönster, sommartid, förskola och stängda dagar, plan och ansvar, notiser, ICS, skjutsnycklar, matsedelsdatum och samma-som-lunchen.
+- **Tester:** 54 automatiska tester. Bland annat barnvecka och v53, 14-dagarsmönster, sommartid, förskola och stängda dagar, plan och ansvar, notiser, ICS, skjutsnycklar, matsedelsdatum och samma-som-lunchen.
 
 ## 4. Ändringshistorik i korthet
 
@@ -63,6 +63,7 @@ Tavlan körs lokalt (Node + React). Den installeras som tillägg i Home Assistan
 - **0.3.0:** Planera veckan, påminnelser till rätt telefon, guide med 5 steg.
 - **0.3.1 (efter granskning 2):** standard för skjuts kan sättas i guiden per kalender och med "Alltid så" i Planera veckan, så att självgående barn inte ger varningar. Vklass-namn matchas på alla delnamn. Ärlig text om kalenderlänkens begränsningar. Det här dokumentet är omskrivet till ett enda nuläge.
 - **0.4.0:** Veckans mat i Planera veckan.
+- **0.5.0 (efter granskning 3):** matsedel utan datum låst till innevarande vecka (veckonummer används när det finns), stopplista för tillbehör i "samma som lunchen", APT = tidig stängning, ingen morgonnotis för den vanliga lämningen. Nytt: krockar med vuxnas egna kalendrar i Planera veckan, middagsfavoriter, "saknas på hyllan", återkommande anteckning per veckodag.
 
 ## 5. Kända svagheter
 

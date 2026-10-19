@@ -110,8 +110,11 @@ export async function vklassChildren(s: VklassSession): Promise<VklassChild[]> {
     const id = /studentIds=(\d+)/.exec(link)?.[1] ?? "";
     if (!name || !id) return;
     const food: VklassChild["food"] = [];
+    // "Matsedel vecka 43" on the card pins the menu to that week (see meals.ts menuDate).
+    const week = /vecka\s*(\d{1,2})/i.exec(c.text())?.[1];
     c.find("h3").each((__, h) => {
-      const day = $(h).text().trim();
+      const raw = $(h).text().trim();
+      const day = week && !/\d/.test(raw) ? `${raw} v${week}` : raw;
       const dishes = $(h).nextAll("ul").first().find("li").map((___, li) => $(li).text().trim()).get().filter(Boolean);
       if (day && dishes.length) food.push({ day, dishes });
     });

@@ -17,8 +17,8 @@ import {
   type SourcedEvent,
 } from "./sources.js";
 import { listPhotos, loadConfig, loadLocalList } from "./store.js";
-import { buildPlan } from "./plan.js";
-import { buildMeals, loadDinners, sameAsLunch } from "./meals.js";
+import { buildPlan, careAt, needsAttention } from "./plan.js";
+import { buildMeals, loadDinners, loadShelf, mealFavorites, sameAsLunch } from "./meals.js";
 import { isCare, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
 import {
   addDays,
@@ -307,6 +307,10 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     reminders: [...planReminder(plan, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, 5),
     plan,
     meals,
+    mealFavorites: mealFavorites(now),
+    shelf: Object.entries(loadShelf())
+      .filter(([id]) => people.get(id)?.care)
+      .map(([id, items]) => ({ personId: id, name: people.get(id)!.name, items })),
     custody,
     legend: [
       ...cfg.people.map((p) => ({ name: p.name, color: p.color })),
@@ -617,7 +621,20 @@ export function buildReminders(
   for (const c of closures(events, people, today, 7)) {
     const diff = daysBetween(today, c.date);
     const when = diff === 0 ? "idag" : diff === 1 ? "imorgon" : `${shortWeekday(c.date).toLowerCase()} ${shortDate(c.date)}`;
-    out.push({ icon: "school", title: `${c.name} · ${c.title} ${when}`, sub: diff <= 1 ? "Ordna barnomsorg" : `Om ${diff} dagar – ordna barnomsorg`, tone: "amber" });
+    const sub = c.early
+      ? "Kolla när förskolan stänger – hämta tidigare?"
+      : diff <= 1 ? "Ordna barnomsorg" : `Om ${diff} dagar – ordna barnomsorg`;
+    out.push({ icon: "school", title: `${c.name} · ${c.title} ${when}`, sub, tone: "amber" });
+  }
+
+  // Förskola/fritids: "saknas på hyllan" until it is cleared, and the weekday's own note.
+  const shelf = loadShelf();
+  for (const p of [...people.values()].filter((x) => x.kind === "child" && x.care)) {
+    if (!isHome(p.custody, focusDay)) continue;
+    const place = p.care!.name || "Förskola";
+    if (shelf[p.id]?.length) out.push({ icon: "bag", title: `${p.name} · ta med ${careAt(place).replace(/^(på|hos) /, "till ")}: ${shelf[p.id].join(", ").toLowerCase()}`, sub: "Bocka av när det är lämnat – tryck på lämningen", tone: "amber" });
+    const note = p.care!.notes?.[String(isoWeekday(focusDay))];
+    if (note && p.care!.days[String(isoWeekday(focusDay))]) out.push({ icon: "bag", title: `${p.name} · ${note}`, sub: `${place} ${evening ? "imorgon" : "idag"}`, tone: "blue" });
   }
 
   // Förskola/fritids: who drops off and picks up (today, or tomorrow in the evening).
@@ -731,7 +748,9 @@ export function buildCustodyCard(children: Person[], now: Date): Dashboard["cust
 
 // ---------- Förskola / fritids ----------
 
-const CLOSED = /stängt|stängd|planeringsdag|studiedag|\bapt\b|kompetensutveckling|studiedagar|lovdag/i;
+const CLOSED = /stängt|stängd|planeringsdag|studiedag|kompetensutveckling|studiedagar|lovdag/i;
+/** APT or "stänger 15:00" usually means early closing: drop off as usual, pick up earlier. */
+const EARLY = /\bapt\b|stänger tidigt|tidig stängning|stänger kl|stänger \d/i;
 const TIME_RANGE = /(\d{1,2})[:.](\d{2})\s*[-–]\s*(\d{1,2})[:.](\d{2})/;
 
 /** Pseudo calendars so care days get a default "lämnar/hämtar" like a sport calendar. */
@@ -746,10 +765,14 @@ export function careCalendars(people: Person[]): [string, CalendarSource][] {
 
 /** School/förskola events that say the place is closed, per child at home that day. */
 export function closures(events: SourcedEvent[], people: Map<string, Person>, today: Date, days: number) {
-  const out: { name: string; title: string; date: Date }[] = [];
+  const out: { name: string; title: string; date: Date; early: boolean }[] = [];
   const seen = new Set<string>();
   for (const e of events) {
-    if (e.category !== "school" || !e.personId || !CLOSED.test(e.title)) continue;
+    if (e.category !== "school" || !e.personId) continue;
+    // Closed for the day only when it is an all-day "stängt/planeringsdag"; APT or a timed
+    // "stänger 15:00" is early closing – care still happens, but pick-up may need to move.
+    const early = EARLY.test(e.title) || (!e.allDay && CLOSED.test(e.title));
+    if (!early && !CLOSED.test(e.title)) continue;
     const p = people.get(e.personId);
     const d = startOfDay(e.start);
     const diff = daysBetween(today, d);
@@ -757,7 +780,7 @@ export function closures(events: SourcedEvent[], people: Map<string, Person>, to
     const key = `${p.id}@${dayKey(d)}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ name: p.name, title: e.title.replace(/\s+/g, " ").trim(), date: d });
+    out.push({ name: p.name, title: e.title.replace(/\s+/g, " ").trim(), date: d, early });
   }
   return out.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
@@ -774,7 +797,7 @@ export function buildCareEvents(
   days: number,
 ): SourcedEvent[] {
   const map = new Map(people.map((p) => [p.id, p]));
-  const closed = new Set(closures(events, map, today, days).map((c) => `${c.name}@${dayKey(c.date)}`));
+  const closed = new Set(closures(events, map, today, days).filter((c) => !c.early).map((c) => `${c.name}@${dayKey(c.date)}`));
   const out: SourcedEvent[] = [];
   for (const p of people.filter((x) => x.kind === "child")) {
     const live = vklass.find((v) => v.personId === p.id)?.text;
@@ -802,13 +825,13 @@ export function buildCareEvents(
 
 /** "2 saker de närmaste dagarna saknar ansvarig" – only what is close (today and tomorrow). */
 export function planReminder(plan: Dashboard["plan"], now: Date): Reminder[] {
-  const soon = plan.items.filter((i) => (!i.travel.to || !i.travel.home) && (i.dayLabel === "idag" || i.dayLabel === "imorgon"));
+  const soon = plan.items.filter((i) => needsAttention(i) && (i.dayLabel === "idag" || i.dayLabel === "imorgon"));
   if (!soon.length) return [];
   const first = soon[0];
   return [
     {
       icon: "kids",
-      title: soon.length === 1 ? `${first.who} · ${first.title.replace(/^Lämning · /, "")} ${first.dayLabel} saknar ansvarig` : `${soon.length} saker idag och imorgon saknar ansvarig`,
+      title: soon.length === 1 ? `${first.who} · ${first.title.replace(/^Lämning · /, "")} ${first.dayLabel} behöver någon` : `${soon.length} saker idag och imorgon behöver någon`,
       sub: "Tryck på Planera veckan",
       tone: "amber",
     },

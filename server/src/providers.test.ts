@@ -331,8 +331,11 @@ describe("ansvar och påminnelser", () => {
     const { events, ctx } = await family();
     const list = duties(events, people, ctx, new Date(2026, 9, 18), new Date(2026, 9, 21));
     const at = (h: number, m: number, d = 19) => dueNotifications([emil, anna], list, 3, 1, new Date(2026, 9, d, h, m));
-    expect(at(7, 0).map((n) => `${n.title}: ${n.message}`)).toEqual(["Om 30 min: Lämna Maja på förskolan 07:30"]);
-    expect(at(7, 1)).toEqual([]);
+    // Den vanliga morgonlämningen är rutin – ingen notis …
+    expect(at(7, 0)).toEqual([]);
+    // … men när just den här morgonen är ändrad kommer den.
+    const changed = duties(events, people, { ...ctx, saved: { "care:maja@care@2026-10-19": { to: { mode: "adult:emil" } } } }, new Date(2026, 9, 18), new Date(2026, 9, 21));
+    expect(dueNotifications([emil, anna], changed, 0, 0, new Date(2026, 9, 19, 7, 0)).map((n) => `${n.title}: ${n.message}`)).toEqual(["Om 30 min: Lämna Maja på förskolan 07:30"]);
     expect(at(20, 0)[0].message).toBe("Lämna Maja på förskolan 07:30 · 1 sak imorgon saknar ansvarig");
     expect(at(19, 0, 18).map((n) => n.title)).toEqual(["Planera veckan"]); // söndag 18 okt
   });
@@ -352,7 +355,11 @@ describe("veckans mat", () => {
     const { buildMeals, menuDate } = await import("./meals.js");
     const sun = new Date(2026, 9, 18, 19);
     expect(menuDate("Måndag 19/10", sun)?.getDate()).toBe(19);
-    expect(menuDate("Tisdag", sun)?.getDate()).toBe(20); // Vklass utan datum → nästa tisdag
+    // Vklass utan datum: bara innevarande vecka – söndag kväll blir "Tisdag" förra tisdagen (13), aldrig imorgon.
+    expect(menuDate("Tisdag", sun)?.getDate()).toBe(13);
+    expect(menuDate("Måndag", new Date(2026, 9, 21))?.getDate()).toBe(19); // onsdag: denna veckas måndag
+    expect(menuDate("Tisdag vecka 43", sun)?.getDate()).toBe(20);
+    expect(menuDate("Måndag v1", new Date(2026, 11, 30))?.toDateString()).toBe(new Date(2027, 0, 4).toDateString());
     expect(menuDate("Fredag 2/1", new Date(2026, 11, 30))?.getFullYear()).toBe(2027);
     const meals = buildMeals(
       [
@@ -374,8 +381,75 @@ describe("veckans mat", () => {
     const lunch = [{ dishes: ["Pannkakor med sylt"] }];
     expect(sameAsLunch("Pannkakor och bacon", lunch)).toBe("Pannkakor med sylt");
     expect(sameAsLunch("Tacos", lunch)).toBeNull();
+    // Tillbehör räknas inte: potatis, sallad, pasta …
+    expect(sameAsLunch("Kyckling med ugnsrostad potatis och sallad", [{ dishes: ["Stekt fisk med kokt potatis och sallad"] }])).toBeNull();
+    expect(sameAsLunch("Lasagne", [{ dishes: ["Lasagne med sallad"] }])).toBe("Lasagne med sallad");
     const day = { dayKey: "2026-10-19", dayLabel: "idag", dinner: "Pannkakor", lunch: [{ child: "Maja", dishes: ["Pannkakor med sylt"] }] };
     expect(dinnerReminder([day], new Date(2026, 9, 19, 15))[0]).toMatchObject({ title: "Middag ikväll: Pannkakor", tone: "amber" });
     expect(dinnerReminder([day], new Date(2026, 9, 19, 9))).toEqual([]);
+  });
+});
+
+describe("förskolan stänger tidigt", () => {
+  it("APT varnar men behåller omsorgen; planeringsdag stänger hela dagen", async () => {
+    const { buildCareEvents, buildReminders } = await import("./dashboard.js");
+    const leo = { id: "leo", name: "Leo", color: "#f5c84b", kind: "child" as const, care: { days: { "3": "07:30-16:00", "4": "07:30-16:00" } } };
+    const people = new Map<string, Person>([[leo.id, leo]]);
+    const apt: SourcedEvent = { ...ev("APT – förskolan stänger 15:00", { allDay: true, start: new Date(2026, 9, 21), end: new Date(2026, 9, 22) }), sourceId: "kal", category: "school", personId: "leo" };
+    const plan: SourcedEvent = { ...ev("Planeringsdag", { allDay: true, start: new Date(2026, 9, 22), end: new Date(2026, 9, 23) }), sourceId: "kal", category: "school", personId: "leo" };
+    const care = buildCareEvents([leo], [], [apt, plan], new Date(2026, 9, 19), 7);
+    expect(care.map((e) => e.start.getDate())).toEqual([21]);
+    const r = buildReminders(new Date(2026, 9, 19, 9), [apt, plan], people, [], null);
+    expect(r.map((x) => x.sub)).toEqual(["Kolla när förskolan stänger – hämta tidigare?", "Om 3 dagar – ordna barnomsorg"]);
+  });
+});
+
+describe("krockar i Planera veckan", () => {
+  it("visar när en vuxen har något i sin egen kalender vid lämning eller hämtning", async () => {
+    const { busyAdults } = await import("./plan.js");
+    const emil = { id: "emil", name: "Emil", color: "#c9a2ff", kind: "adult" as const };
+    const anna = { id: "anna", name: "Anna", color: "#ff8fa3", kind: "adult" as const };
+    const ella = { id: "ella", name: "Ella", color: "#5ab8ff", kind: "child" as const };
+    const people = new Map<string, Person>([emil, anna, ella].map((p) => [p.id, p]));
+    const training: SourcedEvent = { ...ev("F14 – Träning", { start: new Date(2026, 9, 21, 17, 30), end: new Date(2026, 9, 21, 19) }), sourceId: "fotboll", category: "sport", personId: "ella" };
+    const meeting: SourcedEvent = { ...ev("Kundmöte", { start: new Date(2026, 9, 21, 16), end: new Date(2026, 9, 21, 17, 15) }), sourceId: "jobb-emil", category: "work", personId: "emil" };
+    const trip: SourcedEvent = { ...ev("Tjänsteresa Malmö", { allDay: true, start: new Date(2026, 9, 21), end: new Date(2026, 9, 22) }), sourceId: "jobb-anna", category: "work", personId: "anna" };
+    const lunch: SourcedEvent = { ...ev("Lunch", { start: new Date(2026, 9, 21, 12), end: new Date(2026, 9, 21, 13) }), sourceId: "jobb-emil", category: "work", personId: "emil" };
+    const busy = busyAdults(training, [training, meeting, trip, lunch], people);
+    expect(busy).toEqual([
+      { personId: "emil", leg: "to", title: "Kundmöte 16:00–17:15" },
+      { personId: "anna", leg: "to", title: "Tjänsteresa Malmö" },
+      { personId: "anna", leg: "home", title: "Tjänsteresa Malmö" },
+    ]);
+  });
+});
+
+describe("middagsfavoriter, hyllan och veckodagar", () => {
+  it("lär sig favoriter och vad man brukar handla", async () => {
+    const { saveDinner, mealFavorites } = await import("./meals.js");
+    const now = new Date(2026, 9, 18, 19);
+    saveDinner("2026-10-19", "Tacos", now, "tacoskal, ost");
+    saveDinner("2026-10-26", "tacos", now);
+    saveDinner("2026-10-20", "Lax i ugn", now);
+    const fav = mealFavorites(now);
+    expect(fav[0]).toEqual({ name: "Tacos", shopping: "tacoskal, ost" });
+    expect(fav[1].name).toBe("Lax i ugn");
+    expect(fav.length).toBeGreaterThan(2); // fylls på med förslag för en ny familj
+  });
+
+  it("påminner om det som saknas på hyllan och veckodagens anteckning", async () => {
+    const { saveShelf } = await import("./meals.js");
+    const { buildReminders } = await import("./dashboard.js");
+    const maja = { id: "maja", name: "Maja", color: "#34e0a1", kind: "child" as const, care: { name: "Förskola", days: { "2": "07:30-16:00" }, notes: { "2": "Utflykt – packa ryggsäck och frukt" } } };
+    const people = new Map<string, Person>([[maja.id, maja]]);
+    saveShelf("maja", ["Blöjor", "Extrakläder"]);
+    const tuesdayMorning = new Date(2026, 9, 20, 7);
+    const titles = buildReminders(tuesdayMorning, [], people, [], null).map((r) => r.title);
+    expect(titles).toContain("Maja · ta med till förskolan: blöjor, extrakläder");
+    expect(titles).toContain("Maja · Utflykt – packa ryggsäck och frukt");
+    // Måndag kväll visar tisdagens anteckning.
+    expect(buildReminders(new Date(2026, 9, 19, 19), [], people, [], null).map((r) => r.title)).toContain("Maja · Utflykt – packa ryggsäck och frukt");
+    saveShelf("maja", []);
+    expect(buildReminders(tuesdayMorning, [], people, [], null).some((r) => r.title.includes("ta med"))).toBe(false);
   });
 });

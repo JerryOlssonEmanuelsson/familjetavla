@@ -23,14 +23,16 @@ export function buildPlan(
     .map((e) => {
       const d = toDash(e);
       const diff = daysBetween(now, e.start);
+      const busy = busyAdults(e, events, people);
       return {
         ...d,
+        ...(busy.length ? { busy } : {}),
         travel: d.travel ?? resolveTravel(e, people, travel.calendars.get(e.sourceId), travel.saved),
         dayKey: dayKey(e.start),
         dayLabel: diff === 0 ? "idag" : diff === 1 ? "imorgon" : `${shortWeekday(e.start).toLowerCase()} ${e.start.getDate()}/${e.start.getMonth() + 1}`,
       };
     });
-  return { missing: items.filter((i) => !i.travel.to || !i.travel.home).length, items };
+  return { missing: items.filter(needsAttention).length, items };
 }
 
 export interface Duty {
@@ -41,6 +43,10 @@ export interface Duty {
   text: string;
   /** Unique per occurrence and leg, for "sent once". */
   key: string;
+  /** Drop-off (to) or pick-up (home). */
+  leg: "to" | "home";
+  /** Comes from the usual default, not a choice for this day. */
+  standard: boolean;
 }
 
 /** What each grown-up is responsible for: drop-offs at the start, pick-ups at the end. */
@@ -59,7 +65,7 @@ export function duties(events: SourcedEvent[], people: Map<string, Person>, trav
     ];
     for (const [i, l] of legs.entries()) {
       if (!l.leg?.mode.startsWith("adult:") || l.at < from || l.at >= until) continue;
-      out.push({ personId: l.leg.mode.slice(6), at: l.at, text: `${l.text} ${hhmm(l.at)}`, key: `${t.key}:${i ? "home" : "to"}` });
+      out.push({ personId: l.leg.mode.slice(6), at: l.at, text: `${l.text} ${hhmm(l.at)}`, key: `${t.key}:${i ? "home" : "to"}`, leg: i ? "home" : "to", standard: t.fromCalendar });
     }
   }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime());
@@ -95,4 +101,36 @@ export function dutiesIcs(name: string, list: Duty[], alarmMin?: number): string
   }
   lines.push("END:VCALENDAR");
   return lines.join("\r\n") + "\r\n";
+}
+
+/** Whole-day entries in a grown-up's own calendar that mean "not around". */
+const AWAY = /resa|tjänsteresa|semester|bortrest|konferens|utomlands|\bborta\b|sjuk|vab/i;
+
+/**
+ * Grown-ups who are busy around this activity's drop-off (30 min before to 15 after the start) or
+ * pick-up (15 min before to 30 after the end), according to calendars marked as theirs.
+ */
+export function busyAdults(e: SourcedEvent, events: SourcedEvent[], people: Map<string, Person>): NonNullable<PlanItem["busy"]> {
+  const out: NonNullable<PlanItem["busy"]> = [];
+  const windows = [
+    { leg: "to" as const, from: e.start.getTime() - 30 * 60_000, to: e.start.getTime() + 15 * 60_000 },
+    { leg: "home" as const, from: e.end.getTime() - 15 * 60_000, to: e.end.getTime() + 30 * 60_000 },
+  ];
+  for (const x of events) {
+    const p = x.personId ? people.get(x.personId) : undefined;
+    if (!p || p.kind !== "adult" || x === e) continue;
+    for (const w of windows) {
+      const hit = x.allDay ? AWAY.test(x.title) && x.start.getTime() < w.to && x.end.getTime() > w.from : x.start.getTime() < w.to && x.end.getTime() > w.from;
+      if (hit && !out.some((b) => b.personId === p.id && b.leg === w.leg)) {
+        out.push({ personId: p.id, leg: w.leg, title: x.allDay ? x.title : `${x.title} ${hhmm(x.start)}–${hhmm(x.end)}` });
+      }
+    }
+  }
+  return out;
+}
+
+/** Someone is missing, or the chosen grown-up is busy then. */
+export function needsAttention(i: PlanItem): boolean {
+  if (!i.travel.to || !i.travel.home) return true;
+  return (i.busy ?? []).some((b) => (b.leg === "to" ? i.travel.to : i.travel.home)?.mode === `adult:${b.personId}`);
 }

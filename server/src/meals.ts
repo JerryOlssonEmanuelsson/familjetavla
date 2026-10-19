@@ -1,6 +1,7 @@
 import { loadLocal, saveLocal } from "./store.js";
 import { addDays, dayKey, daysBetween, shortWeekday, startOfDay } from "./time.js";
 import type { MealDay } from "./types.js";
+export { MEAL_STOPWORDS, sameAsLunch } from "./mealwords.js";
 
 const WEEKDAYS = ["söndag", "måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag"];
 
@@ -18,11 +19,26 @@ export function menuDate(label: string, today: Date): Date | null {
   }
   const wd = WEEKDAYS.findIndex((w) => label.toLowerCase().includes(w));
   if (wd < 0) return null;
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(startOfDay(today), i);
-    if (d.getDay() === wd) return d;
+  const isoDay = wd === 0 ? 7 : wd;
+  // "Vecka 43" / "v43" on the menu: that exact ISO week.
+  const wk = /\bv(?:ecka)?\.?\s*(\d{1,2})\b/i.exec(label);
+  if (wk) return dateOfIsoWeek(Number(wk[1]), isoDay, today);
+  // No week given: only this week. On a Sunday evening Vklass still shows this week's menu,
+  // so "Måndag" must never jump ahead to tomorrow – better an empty day than the wrong lunch.
+  const monday = addDays(startOfDay(today), -((today.getDay() + 6) % 7));
+  return addDays(monday, isoDay - 1);
+}
+
+/** Date of weekday (1–7) in ISO week `week`, in the year closest to `near`. */
+function dateOfIsoWeek(week: number, isoDay: number, near: Date): Date {
+  let best: Date | null = null;
+  for (const y of [near.getFullYear() - 1, near.getFullYear(), near.getFullYear() + 1]) {
+    const jan4 = new Date(y, 0, 4);
+    const week1Monday = addDays(jan4, -((jan4.getDay() + 6) % 7));
+    const d = addDays(week1Monday, (week - 1) * 7 + isoDay - 1);
+    if (!best || Math.abs(daysBetween(near, d)) < Math.abs(daysBetween(near, best))) best = d;
   }
-  return null;
+  return best!;
 }
 
 export function loadDinners(): Record<string, string> {
@@ -30,14 +46,50 @@ export function loadDinners(): Record<string, string> {
 }
 
 /** Save one day's dinner ("" clears). Days older than a week are dropped. */
-export function saveDinner(day: string, text: string, now = new Date()) {
-  const all = { ...loadDinners() };
+export function saveDinner(day: string, text: string, now = new Date(), shopping?: string) {
+  const local = loadLocal();
+  const all = { ...(local.dinners ?? {}) };
   const clean = text.trim().slice(0, 80);
+  const before = all[day];
   if (clean) all[day] = clean;
   else delete all[day];
   const cutoff = dayKey(addDays(startOfDay(now), -7));
   for (const k of Object.keys(all)) if (k < cutoff) delete all[k];
-  saveLocal({ dinners: all });
+  // Learn favourites: count each new choice, remember what was bought for it.
+  const stats = { ...(local.dinnerStats ?? {}) };
+  const k = clean.toLowerCase();
+  if (clean && (before ?? "").toLowerCase() !== k) stats[k] = { ...stats[k], count: (stats[k]?.count ?? 0) + 1, last: dayKey(now), shopping: stats[k]?.shopping };
+  if (clean && shopping?.trim()) stats[k] = { ...(stats[k] ?? { count: 1, last: dayKey(now) }), shopping: shopping.trim().slice(0, 200) };
+  // Keep the list small: the 60 most used.
+  const kept = Object.entries(stats).sort((a, b) => b[1].count - a[1].count || b[1].last.localeCompare(a[1].last)).slice(0, 60);
+  saveLocal({ dinners: all, dinnerStats: Object.fromEntries(kept) });
+}
+
+/** Ideas when the family has no history yet. */
+const STARTERS = ["Tacos", "Köttfärssås och spagetti", "Lax i ugn", "Korv stroganoff", "Pannkakor", "Fiskpinnar", "Kycklinggryta", "Soppa och smörgås"];
+
+/** Up to 12 favourites: most chosen first, filled up with a few starters for a new family. */
+export function mealFavorites(now = new Date()): { name: string; shopping?: string }[] {
+  void now;
+  const stats = loadLocal().dinnerStats ?? {};
+  const learned = Object.entries(stats)
+    .sort((a, b) => b[1].count - a[1].count || b[1].last.localeCompare(a[1].last))
+    .map(([k, v]) => ({ name: k[0].toUpperCase() + k.slice(1), shopping: v.shopping }));
+  const names = new Set(learned.map((f) => f.name.toLowerCase()));
+  const starters = learned.length >= 8 ? [] : STARTERS.filter((s) => !names.has(s.toLowerCase())).map((name) => ({ name }));
+  return [...learned, ...starters].slice(0, 12);
+}
+
+export function loadShelf(): Record<string, string[]> {
+  return loadLocal().shelf ?? {};
+}
+
+export function saveShelf(personId: string, items: string[]) {
+  const all = { ...loadShelf() };
+  const clean = [...new Set(items.map((i) => i.trim().slice(0, 30)).filter(Boolean))].slice(0, 10);
+  if (clean.length) all[personId] = clean;
+  else delete all[personId];
+  saveLocal({ shelf: all });
 }
 
 /** The coming 7 days: school/förskola lunch per child next to the family's dinner. */
@@ -63,10 +115,3 @@ export function buildMeals(food: { child: string; day: string; dishes: string[] 
 }
 
 /** "Pannkakor" for dinner when the kids had pannkakor for lunch – words of 5+ letters in common. */
-export function sameAsLunch(dinner: string | undefined, lunch: { dishes: string[] }[]): string | null {
-  if (!dinner) return null;
-  const words = (s: string) => new Set(s.toLowerCase().match(/[a-zåäöé]{5,}/g) ?? []);
-  const d = words(dinner);
-  for (const l of lunch) for (const dish of l.dishes) for (const w of words(dish)) if (d.has(w)) return dish;
-  return null;
-}
