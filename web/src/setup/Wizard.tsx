@@ -153,6 +153,11 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
 
   // Keep the current step's pill in view – with eleven steps the row scrolls sideways.
   const navRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // A new step starts at the top of the form.
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0 });
+  }, [at]);
   useEffect(() => {
     navRef.current?.querySelector('[aria-current="step"]')?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
   }, [at]);
@@ -187,6 +192,8 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
           </span>
           <i style={{ width: `${((at + 1) / visible.length) * 100}%` }} />
         </div>
+        {/* Only the form scrolls – the steps above and Tillbaka/Nästa below stay put, so nothing hides behind them. */}
+        <div className="wizard-body" ref={bodyRef}>
         <div className="stack" style={{ gap: 8 }}>
           {/* The welcome text is for the first start; in settings the step is just "Hem". */}
           <h1>{!firstRun && step.id === "hem" ? "Hem" : step.title}</h1>
@@ -198,6 +205,7 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
             {error}
           </div>
         )}
+        </div>
         <div className="wizard-nav">
           <button className="btn" disabled={idx === 0 || saving} onClick={() => go(idx - 1)}>
             <Icon name="chevronLeft" size={20} /> Tillbaka

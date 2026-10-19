@@ -1490,8 +1490,10 @@ a.btn {
 .wizard {
   max-width: 980px;
   margin: 0 auto;
+  height: 100vh;
+  height: 100dvh;
   padding-top: max(20px, env(safe-area-inset-top));
-  padding-bottom: 48px;
+  padding-bottom: 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: flex;
@@ -1655,10 +1657,22 @@ a.btn {
   background: var(--row);
   border: 1px solid var(--glass-edge);
 }
+.wizard-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  /* room for focus rings and card shadows */
+  padding: 4px 4px 24px;
+  margin: -4px -4px 0;
+}
 .wizard-nav {
-  position: sticky;
-  bottom: 0;
-  padding: 14px 0 max(14px, env(safe-area-inset-bottom));
+  flex: none;
+  padding: 12px 0 max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--glass-edge);
   display: flex;
   justify-content: space-between;
   gap: 12px;

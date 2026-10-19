@@ -81,6 +81,8 @@ for (const [name0, dev, tablet] of LIST) {
         if (!n.textContent.trim()) continue;
         const el = n.parentElement;
         if (!el || el.closest("svg, script, style, .sky, [aria-hidden=true], .fit-more")) continue;
+        // With a sheet open, the board behind it is meant to be covered: check the sheet only.
+        if (document.querySelector(".overlay") && !el.closest(".overlay")) continue;
         const cs = getComputedStyle(el);
         if (cs.visibility === "hidden" || Number(cs.opacity) === 0) continue;
         const range = document.createRange();
@@ -103,7 +105,9 @@ for (const [name0, dev, tablet] of LIST) {
             }
           }
           if (clipped) continue;
-          texts.push({ el, r, t: n.textContent.trim().slice(0, 24) });
+          // Line boxes are taller than the letters (big numbers especially): compare the middle of the line.
+          const pad = r.height * 0.22;
+          texts.push({ el, r: { left: r.left, right: r.right, width: r.width, top: r.top + pad, bottom: r.bottom - pad, height: r.height - 2 * pad }, t: n.textContent.trim().slice(0, 24) });
         }
       }
       for (const { el, r, t } of texts) {
