@@ -3,7 +3,17 @@
   "repo": "mampfes/hacs_waste_collection_schedule",
   "path": "custom_components/waste_collection_schedule/waste_collection_schedule/source",
   "files": {
-    "srvatervinning_se.py": { "sha256": "bfb828cbfe61ff4265a7488d55371cb7cc963630eb3404cf32ad2329c4d49aaf", "ours": "server/src/connectors/waste.ts (srv*)" },
-    "edpevent_se.py": { "sha256": "1c8892f640cb76528ad72e1525ae8cae0764a12a3f82ccecbf8033b6705dd5da", "ours": "server/src/connectors/waste.ts (edp*)" }
+    "srvatervinning_se.py": {
+      "sha256": "bfb828cbfe61ff4265a7488d55371cb7cc963630eb3404cf32ad2329c4d49aaf",
+      "ours": "server/src/connectors/waste.ts (srv*)"
+    },
+    "edpevent_se.py": {
+      "sha256": "1c8892f640cb76528ad72e1525ae8cae0764a12a3f82ccecbf8033b6705dd5da",
+      "ours": "server/src/connectors/waste.ts (edp*)"
+    },
+    "juneavfall_se.py": {
+      "sha256": "bd41f171a9c3f84896dbfef607d4e8e4cf484b98e2f5b52bf2bbd3a9203434a1",
+      "ours": "server/src/connectors/waste.ts (edp*, June Avfall)"
+    }
   }
 }

@@ -3,7 +3,8 @@
 ## 0.8.1
 
 - **Sophämtning från SRV Återvinning** (Botkyrka, Haninge, Huddinge, Nynäshamn och Salem): skriv gatuadress, tryck Testa och välj din adress. Bygger på samma öppna tjänst som Waste Collection Schedule i Home Assistant (beta).
-- **Veckovis källkoll**: GitHub provar SRV varje vecka och bevakar koden i Waste Collection Schedule som SRV- och EDP-kopplingarna bygger på. Ändras något skapas ett ärende, så att en rättad version kan komma innan någon märker felet.
+- **June Avfall** (Jönköping, Habo, Mullsjö): adressökningen skickas nu på samma sätt som June själva kräver, och Habo och Mullsjö känns igen från postnumret.
+- **Veckovis källkoll**: GitHub provar SRV och June Avfall varje vecka och bevakar koden i Waste Collection Schedule som SRV- och EDP-kopplingarna bygger på. Ändras något skapas ett ärende, så att en rättad version kan komma innan någon märker felet.
 
 ## 0.8.0
 

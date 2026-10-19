@@ -5,7 +5,7 @@
 // Writes a Markdown report to $REPORT (default sources-report.md); exit 1 if anything needs a look.
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { srvSchedule, srvSuggest } from "../server/dist/connectors/waste.js";
+import { EDP_PROVIDERS, edpByAddress, srvSchedule, srvSuggest } from "../server/dist/connectors/waste.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
 const problems = [];
@@ -38,6 +38,18 @@ try {
   ok.push(`SRV: ${pick} → ${pickups.length} hämtningar, nästa ${pickups[0].date.toISOString().slice(0, 10)} ${pickups[0].type}`);
 } catch (e) {
   problems.push(`**SRV Återvinning svarar inte som väntat:** ${e.message}. Jämför med srvatervinning_se.py i Waste Collection Schedule.`);
+}
+
+// EDP Future renhållare with the test addresses Waste Collection Schedule uses.
+for (const [key, address] of [["june", "Smedjegatan 20, Jönköping"]]) {
+  const p = EDP_PROVIDERS[key];
+  try {
+    const { building, pickups } = await edpByAddress(p.apiUrl, address);
+    if (!pickups.length) throw new Error(`inga kommande hämtningar för ${building}`);
+    ok.push(`${p.title}: ${building} → ${pickups.length} kärl, nästa ${pickups[0].date.toISOString().slice(0, 10)} ${pickups[0].type}`);
+  } catch (e) {
+    problems.push(`**${p.title} svarar inte som väntat:** ${e.message}.`);
+  }
 }
 
 const report = [

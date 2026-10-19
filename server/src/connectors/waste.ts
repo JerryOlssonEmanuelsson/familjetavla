@@ -17,7 +17,7 @@ export const EDP_PROVIDERS: Record<string, { title: string; apiUrl: string }> = 
   falkenberg: { title: "Falkenberg (VIVAB)", apiUrl: "https://minasidor.vivab.info/FutureWebFalken/SimpleWastePickup" },
   gotland: { title: "Gotland", apiUrl: "https://edpfuture.gotland.se/FutureWeb/SimpleWastePickup" },
   "herrljunga-vargarda": { title: "Herrljunga & Vårgårda", apiUrl: "https://edpfuture.remondis.se/EDPFutureWeb/SimpleWastePickup" },
-  june: { title: "June Avfall (Jönköping m.fl.)", apiUrl: "https://minasidor.juneavfall.se/FutureWebJuneBasic/SimpleWastePickup" },
+  june: { title: "June Avfall (Jönköping, Habo, Mullsjö)", apiUrl: "https://minasidor.juneavfall.se/FutureWebJuneBasic/SimpleWastePickup" },
   kiruna: { title: "Kiruna – Tekniska Verken", apiUrl: "https://kund.tekniskaverkenikiruna.se/FutureWebBasic/SimpleWastePickup" },
   "kretslopp-sydost": { title: "Kretslopp Sydost", apiUrl: "https://kundportal.kretsloppsydost.se/FutureWeb/SimpleWastePickup" },
   kungalv: { title: "Kungälv", apiUrl: "https://minasidor-va-avfall.kungalv.se/FutureWeb/SimpleWastePickup" },
@@ -90,7 +90,13 @@ export interface EdpAddress {
 
 export async function edpSearch(apiUrl: string, address: string): Promise<string[]> {
   const url = `${apiUrl.replace(/\/+$/, "")}/SearchAdress?searchText=${encodeURIComponent(address)}`;
-  const res = await fetchWithTimeout(url, { method: "POST", timeoutMs: 20_000 });
+  // Most EDP sites read searchText from the URL; June Avfall's own source sends it as a form body. Send both.
+  const res = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ searchText: address }).toString(),
+    timeoutMs: 20_000,
+  });
   if (!res.ok) throw new Error(`Renhållaren svarade ${res.status}`);
   const data = (await res.json()) as { Succeeded?: boolean; Buildings?: string[] };
   if (!data.Succeeded) throw new Error("Renhållaren kunde inte söka just nu.");
