@@ -11,7 +11,10 @@ import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSugg
 import { fetchPrices } from "../server/dist/connectors/elpris.js";
 import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
-import { skolmaten } from "../server/dist/providers/school.js";
+import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
+import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
+import { vklassChildren, vklassLogin } from "../server/dist/connectors/vklass.js";
+import { skolmaten, vklass } from "../server/dist/providers/school.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
 const problems = [];
@@ -157,6 +160,58 @@ for (const url of cfg.skolmaten ?? []) {
     if (!food.length) throw new Error("ingen mat de kommande två veckorna");
     return `${food.length} dagar, t.ex. ${food[0].dishes[0]}`;
   });
+}
+
+// ---- Willys / Hemköp product search (works without logging in) ----
+for (const site of Object.values(AXFOOD_SITES)) {
+  await check(`${site.label} produktsökning`, async () => {
+    const hits = await axfoodSearch(site, "", "mjölk");
+    if (!hits.length) throw new Error("sökningen på mjölk gav inga varor");
+    if (!hits.every((h) => h.code && h.name)) throw new Error("varorna saknar kod eller namn – svaret har ändrat format");
+    return `"mjölk" → ${hits.length} varor, t.ex. ${hits[0].name}`;
+  });
+}
+
+// ---- Real sport calendars (secrets SPORTADMIN_ICS / LAGET_ICS); counts only ----
+for (const [name, key] of [["SportAdmin", "SPORTADMIN_ICS"], ["laget.se", "LAGET_ICS"]]) {
+  const url = process.env[key];
+  if (!url) {
+    ok.push(`${name}: hoppas över (ingen ${key} i repots hemliga nycklar)`);
+    continue;
+  }
+  await check(`${name} (riktig kalender)`, async () => {
+    const now = new Date();
+    const evs = await fetchIcs(url, new Date(now.getTime() - 30 * 86_400_000), new Date(now.getTime() + 60 * 86_400_000));
+    if (!evs.length) throw new Error("kalendern gick att läsa men hade inga händelser 30 dagar bakåt – 60 dagar framåt");
+    const bad = evs.filter((e) => !(e.start instanceof Date) || Number.isNaN(e.start.getTime()) || !e.title);
+    if (bad.length) throw new Error(`${bad.length} händelser utan giltig tid eller titel`);
+    const groups = detectGroups(evs).length;
+    const matches = evs.filter((e) => /match|cup|turnering|serie/i.test(e.title)).length;
+    return `${evs.length} händelser (${matches} matcher/cuper), ${groups} lag/grupper för lagfiltret`;
+  });
+}
+
+// ---- Vklass with a real account (repository secrets VKLASS_USERNAME / VKLASS_PASSWORD) ----
+// Only counts are reported – never names or other details from the account.
+if (process.env.VKLASS_USERNAME && process.env.VKLASS_PASSWORD) {
+  await check("Vklass (riktigt konto)", async () => {
+    const kids = await vklassChildren(await vklassLogin(process.env.VKLASS_USERNAME, process.env.VKLASS_PASSWORD));
+    const withFood = kids.filter((k) => k.food.length).length;
+    const days = kids.reduce((n, k) => n + k.food.length, 0);
+    const care = kids.filter((k) => k.careTime).length;
+    const withId = kids.filter((k) => k.id).length;
+    // A school week always has a menu on the start page; weekends may not.
+    const weekday = new Date().getDay() % 6 !== 0;
+    if (weekday && withFood < kids.length) throw new Error(`matsedel för bara ${withFood} av ${kids.length} barn`);
+    const settings = { username: process.env.VKLASS_USERNAME };
+    const ctx = { integration: {}, settings, str: (k) => settings[k] ?? "", secret: (k) => (k === "password" ? process.env.VKLASS_PASSWORD : undefined), remember: () => {} };
+    const now = new Date();
+    const r = await vklass.fetch(ctx, now, new Date(now.getTime() + 14 * 86_400_000));
+    if (withId && !r.events.length) throw new Error(`${withId} barn med schema men inga lektioner två veckor framåt`);
+    return `${kids.length} barn (${withId} med schema), mat för ${withFood} barn (${days} dagar), omsorgstid för ${care}, ${r.events.length} lektioner/händelser (${r.events.filter((e) => e.gym).length} med idrott) två veckor framåt`;
+  });
+} else {
+  ok.push("Vklass: hoppas över (inga VKLASS_USERNAME/VKLASS_PASSWORD i repots hemliga nycklar)");
 }
 
 const report = [

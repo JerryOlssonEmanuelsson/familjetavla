@@ -99,38 +99,75 @@ export async function vklassLogin(username: string, password: string): Promise<V
 
 export async function vklassChildren(s: VklassSession): Promise<VklassChild[]> {
   const res = await follow(s.jar, `${CUSTODIAN}/Home/Welcome`);
-  const html = await res.text();
+  const children = parseVklassWelcome(await res.text());
+  if (children.length === 0) throw new Error("Inloggad i Vklass men hittade inga barn. Sidan kan ha ändrats.");
+  return children;
+}
+
+const WEEKDAY_NAMES = ["söndag", "måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag"];
+
+/** "Idag", "Imorgon", "onsdag" on the card → "onsdag 21/10" so the menu lands on the right date. */
+export function vklassDayLabel(raw: string, today: Date): string {
+  const t = raw.trim().toLowerCase();
+  const at = (n: number) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + n);
+    return `${WEEKDAY_NAMES[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+  };
+  if (t === "idag") return at(0);
+  if (t === "imorgon") return at(1);
+  const wd = WEEKDAY_NAMES.indexOf(t);
+  if (wd >= 0) return at(((wd - today.getDay() + 7) % 7) || 7);
+  return raw.trim();
+}
+
+/**
+ * The custodian start page: one .vk-student-card per child with the name, care time
+ * ("Omsorgstid 07:15 - 16:00") and the menu per day:
+ *   .vk-student-card__day > h3 "Idag" + .vk-student-card__day__food > h4 "Matsedel" + ul > li
+ * (structure checked against a real account, 2026-10-19).
+ */
+export function parseVklassWelcome(html: string, today = new Date()): VklassChild[] {
   const $ = cheerio.load(html);
   const children: VklassChild[] = [];
-
-  $(".vk-student-card").each((_, card) => {
+  $(".vk-student-card").each((i, card) => {
     const c = $(card);
-    const name = c.find("h2").first().text().trim();
-    const link = c.find('a[href*="studentIds="]').attr("href") ?? "";
-    const id = /studentIds=(\d+)/.exec(link)?.[1] ?? "";
-    if (!name || !id) return;
+    const name = c.find(".vk-student-card-header__text, h2").first().text().trim();
+    if (!name) return;
+    const id = studentId($, c) ?? "";
     const food: VklassChild["food"] = [];
-    // "Matsedel vecka 43" on the card pins the menu to that week (see meals.ts menuDate).
-    const week = /vecka\s*(\d{1,2})/i.exec(c.text())?.[1];
-    c.find("h3").each((__, h) => {
-      const raw = $(h).text().trim();
-      const day = week && !/\d/.test(raw) ? `${raw} v${week}` : raw;
-      const dishes = $(h).nextAll("ul").first().find("li").map((___, li) => $(li).text().trim()).get().filter(Boolean);
-      if (day && dishes.length) food.push({ day, dishes });
+    c.find(".vk-student-card__day").each((__, dayEl) => {
+      const d = $(dayEl);
+      const label = d.children("h3").first().text().trim() || d.find("h3").first().text().trim();
+      const dishes = d
+        .find("li")
+        .map((___, li) => ($(li).html() ?? "").split(/<br\s*\/?>/i).map((part) => cheerio.load(part).text().replace(/\s+/g, " ").trim()))
+        .get()
+        .flat()
+        .filter(Boolean);
+      if (label && dishes.length) food.push({ day: vklassDayLabel(label, today), dishes: [...new Set(dishes)] });
     });
+    const care = c.find('a[href*="CareSchedule"]').first().text().replace(/\s+/g, " ").trim().replace(/[–—]/g, "-");
     children.push({
       id,
       name,
       attendance: c.find(".text-bold").first().text().trim() || undefined,
-      careTime: c.find('a[href*="CareSchedule/Overview"]').first().text().trim().replace(/–/g, "-") || undefined,
+      careTime: /\d{1,2}[:.]\d{2}\s*-\s*\d{1,2}[:.]\d{2}/.exec(care)?.[0] || undefined,
       food,
     });
   });
-
-  if (children.length === 0) {
-    throw new Error("Inloggad i Vklass men hittade inga barn. Sidan kan ha ändrats.");
-  }
   return children;
+}
+
+/** The child's id: from a schedule link, or from a data attribute on the card (preschool children have no lessons). */
+function studentId($: cheerio.CheerioAPI, c: cheerio.Cheerio<any>): string | undefined {
+  const link = c.find('a[href*="studentIds="], a[href*="studentId="], a[href*="StudentId="]').attr("href") ?? "";
+  const fromLink = /student[Ii]ds?=(\d+)/.exec(link)?.[1];
+  if (fromLink) return fromLink;
+  for (const el of [c, ...c.find("*").toArray().map((e) => $(e))]) {
+    const attrs = (el.get(0) as { attribs?: Record<string, string> } | undefined)?.attribs ?? {};
+    for (const [k, v] of Object.entries(attrs)) if (/student/i.test(k) && /^\d+$/.test(v)) return v;
+  }
+  return undefined;
 }
 
 export async function vklassEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<CalEvent[]> {
@@ -159,3 +196,4 @@ export function isGymLesson(ev: CalEvent): boolean {
   const s = `${ev.title} ${ev.description ?? ""}`.toLowerCase();
   return /\bidh\b|idrott|gympa|\bidr\b/.test(s);
 }
+
