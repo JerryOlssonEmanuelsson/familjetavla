@@ -1,0 +1,81 @@
+name: Saknas din skolplattform?
+description: Berätta vilken skolplattform ert barn har, så vet vi vad som ska byggas härnäst.
+title: "Skolplattform: "
+labels: ["skolplattform"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tack! Vi bygger nya skolkopplingar när det finns någon som kan testa dem, så svara gärna även om någon annan redan frågat om samma plattform – då ser vi hur många som behöver den.
+  - type: dropdown
+    id: plattform
+    attributes:
+      label: Plattform
+      options:
+        - Unikum
+        - InfoMentor
+        - Skola24
+        - Meitner
+        - Schoolity
+        - IST (Edlevo, Tempus)
+        - itslearning
+        - Haldor
+        - Annan (skriv nedan)
+    validations:
+      required: true
+  - type: input
+    id: annan
+    attributes:
+      label: Annan plattform
+      placeholder: Namnet om du valde Annan
+  - type: input
+    id: kommun
+    attributes:
+      label: Kommun eller skola
+      placeholder: t.ex. Jönköping, eller skolans namn för en friskola
+    validations:
+      required: true
+  - type: dropdown
+    id: skolform
+    attributes:
+      label: Skolform
+      multiple: true
+      options:
+        - Förskola
+        - Grundskola
+        - Fritids
+        - Gymnasium
+  - type: dropdown
+    id: inloggning
+    attributes:
+      label: Hur loggar du in som förälder?
+      options:
+        - Användarnamn och lösenord fungerar
+        - Bara BankID eller kommunens inloggning
+        - Vet inte
+    validations:
+      required: true
+  - type: checkboxes
+    id: behov
+    attributes:
+      label: Vad vill du se på tavlan?
+      options:
+        - label: Schema
+        - label: Lunch / matsedel
+        - label: Omsorgstider (förskola, fritids)
+        - label: Stängda dagar, studiedagar
+        - label: Utflykter och annat i kalendern
+  - type: dropdown
+    id: kalenderlank
+    attributes:
+      label: Finns det en kalenderlänk att prenumerera på (iCal / webcal)?
+      options:
+        - Ja
+        - Nej
+        - Vet inte
+  - type: checkboxes
+    id: testa
+    attributes:
+      label: Testa
+      options:
+        - label: Jag kan testa en ny koppling med vårt konto

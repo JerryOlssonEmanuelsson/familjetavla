@@ -1051,6 +1051,13 @@ export function SchoolStep({ cfg, set, secrets, setSecrets, resp, haOk }: StepPr
       })}
       <h2 style={{ fontSize: 18 }}>Lägg till skola</h2>
       <ProviderTiles providers={resp.providers} category="school" onSelect={(id) => id && add(id)} haAvailable={haOk} />
+      <small className="faint">
+        Saknas er skolplattform?{" "}
+        <a href="https://github.com/murre87/familjetavla/issues/new?template=skolplattform.yml" target="_blank" rel="noreferrer">
+          Berätta vilken
+        </a>{" "}
+        – då vet vi vad som ska byggas härnäst. Under tiden fungerar ofta en kalenderlänk.
+      </small>
     </div>
   );
 }

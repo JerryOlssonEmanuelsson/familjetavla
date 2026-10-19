@@ -2,7 +2,7 @@
 
 > **Till dig som granskar (människa eller AI):** Läs hela filen och svara sedan enligt *Så vill vi ha svaret* längst ner.
 > Var konkret och kritisk. "Det här ser bra ut" hjälper oss inte, men "det här går sönder när …" gör det.
-> **Status:** version 0.6.0, 2026-10-19. Hela dokumentet beskriver nuläget. Repo (publikt, MIT): https://github.com/murre87/familjetavla
+> **Status:** version 0.6.1, 2026-10-19. Hela dokumentet beskriver nuläget. Repo (publikt, MIT): https://github.com/murre87/familjetavla
 
 Mer detaljer om du behöver dem: [PROJEKT.md](PROJEKT.md) (arkitektur), [DESIGN.md](DESIGN.md) (designsystem), och en klickbar demo med låtsasdata i `docs/demo/familjetavla-demo.html`.
 
