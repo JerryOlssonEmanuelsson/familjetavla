@@ -12,6 +12,7 @@ on:
       - server/src/connectors/waste.ts
       - server/src/connectors/vklass.ts
       - server/src/connectors/axfood.ts
+      - server/src/connectors/ics.ts
       - server/src/providers/school.ts
       - e2e/sources.mjs
       - .github/upstream-sources.json
@@ -37,6 +38,8 @@ jobs:
         env:
           VKLASS_USERNAME: ${{ secrets.VKLASS_USERNAME }}
           VKLASS_PASSWORD: ${{ secrets.VKLASS_PASSWORD }}
+          SPORTADMIN_ICS: ${{ secrets.SPORTADMIN_ICS }}
+          LAGET_ICS: ${{ secrets.LAGET_ICS }}
         continue-on-error: true
       - name: Ärende vid problem
         if: steps.run.outcome == 'failure' && github.event_name != 'pull_request'

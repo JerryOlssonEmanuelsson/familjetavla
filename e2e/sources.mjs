@@ -11,6 +11,7 @@ import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSugg
 import { fetchPrices } from "../server/dist/connectors/elpris.js";
 import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
+import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
 import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
 
@@ -167,6 +168,25 @@ for (const site of Object.values(AXFOOD_SITES)) {
     if (!hits.length) throw new Error("sökningen på mjölk gav inga varor");
     if (!hits.every((h) => h.code && h.name)) throw new Error("varorna saknar kod eller namn – svaret har ändrat format");
     return `"mjölk" → ${hits.length} varor, t.ex. ${hits[0].name}`;
+  });
+}
+
+// ---- Real sport calendars (secrets SPORTADMIN_ICS / LAGET_ICS); counts only ----
+for (const [name, key] of [["SportAdmin", "SPORTADMIN_ICS"], ["laget.se", "LAGET_ICS"]]) {
+  const url = process.env[key];
+  if (!url) {
+    ok.push(`${name}: hoppas över (ingen ${key} i repots hemliga nycklar)`);
+    continue;
+  }
+  await check(`${name} (riktig kalender)`, async () => {
+    const now = new Date();
+    const evs = await fetchIcs(url, new Date(now.getTime() - 30 * 86_400_000), new Date(now.getTime() + 60 * 86_400_000));
+    if (!evs.length) throw new Error("kalendern gick att läsa men hade inga händelser 30 dagar bakåt – 60 dagar framåt");
+    const bad = evs.filter((e) => !(e.start instanceof Date) || Number.isNaN(e.start.getTime()) || !e.title);
+    if (bad.length) throw new Error(`${bad.length} händelser utan giltig tid eller titel`);
+    const groups = detectGroups(evs).length;
+    const matches = evs.filter((e) => /match|cup|turnering|serie/i.test(e.title)).length;
+    return `${evs.length} händelser (${matches} matcher/cuper), ${groups} lag/grupper för lagfiltret`;
   });
 }
 
