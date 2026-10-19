@@ -37,6 +37,9 @@ import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integrati
 
 export { VERSION } from "./version.js";
 import { VERSION } from "./version.js";
+
+/** Names that may come straight from Home Assistant (friendly_name) are shortened, not rejected. */
+const label = (max: number) => z.string().max(500).transform((s) => (s.trim().length > max ? `${s.trim().slice(0, max - 1).trimEnd()}…` : s.trim()));
 const ID = /^[a-z0-9-]{1,40}$/;
 const SUPERVISOR_IP = "172.30.32.2";
 
@@ -177,7 +180,7 @@ const scheduleSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   enabled: z.boolean(),
 });
-const configSchema = z
+export const configSchema = z
   .object({
     version: z.literal(1),
     setupComplete: z.boolean(),
@@ -209,23 +212,23 @@ const configSchema = z
     schedules: z.array(scheduleSchema).max(40),
     entities: z.object({
       cars: z
-        .array(z.object({ name: z.string().max(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional(), climate: entity.optional() }))
+        .array(z.object({ name: label(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional(), climate: entity.optional() }))
         .max(6),
       energy: z.object({ solar: entity.optional(), grid: entity.optional(), house: entity.optional(), battery: entity.optional() }),
-      lights: z.array(z.object({ name: z.string().max(40), entityId: entity })).max(16),
-      temps: z.array(z.object({ name: z.string().max(40), entityId: entity })).max(8),
-      lightGroups: z.array(z.object({ name: z.string().max(40), entities: z.array(entity).max(40) })).max(12),
+      lights: z.array(z.object({ name: label(40), entityId: entity })).max(16),
+      temps: z.array(z.object({ name: label(40), entityId: entity })).max(8),
+      lightGroups: z.array(z.object({ name: label(40), entities: z.array(entity).max(40) })).max(12),
       buttons: z
-        .array(z.object({ name: z.string().max(40), entityId: entity.regex(/^(scene|script|button|input_button|automation)\./), style: z.enum(["accent", "blue", "amber", "plain"]) }))
+        .array(z.object({ name: label(40), entityId: entity.regex(/^(scene|script|button|input_button|automation)\./), style: z.enum(["accent", "blue", "amber", "plain"]) }))
         .max(12),
       climates: z
-        .array(z.object({ name: z.string().max(40), entityId: entity.regex(/^(climate|water_heater)\./), controls: z.array(entity).max(8).optional() }))
+        .array(z.object({ name: label(40), entityId: entity.regex(/^(climate|water_heater)\./), controls: z.array(entity).max(8).optional() }))
         .max(8),
       deviceCards: z
-        .array(z.object({ title: z.string().max(40), primary: entity.optional(), sensors: z.array(entity).max(16), controls: z.array(entity).max(12) }))
+        .array(z.object({ title: label(40), primary: entity.optional(), sensors: z.array(entity).max(16), controls: z.array(entity).max(12) }))
         .max(8),
       graphs: z
-        .array(z.object({ title: z.string().max(40), series: z.array(z.object({ name: z.string().max(30), entityId: entity, color: z.string().regex(/^#[0-9a-fA-F]{6}$/) })).max(6) }))
+        .array(z.object({ title: label(40), series: z.array(z.object({ name: label(30), entityId: entity, color: z.string().regex(/^#[0-9a-fA-F]{6}$/) })).max(6) }))
         .max(6),
     }),
     dashboard: z.object({

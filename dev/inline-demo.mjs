@@ -14,7 +14,8 @@ const js = [...html.matchAll(/<script type="module"[^>]*src="\.\/(assets\/[^"]+\
 );
 const icon = `data:image/svg+xml;base64,${readFileSync(join(root, "web/public/icon.svg")).toString("base64")}`;
 
-const out = `<title>Familjetavla demo</title>
+const out = `<meta charset="utf-8">
+<title>Familjetavla demo</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#141a33">

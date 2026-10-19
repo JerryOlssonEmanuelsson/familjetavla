@@ -509,12 +509,13 @@ export function DiscoverStep({ cfg, set }: StepProps) {
     if (!d) return;
     const on = (k: string) => pick[k];
     const next: Config = structuredClone(cfg);
-    next.entities.cars = d.cars.filter((_, i) => on(`car${i}`)).map(({ deviceName: _d, maker: _m, ...c }) => c);
+    // Same limits as the server, so a big Home Assistant never makes saving fail.
+    next.entities.cars = d.cars.filter((_, i) => on(`car${i}`)).map(({ deviceName: _d, maker: _m, ...c }) => c).slice(0, 6);
     next.entities.energy = Object.fromEntries((["solar", "grid", "house", "battery"] as const).filter((k) => on(`en.${k}`)).map((k) => [k, d.energy[k]]));
-    next.entities.climates = d.climates.filter((_, i) => on(`cl${i}`));
-    next.entities.deviceCards = d.deviceCards.filter((_, i) => on(`dc${i}`));
-    next.entities.lightGroups = d.lightGroups.filter((_, i) => on(`lg${i}`));
-    next.entities.temps = d.temps.filter((_, i) => on(`t${i}`));
+    next.entities.climates = d.climates.filter((_, i) => on(`cl${i}`)).slice(0, 8);
+    next.entities.deviceCards = d.deviceCards.filter((_, i) => on(`dc${i}`)).slice(0, 8);
+    next.entities.lightGroups = d.lightGroups.filter((_, i) => on(`lg${i}`)).slice(0, 12).map((g) => ({ ...g, entities: g.entities.slice(0, 40) }));
+    next.entities.temps = d.temps.filter((_, i) => on(`t${i}`)).slice(0, 8);
     if (on("todo") && d.todo[0]) next.shopping = { ...next.shopping, source: "ha", entityId: d.todo.find((t) => /shop|inköp|handla/i.test(t.entityId + t.name))?.entityId ?? d.todo[0].entityId };
     const wasteCal = d.calendars.find((c) => c.waste);
     if (on("waste") && wasteCal) {

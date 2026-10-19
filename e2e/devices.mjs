@@ -24,7 +24,8 @@ const LIST = [
 ];
 // PART=1/3 runs every third device (for running in parallel).
 const [partNo, parts] = (process.env.PART ?? "1/1").split("/").map(Number);
-const DEVICES = LIST.filter((_, i) => i % parts === partNo - 1);
+const only = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
+const DEVICES = LIST.filter((_, i) => i % parts === partNo - 1).filter(([n]) => !only || only.test(n));
 const ROUTES = [
   ["guide-hem", "#/setup/hem"], ["guide-familj", "#/setup/familj"], ["guide-skola", "#/setup/skola"], ["guide-startskarm", "#/setup/visning"], ["guide-klart", "#/setup/klart"],
   ["planera", "", "plan"], ["handelse", "", "event"],
@@ -42,12 +43,14 @@ for (const [name0, dev, tablet] of DEVICES) {
   const ctx = await b.newContext({ ...d, locale: "sv-SE", timezoneId: "Europe/Stockholm" });
   const p = await ctx.newPage();
   const errors = [];
-  p.on("pageerror", (e) => errors.push(e.message));
-  p.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  let at = "";
+  p.on("pageerror", (e) => errors.push(`${e.message} (${at}) ${(e.stack ?? "").split("\n")[1]?.trim() ?? ""}`));
+  p.on("console", (m) => m.type() === "error" && errors.push(`${m.text()} (${at}) ${m.location().url?.slice(-40)}:${m.location().lineNumber}`));
   await p.clock.install({ time: new Date(clock) });
   const slug = name.replace(/[^a-zåäö]+/gi, "-").toLowerCase();
   for (const [r, hash, open] of ROUTES) {
    try {
+    at = r;
     await p.goto("about:blank");
     await p.goto(URL + hash);
     // Measure like a real board: the demo's extra header buttons don't exist there.

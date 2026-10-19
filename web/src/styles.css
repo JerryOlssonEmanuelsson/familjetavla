@@ -1043,6 +1043,40 @@ a.btn {
 .event > :not(.title) {
   flex: none;
 }
+/* A narrow week (phones): the day name goes on top so the events get the full width,
+   and an event whose name would get less than ~7 letters puts the extras on a new line. */
+@container (max-width: 480px) {
+  .day,
+  .day.big {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .day-name {
+    width: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  /* Grid, not a column flexbox: Chromium sizes wrapping rows in a column flexbox too tall. */
+  .events {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .event {
+    flex-wrap: wrap;
+    border-radius: 20px;
+  }
+  .event .title {
+    flex: 1 1 7em;
+    display: block;
+  }
+  /* Extras that wrap go to the right on their own line. */
+  .event > :not(.title):last-child {
+    margin-left: auto;
+  }
+}
 .event .avatar {
   width: 22px;
   height: 22px;
