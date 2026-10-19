@@ -8,7 +8,7 @@ import { ha, haConnection } from "./connectors/ha.js";
 import { geocode } from "./connectors/weather.js";
 import { buildDashboard, gatherFamily } from "./dashboard.js";
 import { duties, dutiesIcs } from "./plan.js";
-import { saveDinner } from "./meals.js";
+import { saveDinner, saveShelf } from "./meals.js";
 import { carActions, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
 import { haSocket } from "./connectors/haws.js";
@@ -35,7 +35,7 @@ import { readFileSync } from "node:fs";
 import { addDays, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
-export const VERSION = "0.4.0";
+export const VERSION = "0.5.0";
 const ID = /^[a-z0-9-]{1,40}$/;
 const SUPERVISOR_IP = "172.30.32.2";
 
@@ -131,6 +131,7 @@ const personSchema = z.object({
       name: z.string().max(30).optional(),
       days: z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().regex(/^\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}$/)),
       travel: z.lazy(() => travelChoiceSchema).optional(),
+      notes: z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().max(60)).optional(),
     })
     .optional(),
 });
@@ -883,9 +884,17 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Veckans mat: tonight's (or any day's) dinner, from the board.
   app.post("/api/dinner", async (req, reply) => {
-    const body = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), text: z.string().max(80) }).safeParse(req.body);
+    const body = z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), text: z.string().max(80), shopping: z.string().max(200).optional() }).safeParse(req.body);
     if (!body.success) return fail(reply, new Error("Ogiltig middag"));
-    saveDinner(body.data.day, body.data.text);
+    saveDinner(body.data.day, body.data.text, new Date(), body.data.shopping);
+    return { ok: true };
+  });
+
+  // "Saknas på hyllan" for a child on förskola/fritids, from the board.
+  app.post("/api/shelf", async (req, reply) => {
+    const body = z.object({ personId: z.string().regex(ID), items: z.array(z.string().max(30)).max(10) }).safeParse(req.body);
+    if (!body.success || !loadConfig().people.some((p) => p.id === body.data.personId && p.care)) return fail(reply, new Error("Okänt barn"));
+    saveShelf(body.data.personId, body.data.items);
     return { ok: true };
   });
 

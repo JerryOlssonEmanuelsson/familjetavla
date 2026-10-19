@@ -203,6 +203,28 @@ function CareEditor({ p, adults, onChange }: { p: Person; adults: Person[]; onCh
           );
         })}
       </div>
+      <details>
+        <summary className="muted" style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>
+          Återkommande att komma ihåg ({Object.keys(care.notes ?? {}).length})
+        </summary>
+        <div className="stack" style={{ marginTop: 8, gap: 8 }}>
+          {CARE_DAYS.filter((d) => care.days[d]).map((d) => (
+            <Text
+              key={d}
+              label={WEEKDAYS[Number(d) - 1][0].toUpperCase() + WEEKDAYS[Number(d) - 1].slice(1)}
+              value={care.notes?.[d] ?? ""}
+              placeholder={d === "2" ? "T.ex. Utflykt – packa ryggsäck och frukt" : ""}
+              onChange={(v) => {
+                const notes = { ...care.notes };
+                if (v.trim()) notes[d] = v.slice(0, 60);
+                else delete notes[d];
+                setCare({ notes: Object.keys(notes).length ? notes : undefined });
+              }}
+            />
+          ))}
+          <small className="faint">Visas i Kom ihåg kvällen innan och samma morgon.</small>
+        </div>
+      </details>
       <div className="grid-2">
         <Select label="Brukar lämna" value={who(care.travel?.to)} onChange={(v) => setWho("to", v)} options={whoOptions} />
         <Select label="Brukar hämta" value={who(care.travel?.home)} onChange={(v) => setWho("home", v)} options={whoOptions} />

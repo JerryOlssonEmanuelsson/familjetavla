@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { DashEvent, Dashboard as Dash, TravelChoice, TravelLeg } from "../../../server/src/types";
+import { sameAsLunch } from "../../../server/src/mealwords";
 import { api, isDemo } from "../api";
 import { Icon, type IconName } from "../Icon";
 import { INNER_NAME } from "../IpadFrame";
@@ -148,6 +149,31 @@ function TravelPicker({
   );
 }
 
+const SHELF_ITEMS = ["Blöjor", "Extrakläder", "Regnkläder", "Stövlar", "Mössa och vantar", "Våtservetter", "Solkräm", "Napp"];
+
+/** "Saknas på hyllan": tap what the staff said was missing; it stays in Kom ihåg until tapped off. */
+function ShelfPicker({ data, personId, onChanged }: { data: Dash; personId: string; onChanged: () => Promise<void> }) {
+  const current = data.shelf.find((s) => s.personId === personId)?.items ?? [];
+  const toggle = async (item: string) => {
+    const next = current.includes(item) ? current.filter((x) => x !== item) : [...current, item];
+    await api.shelf(personId, next);
+    await onChanged();
+  };
+  return (
+    <div className="shelf-box">
+      <h3>Saknas på hyllan?</h3>
+      <div className="fav-chips">
+        {SHELF_ITEMS.map((it) => (
+          <button key={it} className={`chip-btn ${current.includes(it) ? "on" : ""}`} aria-pressed={current.includes(it)} onClick={() => toggle(it)}>
+            {current.includes(it) && <Icon name="check" size={14} />} {it}
+          </button>
+        ))}
+      </div>
+      <small className="faint">Det du markerar står i Kom ihåg tills du trycker bort det här.</small>
+    </div>
+  );
+}
+
 /** For förskola: grown-ups by name and "Någon annan"; for activities: every way to get there. */
 function legOptions(data: Dash, care: boolean): Dash["travelOptions"] {
   return care
@@ -155,35 +181,65 @@ function legOptions(data: Dash, care: boolean): Dash["travelOptions"] {
     : data.travelOptions.map((o) => ({ ...o, label: o.label.replace(/ skjutsar$/, "") }));
 }
 
-/** Small row of choices inside the week plan. */
-function MiniPick({ label, leg, options, onPick }: { label: string; leg?: TravelLeg; options: Dash["travelOptions"]; onPick: (l: TravelLeg | undefined) => void }) {
+/** Small row of choices inside the week plan. Grown-ups who are busy then get a ⚠ and the reason below. */
+function MiniPick({
+  label,
+  leg,
+  options,
+  onPick,
+  busy = [],
+}: {
+  label: string;
+  leg?: TravelLeg;
+  options: Dash["travelOptions"];
+  onPick: (l: TravelLeg | undefined) => void;
+  busy?: { personId: string; title: string }[];
+}) {
+  const busyOf = (mode: string) => busy.find((b) => mode === `adult:${b.personId}`);
+  const chosenBusy = leg ? busyOf(leg.mode) : undefined;
   return (
-    <div className={`mini-pick ${leg ? "" : "unset"}`}>
+    <div className={`mini-pick ${leg ? "" : "unset"} ${chosenBusy ? "conflict" : ""}`}>
       <span className="mini-label">{label}</span>
       <div className="seg small" role="radiogroup" aria-label={label}>
         {options.map((o) => {
           const on = leg?.mode === o.mode;
+          const b = busyOf(o.mode);
           return (
-            <button key={o.mode} role="radio" aria-checked={on} className={`seg-btn ${on ? "on" : ""}`} onClick={() => onPick(on ? undefined : { mode: o.mode })}>
+            <button
+              key={o.mode}
+              role="radio"
+              aria-checked={on}
+              className={`seg-btn ${on ? "on" : ""} ${b ? "busy" : ""}`}
+              title={b ? `Upptagen: ${b.title}` : undefined}
+              onClick={() => onPick(on ? undefined : { mode: o.mode })}
+            >
               {o.label}
+              {b && <span aria-label="upptagen"> ⚠</span>}
             </button>
           );
         })}
       </div>
+      {busy.length > 0 && (
+        <small className="busy-note">
+          {busy.map((b) => `${options.find((o) => o.mode === `adult:${b.personId}`)?.label ?? "?"}: ${b.title}`).join(" · ")}
+        </small>
+      )}
     </div>
   );
 }
 
-/** Same check as the server: a 5+ letter word shared by dinner and a lunch dish. */
-function sameAsLunch(dinner: string, lunch: { dishes: string[] }[]): string | null {
-  const words = (s: string) => new Set(s.toLowerCase().match(/[a-zåäöé]{5,}/g) ?? []);
-  const d = words(dinner);
-  for (const l of lunch) for (const dish of l.dishes) for (const w of words(dish)) if (d.has(w)) return dish;
-  return null;
-}
-
 /** One day in "Veckans mat": the kids' lunch, tonight's dinner and what to buy for it. */
-function MealRow({ day, onChanged, toast }: { day: Dash["meals"][number]; onChanged: () => Promise<void>; toast: (m: string) => void }) {
+function MealRow({
+  day,
+  favorites,
+  onChanged,
+  toast,
+}: {
+  day: Dash["meals"][number];
+  favorites: Dash["mealFavorites"];
+  onChanged: () => Promise<void>;
+  toast: (m: string) => void;
+}) {
   const [dinner, setDinner] = useState(day.dinner ?? "");
   const [buy, setBuy] = useState("");
   const [shopping, setShopping] = useState(false);
@@ -194,6 +250,20 @@ function MealRow({ day, onChanged, toast }: { day: Dash["meals"][number]; onChan
     await onChanged();
   };
   const twice = dinner.trim() ? sameAsLunch(dinner, day.lunch) : null;
+  const pick = async (name: string) => {
+    setDinner(name);
+    await api.dinner(day.dayKey, name);
+    await onChanged();
+  };
+  const fav = favorites.find((f) => f.name.toLowerCase() === dinner.trim().toLowerCase());
+  const addToList = async (text: string) => {
+    const items = text.split(",").map((x) => x.trim()).filter(Boolean);
+    if (!items.length) return;
+    for (const it of items) await api.addItem(it);
+    await api.dinner(day.dayKey, dinner.trim(), text);
+    toast(`${items.length} ${items.length === 1 ? "vara" : "varor"} i inköpslistan`);
+    await onChanged();
+  };
   return (
     <div className="meal-day">
       <span className="eyebrow">{day.dayLabel}</span>
@@ -222,24 +292,36 @@ function MealRow({ day, onChanged, toast }: { day: Dash["meals"][number]; onChan
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
         />
       </div>
+      {!dinner.trim() && favorites.length > 0 && (
+        <div className="fav-chips" aria-label="Favoriter">
+          {favorites.slice(0, 8).map((f) => (
+            <button key={f.name} className="chip-btn" onClick={() => pick(f.name)}>
+              {f.name}
+            </button>
+          ))}
+        </div>
+      )}
       {twice && <span className="chip warn">Samma som lunchen ({twice.toLowerCase()})</span>}
       {dinner.trim() && !shopping && (
-        <button className="btn small ghost" style={{ justifySelf: "start" }} onClick={() => setShopping(true)}>
-          <Icon name="plus" size={16} /> Att handla
-        </button>
+        <div className="row gap wrap">
+          {fav?.shopping && (
+            <button className="btn small ghost" onClick={() => addToList(fav.shopping!)}>
+              <Icon name="plus" size={16} /> Som vanligt: {fav.shopping}
+            </button>
+          )}
+          <button className="btn small ghost" onClick={() => setShopping(true)}>
+            <Icon name="plus" size={16} /> {fav?.shopping ? "Annat" : "Att handla"}
+          </button>
+        </div>
       )}
       {dinner.trim() && shopping && (
         <form
           className="row gap"
           onSubmit={async (e) => {
             e.preventDefault();
-            const items = buy.split(",").map((x) => x.trim()).filter(Boolean);
-            if (!items.length) return;
-            for (const it of items) await api.addItem(it);
+            await addToList(buy);
             setBuy("");
             setShopping(false);
-            toast(`${items.length} ${items.length === 1 ? "vara" : "varor"} i inköpslistan`);
-            await onChanged();
           }}
         >
           <input className="input grow" autoFocus placeholder="T.ex. tacoskal, ost, gräddfil" value={buy} onChange={(e) => setBuy(e.target.value)} />
@@ -259,7 +341,9 @@ function PlanSheet({ data, onClose, onChanged, toast, startTab = "who" }: { data
   const [onlyMissing, setOnlyMissing] = useState(data.plan.missing > 0);
   // Rows you just filled in stay put (so "Alltid så" can be tapped) until the sheet is closed.
   const [touched, setTouched] = useState<Set<string>>(new Set());
-  const items = data.plan.items.filter((i) => !onlyMissing || !i.travel.to || !i.travel.home || touched.has(i.travel.key));
+  const conflict = (i: Dash["plan"]["items"][number]) =>
+    (i.busy ?? []).some((b) => (b.leg === "to" ? i.travel.to : i.travel.home)?.mode === `adult:${b.personId}`);
+  const items = data.plan.items.filter((i) => !onlyMissing || !i.travel.to || !i.travel.home || conflict(i) || touched.has(i.travel.key));
   const days = [...new Set(items.map((i) => i.dayKey))];
   const save = async (key: string, choice: TravelChoice, forCalendar = false) => {
     setBusy(key);
@@ -294,14 +378,14 @@ function PlanSheet({ data, onClose, onChanged, toast, startTab = "who" }: { data
           <div className="stack plan-list">
             <p className="muted">Skriv in middagarna – barnens lunch står bredvid så ni slipper laga samma sak.</p>
             {data.meals.map((m) => (
-              <MealRow key={m.dayKey} day={m} onChanged={onChanged} toast={toast} />
+              <MealRow key={m.dayKey} day={m} favorites={data.mealFavorites} onChanged={onChanged} toast={toast} />
             ))}
           </div>
         )}
         {tab === "who" && <>
         <div className="row gap wrap">
           <span className={`chip ${data.plan.missing ? "warn" : "good"}`}>
-            {data.plan.missing ? `${data.plan.missing} saknar ansvarig` : "Allt har någon som ansvarar"}
+            {data.plan.missing ? `${data.plan.missing} att lösa` : "Allt har någon som ansvarar ✓"}
           </span>
           <button className="btn small ghost" onClick={() => setOnlyMissing(!onlyMissing)}>
             {onlyMissing ? "Visa allt" : "Bara det som saknas"}
@@ -320,15 +404,15 @@ function PlanSheet({ data, onClose, onChanged, toast, startTab = "who" }: { data
                   const cur: TravelChoice = { to: t.to && { mode: t.to.mode, by: t.to.by }, home: t.home && { mode: t.home.mode, by: t.home.by } };
                   const opts = legOptions(data, care);
                   return (
-                    <div key={t.key} className={`plan-item ${!t.to || !t.home ? "missing" : ""} ${busy === t.key ? "busy" : ""}`}>
+                    <div key={t.key} className={`plan-item ${!t.to || !t.home || conflict(i) ? "missing" : ""} ${busy === t.key ? "saving" : ""}`}>
                       <div className="row gap">
                         <EventIcon icon={i.icon} color={i.color} size={22} />
                         <b className="time">{i.time}</b>
                         <span className="grow">{i.title.replace(/^Lämning · /, "")}</span>
                         {i.initial && <Avatar initial={i.initial} color={i.color} name={i.who} />}
                       </div>
-                      <MiniPick label={care ? "Lämnar" : "Dit"} leg={cur.to} options={opts} onPick={(to) => save(t.key, { ...cur, to })} />
-                      <MiniPick label={care ? "Hämtar" : "Hem"} leg={cur.home} options={opts} onPick={(home) => save(t.key, { ...cur, home })} />
+                      <MiniPick label={care ? "Lämnar" : "Dit"} leg={cur.to} options={opts} busy={i.busy?.filter((b) => b.leg === "to")} onPick={(to) => save(t.key, { ...cur, to })} />
+                      <MiniPick label={care ? "Hämtar" : "Hem"} leg={cur.home} options={opts} busy={i.busy?.filter((b) => b.leg === "home")} onPick={(home) => save(t.key, { ...cur, home })} />
                       {t.calendarId && t.to && t.home && !t.fromCalendar && (
                         <button className="btn small ghost" style={{ justifySelf: "start" }} onClick={() => save(t.key, cur, true)}>
                           {care ? `Gör till standard för ${i.who}` : `Alltid så för ${t.calendarName ?? "kalendern"}`}
@@ -409,6 +493,7 @@ function EventSheet({
             </div>
           )}
         </div>
+        {care && t?.calendarId && <ShelfPicker data={data} personId={t.calendarId.slice(5)} onChanged={onChanged} />}
         {t && (
           <div className={`travel-box ${busy ? "busy" : ""}`}>
             <h3>{care ? `Vem lämnar och hämtar ${e.who || "barnet"}?` : `Hur tar sig ${e.who || "barnet"} dit och hem?`}</h3>

@@ -161,6 +161,10 @@ export interface LocalFile {
   shopping?: LocalItem[];
   /** Veckans middagar: YYYY-MM-DD → "Tacos". */
   dinners?: Record<string, string>;
+  /** Hur ofta en middag valts (för favoriter) och vad man brukar handla till den. */
+  dinnerStats?: Record<string, { count: number; shopping?: string; last: string }>;
+  /** "Saknas på hyllan" per barn: ["Blöjor", "Extrakläder"]. */
+  shelf?: Record<string, string[]>;
   /** Dit/hem-val per händelse, nyckel = travelKey(). */
   travel?: Record<string, import("./types.js").TravelChoice>;
 }

@@ -221,7 +221,7 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
         {(data.plan.items.length > 0 || data.meals.some((m) => m.lunch.length || m.dinner)) && (
           <button className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`} onClick={actions.openPlan}>
             <Icon name="kids" size={18} />
-            {data.plan.missing ? `Planera veckan · ${data.plan.missing} utan ansvarig` : "Planera veckan"}
+            {data.plan.missing ? `Planera veckan · ${data.plan.missing} att lösa` : "Planera veckan"}
           </button>
         )}
         <div className="legend">

@@ -61,6 +61,8 @@ export interface CareSchedule {
   days: Record<string, string>;
   /** Vem som brukar lämna (to) och hämta (home). */
   travel?: TravelChoice;
+  /** Återkommande per veckodag ("1"–"5"), t.ex. tisdag "Utflykt – packa ryggsäck och frukt". */
+  notes?: Record<string, string>;
 }
 
 export type CalendarCategory = "family" | "sport" | "school" | "work" | "other";
@@ -368,7 +370,13 @@ export interface MealDay {
   lunch: { child: string; dishes: string[] }[];
 }
 
-export type PlanItem = DashEvent & { dayKey: string; dayLabel: string; travel: DashTravel };
+export type PlanItem = DashEvent & {
+  dayKey: string;
+  dayLabel: string;
+  travel: DashTravel;
+  /** Grown-ups who have something else in their own calendar at drop-off/pick-up. */
+  busy?: { personId: string; leg: "to" | "home"; title: string }[];
+};
 
 export interface DashTravel {
   key: string;
@@ -462,6 +470,10 @@ export interface Dashboard {
   schoolFood?: { child: string; day: string; dishes: string[] }[];
   /** Veckans mat: skollunch per barn och familjens middag, kommande 7 dagar. */
   meals: MealDay[];
+  /** Familjens vanligaste middagar (lärda från tidigare veckor) med det man brukar handla. */
+  mealFavorites: { name: string; shopping?: string }[];
+  /** "Saknas på hyllan" per barn på förskola/fritids. */
+  shelf: { personId: string; name: string; items: string[] }[];
   cars: {
     name: string;
     battery: number | null;
