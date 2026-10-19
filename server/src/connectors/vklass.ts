@@ -170,7 +170,8 @@ function studentId($: cheerio.CheerioAPI, c: cheerio.Cheerio<any>): string | und
   return undefined;
 }
 
-export async function vklassEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<CalEvent[]> {
+/** Raw calendar items as Vklass sends them (used by the live check to see which kinds exist). */
+export async function vklassRawEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<Record<string, unknown>[]> {
   const body = new URLSearchParams({ students: studentId, start: from.toISOString(), end: to.toISOString() });
   const res = await follow(s.jar, `${CUSTODIAN}/Events/FullCalendar`, {
     method: "POST",
@@ -178,17 +179,51 @@ export async function vklassEvents(s: VklassSession, studentId: string, from: Da
     headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json, text/html" },
   });
   if (!res.ok) throw new Error(`Vklass kalender svarade ${res.status}`);
-  const list = (await res.json()) as { title?: string; text?: string; start: string; end?: string; allDay?: boolean }[];
-  return list.map((e) => {
-    const start = new Date(e.start);
-    return {
-      start,
-      end: e.end ? new Date(e.end) : new Date(start.getTime() + 3_600_000),
-      allDay: Boolean(e.allDay) || !/T\d/.test(e.start),
-      title: (e.title || e.text || "Skola").trim(),
-      description: e.text,
-    };
-  });
+  return (await res.json()) as Record<string, unknown>[];
+}
+
+/** "Svenska (5:a:TH-26__SV)" / "Matematik (KLA.5_MA)" → "Svenska" / "Matematik". */
+export function cleanLessonTitle(t: string): string {
+  return t.replace(/\s*\((?=[^)]*[_:.])[^()\s]+\)\s*$/, "").trim() || t.trim();
+}
+
+type VklassItem = { title?: string; text?: string; start: string; end?: string; allDay?: boolean; eventType?: number; className?: string; location?: string; detailUrl?: string };
+
+/** HTML from Vklass → plain text with line breaks and bullets. */
+export function htmlToText(html: string): string {
+  if (!/<[a-z]/i.test(html)) return html.trim();
+  const $ = cheerio.load(html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|h\d|ul|ol)>/gi, "\n\n").replace(/<li[^>]*>/gi, "\n• "));
+  return $.root()
+    .text()
+    .replace(/[ \t\u00a0]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Calendar items per child. Vklass marks the kind (checked against a real account):
+ * eventType 1 = lesson, 2 = assignment ("Uppgift": läxa, prov, inlämning), 8 = day off, 16 = teacher's planning.
+ */
+export async function vklassEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<(CalEvent & { task?: boolean; url?: string })[]> {
+  const list = (await vklassRawEvents(s, studentId, from, to)) as VklassItem[];
+  return list
+    .filter((e) => e.eventType !== 16 && !/plan/.test(e.className ?? ""))
+    .map((e) => {
+      const start = new Date(e.start);
+      const task = e.eventType === 2 || /assignment/.test(e.className ?? "");
+      const raw = (e.title || e.text || "Skola").trim();
+      return {
+        start,
+        end: e.end ? new Date(e.end) : new Date(start.getTime() + 3_600_000),
+        allDay: Boolean(e.allDay) || !/T\d/.test(e.start),
+        title: task ? raw : cleanLessonTitle(raw),
+        location: typeof e.location === "string" && e.location.trim() ? e.location.trim() : undefined,
+        description: e.text ? htmlToText(e.text) : undefined,
+        task,
+        url: typeof e.detailUrl === "string" && e.detailUrl.startsWith("/") ? `${CUSTODIAN}${e.detailUrl}` : undefined,
+      };
+    });
 }
 
 /** Lessons that mean "bring gym clothes". Vklass uses short codes like "idh". */

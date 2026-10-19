@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Control, Dashboard } from "../../../server/src/types";
+import type { Control, Dashboard, Lamp } from "../../../server/src/types";
 import { api, type CarDetails, type GraphData } from "../api";
 import { Icon } from "../Icon";
 import type { Actions } from "./Dashboard";
@@ -284,6 +284,52 @@ export function CarsPage({ data, actions }: { data: Dashboard; actions: Actions 
 
 // ---------- Lights ----------
 
+/** One lamp: tap to switch, slide to dim (only lamps Home Assistant says can be dimmed). */
+function LampRow({ lamp, actions }: { lamp: Lamp; actions: Actions }) {
+  const [pct, setPct] = useState(lamp.brightness ?? 100);
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    if (!dragging && lamp.brightness) setPct(lamp.brightness);
+  }, [lamp.brightness, dragging]);
+  const send = (v: number) => {
+    setDragging(false);
+    actions.run(lamp.name, () => api.brightness(lamp.entityId, v));
+  };
+  return (
+    <div className={`lamp-row ${lamp.on ? "on" : ""} ${lamp.offline ? "offline" : ""}`}>
+      <button
+        className={`light-btn ${lamp.on ? "on" : ""}`}
+        aria-pressed={lamp.on}
+        disabled={lamp.offline}
+        onClick={() => actions.run(lamp.name, () => api.toggleLight(lamp.entityId))}
+      >
+        <Icon name="bulb" size={20} />
+        <span className="lamp-name">{lamp.name}</span>
+        {lamp.offline && <small className="muted">offline</small>}
+      </button>
+      {lamp.dimmable && !lamp.offline && (
+        <label className="lamp-dim">
+          <span className="sr-only">Ljusstyrka {lamp.name}</span>
+          <input
+            type="range"
+            min={1}
+            max={100}
+            value={lamp.on ? pct : 0}
+            onChange={(e) => {
+              setDragging(true);
+              setPct(Number(e.target.value));
+            }}
+            onPointerUp={(e) => send(Number((e.target as HTMLInputElement).value))}
+            onKeyUp={(e) => send(Number((e.target as HTMLInputElement).value))}
+            style={{ ["--fill" as string]: `${lamp.on ? pct : 0}%` }}
+          />
+          <span className="lamp-pct">{lamp.on ? `${pct}%` : "Av"}</span>
+        </label>
+      )}
+    </div>
+  );
+}
+
 export function LightsPage({ data, actions }: { data: Dashboard; actions: Actions }) {
   return (
     <main className="page-grid">
@@ -313,6 +359,14 @@ export function LightsPage({ data, actions }: { data: Dashboard; actions: Action
               Släck alla
             </button>
           </div>
+          {g.lamps.length > 1 && (
+            <div className="lamp-list">
+              {g.lamps.map((l) => (
+                <LampRow key={l.entityId} lamp={l} actions={actions} />
+              ))}
+            </div>
+          )}
+          {g.lamps.length === 1 && g.lamps[0].dimmable && <LampRow lamp={g.lamps[0]} actions={actions} />}
         </section>
       ))}
       {data.lights.length > 0 && (
@@ -323,18 +377,9 @@ export function LightsPage({ data, actions }: { data: Dashboard; actions: Action
               Släck allt
             </button>
           </div>
-          <div className="grid-2" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+          <div className="lamp-list">
             {data.lights.map((l) => (
-              <button
-                key={l.entityId}
-                className={`light-btn ${l.on ? "on" : ""} ${l.offline ? "offline" : ""}`}
-                aria-pressed={l.on}
-                disabled={l.offline}
-                onClick={() => actions.run(l.name, () => api.toggleLight(l.entityId))}
-              >
-                <Icon name="bulb" size={20} />
-                {l.name}
-              </button>
+              <LampRow key={l.entityId} lamp={l} actions={actions} />
             ))}
           </div>
         </section>

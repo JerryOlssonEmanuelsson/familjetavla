@@ -22,6 +22,10 @@ export interface SchoolEvent extends CalEvent {
   child?: string;
   /** Lesson that needs gym clothes. */
   gym?: boolean;
+  /** Homework, test or hand-in (the provider says so, whatever the title). */
+  task?: boolean;
+  /** The item on the school platform. */
+  url?: string;
 }
 
 export interface SchoolProvider {

@@ -5,7 +5,8 @@
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "containerEnv": { "TZ": "Europe/Stockholm", "PORT": "8099" },
   "postCreateCommand": "npm ci && npm run build",
-  "postAttachCommand": "node server/dist/index.js",
+  // Starts with the codespace itself (also when opened from a phone, where no editor attaches).
+  "postStartCommand": "nohup bash -c 'test -f server/dist/index.js || (npm ci && npm run build); node server/dist/index.js' > /tmp/familjetavla.log 2>&1 &",
   "forwardPorts": [8099],
   "portsAttributes": {
     "8099": { "label": "Familjetavla", "onAutoForward": "openPreview" }

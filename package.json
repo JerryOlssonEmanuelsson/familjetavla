@@ -1,6 +1,6 @@
 {
   "name": "familjetavla",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "private": true,
   "description": "Familjetavla för surfplattan – kalendrar, barnvecka, Vklass, sophämtning, sport, Willys och elpris i en vy. Körs som Home Assistant-tillägg eller Docker.",
   "license": "MIT",

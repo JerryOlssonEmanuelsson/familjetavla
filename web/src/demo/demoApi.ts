@@ -158,7 +158,16 @@ d.school = [
     ]),
     tasks: [
       { dayKey: "2026-10-20", label: "tis 20/10", title: "Glosor engelska kap 4", kind: "läxa" },
-      { dayKey: "2026-10-22", label: "tor 22/10", title: "Prov i NO – kroppen", kind: "prov" },
+      {
+        dayKey: "2026-10-22",
+        label: "tor 22/10",
+        title: "Prov i NO – kroppen",
+        kind: "prov",
+        time: "08:10",
+        detail:
+          "Inför provet ska du kunna:\n\n1. Hjärtat och blodet\n• Förklara hur hjärtat pumpar runt blodet i kroppen.\n• Kunna skillnaden mellan artärer och vener.\n\n2. Matsmältningen\n• Beskriva vägen från munnen till tarmarna.\n• Kunna vad levern och bukspottkörteln gör.\n\n3. Skelett och muskler\n• Namnge tio av kroppens ben.\n\nPlugga gärna med kapitel 3 i NO-boken. Lycka till!",
+        url: "https://custodian.vklass.se/",
+      },
       { dayKey: "2026-10-23", label: "fre 23/10", title: "Lämna in bokrecension", kind: "inlämning" },
     ],
   },
@@ -282,18 +291,40 @@ function syncPlan() {
   d.plan = { missing: items.filter(attention).length, items };
 }
 
+const LAMP_NAMES: Record<string, string> = {
+  "light.kok_tak": "Taklampa",
+  "light.kok_bank": "Bänkbelysning",
+  "light.vardagsrum": "Taklampa",
+  "light.fonster_vardagsrum": "Fönsterlampa",
+  "light.barnrum": "Barnrum",
+};
+const dimLevel = new Map<string, number>([
+  ["light.kok_tak", 80],
+  ["light.kok_bank", 45],
+  ["light.vardagsrum", 60],
+  ["light.fonster_vardagsrum", 30],
+]);
+function lampOn(id: string) {
+  return d.lights.find((l) => l.entityId === id)?.on ?? groupState.get(id) ?? false;
+}
 function recountGroups() {
   const cfg = fx.config.config;
+  d.lights = d.lights.map((l) => ({ ...l, dimmable: !l.offline && l.name !== "Ute", brightness: l.on && l.name !== "Ute" ? (dimLevel.get(l.entityId) ?? 100) : undefined }));
   d.lightGroups = d.lightGroups.map((g) => {
     const ids = cfg.entities.lightGroups[g.index]?.entities ?? [];
-    const on = ids.filter((id) => d.lights.find((l) => l.entityId === id)?.on ?? groupState.get(id) ?? false).length;
-    return { ...g, on };
+    const lamps = ids.map((id) => {
+      const offline = d.lights.find((l) => l.entityId === id)?.offline ?? false;
+      const on = !offline && lampOn(id);
+      return { entityId: id, name: LAMP_NAMES[id] ?? id, on, offline, dimmable: !offline, brightness: on ? (dimLevel.get(id) ?? 100) : undefined };
+    });
+    return { ...g, on: lamps.filter((l) => l.on).length, lamps };
   });
 }
 const groupState = new Map<string, boolean>([
   ["light.kok_bank", true],
   ["light.fonster_vardagsrum", true],
 ]);
+recountGroups();
 
 function syncDayParts() {
   const h = new Date().getHours() + new Date().getMinutes() / 60;
@@ -495,6 +526,15 @@ export const demoApi = {
   toggleLight: (entityId: string) => {
     const l = d.lights.find((x) => x.entityId === entityId);
     if (l) l.on = !l.on;
+    else groupState.set(entityId, !lampOn(entityId));
+    recountGroups();
+    return wait({});
+  },
+  brightness: (entityId: string, pct: number) => {
+    const l = d.lights.find((x) => x.entityId === entityId);
+    if (pct > 0) dimLevel.set(entityId, pct);
+    if (l) l.on = pct > 0;
+    else groupState.set(entityId, pct > 0);
     recountGroups();
     return wait({});
   },

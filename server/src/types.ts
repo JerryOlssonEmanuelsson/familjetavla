@@ -496,8 +496,8 @@ export interface Dashboard {
     climate?: { entityId: string; on: boolean };
     schedules: { id: string; name: string; days: number[]; time: string; enabled: boolean }[];
   }[];
-  lights: { entityId: string; name: string; on: boolean; offline: boolean }[];
-  lightGroups: { index: number; name: string; on: number; total: number; offline: string[] }[];
+  lights: Lamp[];
+  lightGroups: { index: number; name: string; on: number; total: number; offline: string[]; lamps: Lamp[] }[];
   buttons: { entityId: string; name: string; style: "accent" | "blue" | "amber" | "plain" }[];
   climates: {
     entityId: string;
@@ -539,5 +539,26 @@ export interface SchoolChild {
   /** Måndag–fredag den här veckan (nästa vecka på helgen). */
   days: { dayKey: string; label: string; today: boolean; lessons: { start: string; end: string; title: string; location?: string; gym: boolean }[] }[];
   /** Läxor, prov och uppgifter de kommande två veckorna. */
-  tasks: { dayKey: string; label: string; title: string; kind: "läxa" | "prov" | "inlämning" | "uppgift" }[];
+  tasks: {
+    dayKey: string;
+    label: string;
+    title: string;
+    kind: "läxa" | "prov" | "inlämning" | "uppgift";
+    /** "12:35" when the task has a time. */
+    time?: string;
+    /** The teacher's description, as plain text with line breaks. */
+    detail?: string;
+    /** Opens the task on the school platform. */
+    url?: string;
+  }[];
+}
+
+/** One lamp on the board. brightness 1–100 when it is on and can be dimmed. */
+export interface Lamp {
+  entityId: string;
+  name: string;
+  on: boolean;
+  offline: boolean;
+  dimmable: boolean;
+  brightness?: number;
 }

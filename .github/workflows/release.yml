@@ -1,6 +1,6 @@
 name: Bygg image
 
-# Bygger Docker-images till GitHub Container Registry:
+# Bygger Docker-images till GitHub Container Registry och släpper sedan versionen:
 #   ghcr.io/<ägare>/familjetavla:<version> och :latest  (multi-arch, för docker compose)
 #   ghcr.io/<ägare>/familjetavla-amd64 / -aarch64     (för Home Assistant-tillägget)
 on:
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -39,10 +39,10 @@ jobs:
       - name: Version
         id: v
         run: |
+          # The version to build comes from package.json. familjetavla/config.yaml is only raised
+          # by the "release" job below, after the images exist – Home Assistant offers the update
+          # as soon as config.yaml on main changes, and would otherwise hit "manifest unknown".
           V=$(node -p "require('./package.json').version")
-          # Home Assistant pulls the image tag named in config.yaml, so the two must match.
-          A=$(sed -n 's/^version: *"\{0,1\}\([^"]*\)"\{0,1\}/\1/p' familjetavla/config.yaml)
-          if [ "$V" != "$A" ]; then echo "::error::package.json ($V) och familjetavla/config.yaml ($A) har olika version"; exit 1; fi
           echo "version=$V" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
@@ -76,3 +76,27 @@ jobs:
           for T in "$V" latest; do
             docker buildx imagetools create -t "$O/familjetavla:$T" "$O/familjetavla-amd64:$V" "$O/familjetavla-aarch64:$V"
           done
+
+  # Only now tell Home Assistant (and the board's "Ny version finns") that the version exists.
+  release:
+    needs: manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Pull the images once more – never announce a version that cannot be pulled
+        run: |
+          V=$(node -p "require('./package.json').version")
+          for I in familjetavla familjetavla-amd64 familjetavla-aarch64; do
+            docker manifest inspect "ghcr.io/${{ github.repository_owner }}/$I:$V" > /dev/null
+          done
+      - name: Raise the add-on version
+        run: |
+          V=$(node -p "require('./package.json').version")
+          sed -i "s/^version: .*/version: \"$V\"/" familjetavla/config.yaml
+          if git diff --quiet; then echo "config.yaml already says $V"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Släpp $V till Home Assistant (images finns på ghcr)"
+          git push origin HEAD:main

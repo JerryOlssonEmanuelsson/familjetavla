@@ -344,18 +344,14 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
         .filter((s) => s.entityId === c.climate)
         .map(({ id, name, days, time, enabled }) => ({ id, name, days, time, enabled })),
     })),
-    lights: cfg.entities.lights.map((l) => ({
-      entityId: l.entityId,
-      name: l.name,
-      on: stateMap.get(l.entityId)?.state === "on",
-      offline: isOffline(stateMap, l.entityId),
-    })),
+    lights: cfg.entities.lights.map((l) => lamp(stateMap, l.entityId, l.name)),
     lightGroups: (cfg.entities.lightGroups ?? []).map((g, index) => ({
       index,
       name: g.name,
       on: g.entities.filter((id) => stateMap.get(id)?.state === "on").length,
       total: g.entities.length,
       offline: g.entities.filter((id) => isOffline(stateMap, id)).map((id) => friendly(stateMap, id)),
+      lamps: g.entities.map((id) => lamp(stateMap, id, friendly(stateMap, id), g.name)),
     })),
     buttons: cfg.entities.buttons ?? [],
     climates: (cfg.entities.climates ?? []).map((c) => ({
@@ -420,6 +416,25 @@ function isOnState(state?: string): boolean {
 /** "Spabad Pump 1" → "Pump 1" when the card already says Spabad. */
 function shortName(name: string, prefix: string): string {
   return name.toLowerCase().startsWith(prefix.toLowerCase()) ? name.slice(prefix.length).trim() || name : name;
+}
+
+/** A lamp with on/off, and brightness when Home Assistant says it can be dimmed. */
+function lamp(states: Map<string, HaState>, id: string, name: string, room?: string): import("./types.js").Lamp {
+  const st = states.get(id);
+  const a = (st?.attributes ?? {}) as { brightness?: number; supported_color_modes?: string[] };
+  const modes = a.supported_color_modes ?? [];
+  const dimmable = id.startsWith("light.") && (typeof a.brightness === "number" || modes.some((m) => m !== "onoff"));
+  const on = st?.state === "on";
+  // "Kök Taklampa" in the room Kök reads better as "Taklampa".
+  const short = room && name.toLowerCase().startsWith(`${room.toLowerCase()} `) ? name.slice(room.length + 1) : name;
+  return {
+    entityId: id,
+    name: short.charAt(0).toUpperCase() + short.slice(1),
+    on,
+    offline: isOffline(states, id),
+    dimmable,
+    brightness: on && dimmable && typeof a.brightness === "number" ? Math.max(1, Math.round((a.brightness / 255) * 100)) : undefined,
+  };
 }
 
 function isOffline(states: Map<string, HaState>, id: string): boolean {
