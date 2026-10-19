@@ -1,6 +1,7 @@
 import { fetchIcs } from "../connectors/ics.js";
 import { ha, haConnection } from "../connectors/ha.js";
 import { getJson } from "../http.js";
+import { schoolsoftCalendar, schoolsoftLogin, schoolsoftLunch } from "../connectors/schoolsoft.js";
 import { isGymLesson, vklassChildren, vklassEvents, vklassLogin } from "../connectors/vklass.js";
 import { hhmm, shortDate, shortWeekday } from "../time.js";
 import type { ProviderCtx, SchoolEvent, SchoolProvider } from "./types.js";
@@ -12,7 +13,7 @@ function need(ctx: ProviderCtx, ...keys: string[]) {
   for (const k of keys) {
     const field = ctx.integration.provider;
     const v = ctx.str(k) || ctx.secret(k);
-    if (!v) throw new Error(`Fyll i ${k === "password" ? "lösenord" : k === "username" ? "användarnamn" : k} (${field}).`);
+    if (!v) throw new Error(`Fyll i ${k === "password" ? "lösenord" : k === "username" ? "användarnamn" : k === "school" ? "skolans namn" : k} (${field}).`);
   }
 }
 
@@ -56,6 +57,58 @@ export const vklass: SchoolProvider = {
     const food = kids.flatMap((k) => k.food.map((f) => ({ child: k.name, ...f })));
     const care = kids.flatMap((k) => (k.careTime ? [{ child: k.name, text: k.careTime }] : []));
     return { events, food, care };
+  },
+};
+
+/** Child names in SchoolSoft: from the calendar, or the account itself for a student login. */
+async function schoolsoftData(ctx: ProviderCtx, from: Date, to: Date) {
+  need(ctx, "school", "username", "password");
+  const s = await schoolsoftLogin(ctx.str("school"), ctx.str("username"), ctx.secret("password")!);
+  const [events, food] = await Promise.all([schoolsoftCalendar(s, from, to), schoolsoftLunch(s, new Date())]);
+  const named = [...new Set(events.flatMap((e) => (e.child ? [e.child] : [])))];
+  const kids = named.length ? named : [s.type === "student" && s.name ? s.name : "Barnet i SchoolSoft"];
+  const only = kids.length === 1 ? kids[0] : "";
+  return {
+    session: s,
+    kids,
+    events: events.map((e) => ({ ...e, child: e.child || only || undefined, gym: isGymLesson(e) })),
+    // The menu belongs to the school; with several children it is shown as a shared menu.
+    food: food.map((f) => ({ child: only, ...f })),
+  };
+}
+
+export const schoolsoft: SchoolProvider = {
+  meta: {
+    id: "schoolsoft",
+    category: "school",
+    name: "SchoolSoft",
+    description: "Kalender och matsedel med användarnamn och lösenord. Ny – testa gärna och berätta hur det gick.",
+    status: "beta",
+    discoversChildren: true,
+    fields: [
+      { key: "school", label: "Skolans namn i SchoolSoft", type: "text", placeholder: "Det som står efter sms.schoolsoft.se/" },
+      { key: "username", label: "Användarnamn", type: "text" },
+      { key: "password", label: "Lösenord", type: "password", secret: true },
+    ],
+    guide: [
+      "Skolans namn finns i adressen när du loggar in: sms.schoolsoft.se/skolnamn/…",
+      "Det fungerar bara med användarnamn och lösenord, inte BankID. Fråga skolan om du saknar lösenord.",
+      "Tryck Testa och koppla barnen till familjen.",
+    ],
+  },
+  async test(ctx) {
+    const now = new Date();
+    const d = await schoolsoftData(ctx, now, new Date(now.getTime() + 21 * 86_400_000));
+    return {
+      ok: true,
+      message: `Inloggad som ${d.session.type === "guardian" ? "vårdnadshavare" : "elev"}. ${d.events.length} händelser kommande tre veckor, ${d.food.length} dagar med matsedel.`,
+      discovered: d.kids,
+      preview: [...d.food.slice(0, 3).map((f) => `${f.day}: ${f.dishes.join(", ")}`), ...d.events.slice(0, 3).map(preview)],
+    };
+  },
+  async fetch(ctx, from, to) {
+    const d = await schoolsoftData(ctx, from, to);
+    return { events: d.events, food: d.food };
   },
 };
 
@@ -145,7 +198,7 @@ export const schoolIcs: SchoolProvider = {
     id: "school-ics",
     category: "school",
     name: "Annan skolplattform (kalenderlänk)",
-    description: "SchoolSoft, Unikum, IST, Skola24, InfoMentor m.fl. som kan exportera schemat som kalender.",
+    description: "InfoMentor, Unikum, IST, Skola24, SchoolSoft med BankID m.fl. som kan exportera schemat som kalender.",
     status: "stable",
     fields: [
       { key: "platform", label: "Plattform", type: "select", options: ["SchoolSoft", "Unikum", "IST", "Skola24", "InfoMentor", "Edlevo", "Annan"].map((p) => ({ value: p, label: p })), default: "SchoolSoft" },
@@ -155,6 +208,7 @@ export const schoolIcs: SchoolProvider = {
       "Leta efter Prenumerera, Synka kalender eller Exportera schema i skolans app eller webb.",
       "Kopiera länken (börjar ofta med webcal:// eller slutar på .ics) och klistra in här.",
       "Lägg till en länk per barn och välj vilket barn den gäller.",
+      "Matsedeln kommer inte med kalenderlänken. Lägg till Skolmaten.se eller Skolmat från Home Assistant för lunchen.",
     ],
   },
   async test(ctx) {

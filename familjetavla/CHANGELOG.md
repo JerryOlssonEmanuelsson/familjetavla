@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.6.0
+
+- Nytt: **SchoolSoft** med användarnamn och lösenord – kalender och matsedel, barnen kopplas som i Vklass. Beta: inte testad mot ett riktigt vårdnadshavarkonto än.
+- InfoMentor, Unikum m.fl.: guiden för kalenderlänk säger nu hur man får med matsedeln (Skolmaten.se eller Skolmat i HA).
+
 ## 0.5.1
 
 - Rättat: Docker-imagen och tillägget startade inte ("Cannot find package '@fastify/static'"). Några serverpaket kom inte med i imagen.
