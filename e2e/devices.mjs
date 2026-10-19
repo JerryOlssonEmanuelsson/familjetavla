@@ -26,12 +26,16 @@ const ROUTES = [
   ["guide-hem", "#/setup/hem"], ["guide-familj", "#/setup/familj"], ["guide-skola", "#/setup/skola"], ["guide-startskarm", "#/setup/visning"], ["guide-klart", "#/setup/klart"],
   ["planera", "", "plan"], ["handelse", "", "event"],
   ["start", ""], ["veckan", "#/sida/veckan"], ["kort", "#/sida/kort"], ["maten", "#/sida/maten"], ["skolan", "#/sida/skolan"], ["komihag", "#/sida/komihag"], ["inkop", "#/sida/inkop"], ["hososs", "#/sida/hososs"], ["energi", "#/flik/energy"], ["bil", "#/flik/cars"], ["ljus", "#/flik/lights"]];
-const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const report = [];
+const line = (row) => {
+  if (row.issues.length || row.more?.length) console.log(`${row.issues.length ? "FEL " : "obs "} ${row.device} · ${row.route}: ${row.issues.join("; ")} ${row.more?.length ? `[knappar: ${row.more.join(" / ")}]` : ""}`);
+};
 for (const [theme, clock] of [["ljust", "2026-10-18T16:00:00+02:00"], ["mörkt", "2026-10-18T20:30:00+02:00"]])
 for (const [name0, dev, tablet] of LIST) {
   const name = `${name0} ${theme}`;
   const d = devices[dev];
+  // A fresh browser per device keeps memory in check over 300 views.
+  const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   const ctx = await b.newContext({ ...d, locale: "sv-SE", timezoneId: "Europe/Stockholm" });
   const p = await ctx.newPage();
   const errors = [];
@@ -40,6 +44,7 @@ for (const [name0, dev, tablet] of LIST) {
   await p.clock.install({ time: new Date(clock) });
   const slug = name.replace(/[^a-zåäö]+/gi, "-").toLowerCase();
   for (const [r, hash, open] of ROUTES) {
+   try {
     await p.goto("about:blank");
     await p.goto(URL + hash);
     // Measure like a real board: the demo's extra header buttons don't exist there.
@@ -141,17 +146,22 @@ for (const [name0, dev, tablet] of LIST) {
     // "Alla kort" and "Kommande 7 dagar" are the show-everything pages: scrolling there is allowed as a last resort.
     if (tablet && m.overflow.length && !["kort", "veckan"].includes(r)) issues.push(`ryms inte ens på 70 %: ${m.overflow.join(", ")}`);
     const minScale = m.scales.length ? Math.min(...m.scales) : 100;
-    report.push({ device: name, route: r, issues, minScale, small: m.small, more: m.more });
+    const row = { device: name, route: r, issues, minScale, small: m.small, more: m.more };
+    report.push(row);
+    line(row);
+   } catch (e) {
+    const row = { device: name, route: r, issues: [`kunde inte provas: ${e.message.split("\n")[0]}`], minScale: 100 };
+    report.push(row);
+    line(row);
+   }
   }
-  report.push({ device: name, route: "konsol", issues: errors.slice(0, 3), minScale: 100, small: 0 });
+  const crow = { device: name, route: "konsol", issues: errors.slice(0, 3), minScale: 100, small: 0 };
+  report.push(crow);
+  line(crow);
   await ctx.close();
+  await b.close();
 }
-await b.close();
 fs.writeFileSync(`${S}/report.json`, JSON.stringify(report, null, 1));
-let bad = 0;
-for (const row of report) {
-  if (row.issues.length) bad++;
-  if (row.issues.length || row.minScale < 85 || row.more?.length) console.log(`${row.issues.length ? "FEL " : "obs "} ${row.device} · ${row.route}: ${row.issues.join("; ") || ""} ${row.minScale < 100 ? `(minsta skala ${row.minScale} %)` : ""} ${row.more?.length ? `[knappar: ${row.more.join(" / ")}]` : ""}`);
-}
+const bad = report.filter((r) => r.issues.length).length;
 console.log(`\n${report.length} kontroller, ${bad} med fel`);
 if (bad) process.exit(1);
