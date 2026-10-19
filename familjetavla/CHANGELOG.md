@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.5.1
+
+- Rättat: Docker-imagen och tillägget startade inte ("Cannot find package '@fastify/static'"). Några serverpaket kom inte med i imagen.
+- CI bygger och startar nu den riktiga imagen före varje release.
+
 ## 0.5.0
 
 **Rättningar efter granskning 3**
