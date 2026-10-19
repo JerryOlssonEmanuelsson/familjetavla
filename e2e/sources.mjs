@@ -11,6 +11,7 @@ import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSugg
 import { fetchPrices } from "../server/dist/connectors/elpris.js";
 import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
+import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
@@ -156,6 +157,16 @@ for (const url of cfg.skolmaten ?? []) {
     const { food } = await skolmaten.fetch(ctx, now, new Date(now.getTime() + 14 * 86_400_000));
     if (!food.length) throw new Error("ingen mat de kommande två veckorna");
     return `${food.length} dagar, t.ex. ${food[0].dishes[0]}`;
+  });
+}
+
+// ---- Willys / Hemköp product search (works without logging in) ----
+for (const site of Object.values(AXFOOD_SITES)) {
+  await check(`${site.label} produktsökning`, async () => {
+    const hits = await axfoodSearch(site, "", "mjölk");
+    if (!hits.length) throw new Error("sökningen på mjölk gav inga varor");
+    if (!hits.every((h) => h.code && h.name)) throw new Error("varorna saknar kod eller namn – svaret har ändrat format");
+    return `"mjölk" → ${hits.length} varor, t.ex. ${hits[0].name}`;
   });
 }
 

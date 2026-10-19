@@ -11,6 +11,7 @@ on:
     paths:
       - server/src/connectors/waste.ts
       - server/src/connectors/vklass.ts
+      - server/src/connectors/axfood.ts
       - server/src/providers/school.ts
       - e2e/sources.mjs
       - .github/upstream-sources.json
