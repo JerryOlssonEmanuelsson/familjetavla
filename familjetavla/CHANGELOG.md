@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.6.2
+
+- Nytt kort på startsidan: **Maten** – dagens skollunch per barn (efter kl 14 morgondagens, efter fredagslunchen måndagens) och kvällens middag, i stor text. Slås på av sig självt och hamnar först under Nu-rutan; flyttas eller stängs av under Startskärm.
+- Rättat: skolmat för t.ex. den 1:a kunde matcha "19/10".
+
 ## 0.6.1
 
 - Skolsteget: "Saknas er skolplattform? Berätta vilken" – länk till ett färdigt formulär på GitHub (plattform, kommun, hur föräldrar loggar in, om du kan testa).

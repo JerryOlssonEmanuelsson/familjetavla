@@ -529,7 +529,8 @@ function todaysFood(food: { child: string; day: string; dishes: string[] }[], no
   if (!food.length) return undefined;
   const target = now.getHours() >= 14 ? addDays(now, 1) : now;
   const name = WEEKDAY_NAMES[target.getDay()];
-  const hits = food.filter((f) => f.day.toLowerCase().includes(name) || f.day.includes(String(target.getDate())));
+  const dm = new RegExp(`\\b${target.getDate()}/${target.getMonth() + 1}\\b`);
+  const hits = food.filter((f) => f.day.toLowerCase().includes(name) || dm.test(f.day));
   const seen = new Set<string>();
   return hits.filter((f) => {
     const k = f.dishes.join("|");

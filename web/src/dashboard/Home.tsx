@@ -40,6 +40,46 @@ export function Ring({ progress, size = 92, stroke = 9, children }: { progress: 
   );
 }
 
+/** Today's school lunch per child (tomorrow's after 14) and tonight's dinner – big enough for the kids. */
+function Meals({ data }: { data: Dashboard }) {
+  const h = new Date().getHours();
+  const start = h >= 14 ? 1 : 0;
+  // The next school day with a menu: after Friday lunch that is Monday.
+  const lunch = data.meals.slice(start, start + 4).find((d) => d.lunch.length);
+  const dinnerDay = h < 20 ? data.meals[0] : data.meals[1];
+  const dinner = dinnerDay?.dinner;
+  if (!lunch && !dinner) return null;
+  const when = (label: string) => (label === "idag" || label === "imorgon" ? label : `på ${label.split(" ")[0]}`);
+  return (
+    <section className="card meals-card">
+      <h2>Maten</h2>
+      {lunch && (
+        <div className="meal-block">
+          <span className="eyebrow">Lunch {when(lunch.dayLabel)}</span>
+          {lunch.lunch.map((l) => (
+            <div className="meal-line" key={l.child + l.dishes.join()}>
+              <Icon name="school" size={20} />
+              <span>
+                {l.child && <b>{l.child}: </b>}
+                {l.dishes.join(" · ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {dinner && (
+        <div className="meal-block">
+          <span className="eyebrow">Middag {dinnerDay === data.meals[0] ? "ikväll" : "imorgon"}</span>
+          <div className="meal-line">
+            <Icon name="food" size={20} />
+            <span>{dinner}</span>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["schoolFood"] }) {
   if (!items.length && !food?.length) return null;
   return (
@@ -445,10 +485,14 @@ function ClimatesMini({ climates }: { climates: Dashboard["climates"] }) {
  * side columns. Widgets without data render nothing, so a choice never shows an empty box.
  */
 export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
+  const mealsOn = data.home.some((w) => w.id === "meals" && w.on);
   const render = (id: Dashboard["home"][number]["id"]): React.ReactNode => {
     switch (id) {
       case "reminders":
-        return <Reminders key={id} items={data.reminders} food={data.schoolFood} />;
+        // With the Maten card on, the lunch lives there instead.
+        return <Reminders key={id} items={data.reminders} food={mealsOn ? undefined : data.schoolFood} />;
+      case "meals":
+        return <Meals key={id} data={data} />;
       case "custody":
         return data.custody ? <Custody key={id} c={data.custody} /> : null;
       case "shopping":
@@ -476,8 +520,15 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
   // before splitting them into columns. (A React element that renders nothing is still truthy.)
   const size = (id: Dashboard["home"][number]["id"]): number => {
     switch (id) {
-      case "reminders":
-        return data.reminders.length || data.schoolFood?.length ? 1 + data.reminders.length + (data.schoolFood?.length ?? 0) : 0;
+      case "reminders": {
+        const food = mealsOn ? 0 : (data.schoolFood?.length ?? 0);
+        return data.reminders.length || food ? 1 + data.reminders.length + food : 0;
+      }
+      case "meals": {
+        const lunchRows = data.meals.slice(0, 5).find((d) => d.lunch.length)?.lunch.length ?? 0;
+        const dinner = data.meals[0]?.dinner || data.meals[1]?.dinner ? 1 : 0;
+        return lunchRows || dinner ? 1 + lunchRows + dinner : 0;
+      }
       case "custody":
         return data.custody ? 1 + (data.custody.rows?.length ?? 1) : 0;
       case "shopping":

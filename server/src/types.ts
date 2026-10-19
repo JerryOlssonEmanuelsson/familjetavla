@@ -107,7 +107,7 @@ export interface TravelChoice {
   home?: TravelLeg;
 }
 
-export const HOME_WIDGETS = ["now", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
+export const HOME_WIDGETS = ["now", "meals", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
 export type HomeWidget = (typeof HOME_WIDGETS)[number];
 export const TAB_IDS = ["cars", "lights", "house", "energy", "graphs"] as const;
 export type TabId = (typeof TAB_IDS)[number];
