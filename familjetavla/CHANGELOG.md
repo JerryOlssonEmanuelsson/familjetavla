@@ -3,6 +3,9 @@
 ## 0.8.3
 
 - **Läxor och prov från Vklass** syns på skolsidan under läxor, prov och inlämningar (Vklass "Uppgifter"), i stället för att blandas in bland lektionerna.
+- **Tryck på en läxa eller ett prov** så visas allt: dag och tid, lärarens hela beskrivning (t.ex. "Inför provet ska du kunna…") och en knapp till uppgiften i Vklass.
+- **Ljus: varje lampa för sig.** Rummen visar sina lampor var för sig – tänd och släck en i taget – och ett reglage för ljusstyrka på lampor som går att dimma. "Tänd alla"/"Släck alla" finns kvar.
+- **"+2" i veckan** går att trycka på och öppnar hela veckan.
 - Lektionsnamnen städas: "Svenska (5:a:TH-26__SV)" blir "Svenska". Lärarnas planeringar visas inte.
 - Rättat: uppdateringen kunde ge **"manifest unknown"** om man uppdaterade inom en halvtimme från en ny version. Nu annonseras en version till Home Assistant först när den går att hämta.
 

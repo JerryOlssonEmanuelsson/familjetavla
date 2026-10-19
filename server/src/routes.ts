@@ -180,6 +180,11 @@ const scheduleSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   enabled: z.boolean(),
 });
+/** Only lamps that are on the board can be switched from it. */
+function knownLamp(cfg: Config, id: string): boolean {
+  return cfg.entities.lights.some((l) => l.entityId === id) || (cfg.entities.lightGroups ?? []).some((g) => g.entities.includes(id));
+}
+
 export const configSchema = z
   .object({
     version: z.literal(1),
@@ -619,10 +624,22 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/api/lights/toggle", async (req, reply) => {
     const { entityId } = (req.body ?? {}) as { entityId?: string };
     const cfg = loadConfig();
-    if (!entityId || !cfg.entities.lights.some((l) => l.entityId === entityId)) return fail(reply, new Error("Okänd lampa"));
+    if (!entityId || !knownLamp(cfg, entityId)) return fail(reply, new Error("Okänd lampa"));
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
     await ha.service(conn, "homeassistant", "toggle", { entity_id: entityId });
+    invalidate("ha:states");
+    return { ok: true };
+  });
+
+  app.post("/api/lights/brightness", async (req, reply) => {
+    const body = z.object({ entityId: entity, pct: z.number().int().min(0).max(100) }).safeParse(req.body);
+    if (!body.success || !knownLamp(loadConfig(), body.data.entityId) || !body.data.entityId.startsWith("light.")) return fail(reply, new Error("Okänd lampa"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const { entityId, pct } = body.data;
+    if (pct === 0) await ha.service(conn, "light", "turn_off", { entity_id: entityId });
+    else await ha.service(conn, "light", "turn_on", { entity_id: entityId, brightness_pct: pct });
     invalidate("ha:states");
     return { ok: true };
   });

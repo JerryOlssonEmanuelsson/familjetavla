@@ -349,7 +349,11 @@ export function Week({ data, actions, full = false }: { data: Dashboard; actions
                   {e.who && e.initial && <Avatar initial={e.initial} color={e.color} name={e.who} />}
                 </button>
               ))}
-              {!full && d.events.length > 3 && <span className="more-chip">+{d.events.length - 3}</span>}
+              {!full && d.events.length > 3 && (
+                <button className="more-chip" aria-label={`${d.events.length - 3} till – visa hela veckan`} onClick={() => actions.openPage("veckan")}>
+                  +{d.events.length - 3}
+                </button>
+              )}
             </div>
           </div>
         ))}

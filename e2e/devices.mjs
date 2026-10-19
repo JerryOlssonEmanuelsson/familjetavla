@@ -28,8 +28,11 @@ const only = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
 const DEVICES = LIST.filter((_, i) => i % parts === partNo - 1).filter(([n]) => !only || only.test(n));
 const ROUTES = [
   ["guide-hem", "#/setup/hem"], ["guide-familj", "#/setup/familj"], ["guide-skola", "#/setup/skola"], ["guide-startskarm", "#/setup/visning"], ["guide-klart", "#/setup/klart"],
-  ["planera", "", "plan"], ["handelse", "", "event"],
+  ["planera", "", "plan"], ["handelse", "", "event"], ["uppgift", "#/sida/skolan", "task"],
   ["start", ""], ["veckan", "#/sida/veckan"], ["kort", "#/sida/kort"], ["maten", "#/sida/maten"], ["skolan", "#/sida/skolan"], ["komihag", "#/sida/komihag"], ["inkop", "#/sida/inkop"], ["hososs", "#/sida/hososs"], ["energi", "#/flik/energy"], ["bil", "#/flik/cars"], ["ljus", "#/flik/lights"]];
+// ROUTES_ONLY=ljus,uppgift checks just those views (quick local runs).
+const routeOnly = process.env.ROUTES_ONLY?.split(",");
+if (routeOnly) ROUTES.splice(0, ROUTES.length, ...ROUTES.filter(([r]) => routeOnly.includes(r)));
 const report = [];
 const line = (row) => {
   if (row.issues.length || row.more?.length) console.log(`${row.issues.length ? "FEL " : "obs "} ${row.device} · ${row.route}: ${row.issues.join("; ")} ${row.more?.length ? `[knappar: ${row.more.join(" / ")}]` : ""}`);
@@ -58,6 +61,7 @@ for (const [name0, dev, tablet] of DEVICES) {
     await p.waitForTimeout(1400);
     if (open === "plan") await p.getByRole("button", { name: /Planera veckan/ }).first().click();
     if (open === "event") await p.locator(".now-item").first().click();
+    if (open === "task") await p.locator(".task-row", { hasText: "Prov i NO" }).first().click();
     if (open) await p.waitForTimeout(600);
     if (!tablet && !open && !hash.startsWith("#/setup")) await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await p.waitForTimeout(300);

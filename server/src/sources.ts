@@ -16,6 +16,8 @@ export interface SourcedEvent extends CalEvent {
   gym?: boolean;
   /** Homework, test or hand-in from a school platform. */
   task?: boolean;
+  /** The item on the school platform. */
+  url?: string;
   /** Name of the calendar (helps pick an icon: "Fotboll F14" → ball). */
   sourceName?: string;
   /** Shown even when the child is at the other home (calendar set to "always" or an alwaysShow match). */

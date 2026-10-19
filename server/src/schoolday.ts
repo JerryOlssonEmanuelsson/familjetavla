@@ -110,7 +110,16 @@ export function buildSchoolWeek(
         const d = startOfDay(e.start);
         const diff = Math.round((d.getTime() - today.getTime()) / DAY); // rounding absorbs the DST hour
         const label = diff <= 0 ? "idag" : diff === 1 ? "imorgon" : `${SHORT[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
-        return { dayKey: dayKey(d), label, title: e.title, kind: taskKind(e.title) };
+        const detail = (e.description ?? "").replace(/<[^>]+>/g, " ").trim();
+        return {
+          dayKey: dayKey(d),
+          label,
+          title: e.title,
+          kind: taskKind(e.title),
+          time: e.allDay ? undefined : hm(e.start),
+          detail: detail && detail !== e.title ? detail.slice(0, 4000) : undefined,
+          url: e.url,
+        };
       });
     if (!days.some((d) => d.lessons.length) && !tasks.length) continue;
     out.push({ personId: p.id, name: p.name, color: p.color, days, tasks });

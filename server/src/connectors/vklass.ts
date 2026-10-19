@@ -187,13 +187,25 @@ export function cleanLessonTitle(t: string): string {
   return t.replace(/\s*\((?=[^)]*[_:.])[^()\s]+\)\s*$/, "").trim() || t.trim();
 }
 
-type VklassItem = { title?: string; text?: string; start: string; end?: string; allDay?: boolean; eventType?: number; className?: string; location?: string };
+type VklassItem = { title?: string; text?: string; start: string; end?: string; allDay?: boolean; eventType?: number; className?: string; location?: string; detailUrl?: string };
+
+/** HTML from Vklass → plain text with line breaks and bullets. */
+export function htmlToText(html: string): string {
+  if (!/<[a-z]/i.test(html)) return html.trim();
+  const $ = cheerio.load(html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|h\d|ul|ol)>/gi, "\n\n").replace(/<li[^>]*>/gi, "\n• "));
+  return $.root()
+    .text()
+    .replace(/[ \t\u00a0]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
 
 /**
  * Calendar items per child. Vklass marks the kind (checked against a real account):
  * eventType 1 = lesson, 2 = assignment ("Uppgift": läxa, prov, inlämning), 8 = day off, 16 = teacher's planning.
  */
-export async function vklassEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<(CalEvent & { task?: boolean })[]> {
+export async function vklassEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<(CalEvent & { task?: boolean; url?: string })[]> {
   const list = (await vklassRawEvents(s, studentId, from, to)) as VklassItem[];
   return list
     .filter((e) => e.eventType !== 16 && !/plan/.test(e.className ?? ""))
@@ -207,8 +219,9 @@ export async function vklassEvents(s: VklassSession, studentId: string, from: Da
         allDay: Boolean(e.allDay) || !/T\d/.test(e.start),
         title: task ? raw : cleanLessonTitle(raw),
         location: typeof e.location === "string" && e.location.trim() ? e.location.trim() : undefined,
-        description: e.text,
+        description: e.text ? htmlToText(e.text) : undefined,
         task,
+        url: typeof e.detailUrl === "string" && e.detailUrl.startsWith("/") ? `${CUSTODIAN}${e.detailUrl}` : undefined,
       };
     });
 }

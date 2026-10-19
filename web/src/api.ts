@@ -151,6 +151,7 @@ const realApi = {
   uploadPhoto: (data: string, type: string) => post<{ photos: string[] }>("photos", { data, type }),
   deletePhoto: (name: string) => request<{ photos: string[] }>(`photos/${encodeURIComponent(name)}`, { method: "DELETE" }),
   toggleLight: (entityId: string) => post("lights/toggle", { entityId }),
+  brightness: (entityId: string, pct: number) => post("lights/brightness", { entityId, pct }),
   lightsOff: () => post("lights/off"),
   addItem: (name: string) => post("shopping/add", { name }),
   toggleItem: (id: string, done: boolean) => post("shopping/toggle", { id, done }),

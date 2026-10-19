@@ -93,9 +93,44 @@ function MealsPage({ data, actions }: { data: Dashboard; actions: Actions }) {
 
 const KIND_LABEL = { läxa: "Läxa", prov: "Prov", inlämning: "Inlämning", uppgift: "Uppgift" } as const;
 
+type Task = NonNullable<Dashboard["school"]>[number]["tasks"][number];
+
+/** Everything about one homework/test: when, the teacher's text, and a link to the school platform. */
+function TaskSheet({ task, child, onClose }: { task: Task; child: string; onClose: () => void }) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet task-sheet" role="dialog" aria-modal="true" aria-label={task.title} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 680 }}>
+        <div className="row gap">
+          <span className={`task-kind kind-${task.kind}`}>{KIND_LABEL[task.kind]}</span>
+          <h2 className="grow" style={{ fontSize: 24 }}>
+            {task.title}
+          </h2>
+          <button className="btn icon" aria-label="Stäng" onClick={onClose}>
+            <Icon name="x" />
+          </button>
+        </div>
+        <div className="row gap" style={{ fontSize: 17 }}>
+          <Icon name="event" size={20} />
+          <span>
+            {child} · {task.label[0].toUpperCase() + task.label.slice(1)}
+            {task.time ? ` ${task.time}` : ""}
+          </span>
+        </div>
+        {task.detail ? <div className="task-detail">{task.detail}</div> : <p className="muted">Ingen beskrivning från skolan.</p>}
+        {task.url && (
+          <a className="btn" href={task.url} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start" }}>
+            Öppna i Vklass <Icon name="chevronRight" size={18} />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SchoolPage({ data }: { data: Dashboard }) {
   const kids = data.school ?? [];
   const [who, setWho] = useState(kids[0]?.personId ?? "");
+  const [open, setOpen] = useState<Task | null>(null);
   if (!kids.length) {
     return (
       <section className="card">
@@ -128,11 +163,12 @@ function SchoolPage({ data }: { data: Dashboard }) {
           <h2>Läxor och uppgifter</h2>
           {kid.tasks.length ? (
             kid.tasks.map((t, i) => (
-              <div className="task-row" key={i}>
+              <button className="task-row" key={i} onClick={() => setOpen(t)}>
                 <span className={`task-kind kind-${t.kind}`}>{KIND_LABEL[t.kind]}</span>
-                <span className="grow">{t.title}</span>
+                <span className="grow task-title">{t.title}</span>
                 <small className="muted">{t.label}</small>
-              </div>
+                <Icon name="chevronRight" size={18} />
+              </button>
             ))
           ) : (
             <small className="muted">Inget de närmaste två veckorna – eller så lägger skolan inte ut läxor i kalendern.</small>
@@ -160,6 +196,7 @@ function SchoolPage({ data }: { data: Dashboard }) {
           ))}
         </div>
       </section>
+      {open && <TaskSheet task={open} child={kid.name} onClose={() => setOpen(null)} />}
     </div>
   );
 }

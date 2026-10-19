@@ -81,3 +81,13 @@ describe("Vklass lessons and assignments", () => {
     ]);
   });
 });
+
+import { htmlToText } from "./connectors/vklass.js";
+
+describe("Vklass task text", () => {
+  it("keeps headings, bullets and line breaks readable", () => {
+    const html = "<p>Inför provet ska du kunna:</p><p><strong>1. Storleksordna tal</strong></p><ul><li>Jämföra tal</li><li>Små decimaltal</li></ul><p><em>Exempel:</em> 19&nbsp;900 000</p>";
+    expect(htmlToText(html)).toBe("Inför provet ska du kunna:\n\n1. Storleksordna tal\n\n• Jämföra tal\n• Små decimaltal\n\nExempel: 19 900 000");
+    expect(htmlToText("Här kommer veckans läxa.")).toBe("Här kommer veckans läxa.");
+  });
+});
