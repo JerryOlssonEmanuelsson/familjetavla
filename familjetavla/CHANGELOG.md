@@ -6,6 +6,8 @@
 - **Veckan visar vem som kör.** Vid varje träning står namnet på den som skjutsar dit och hem ("Emil ⇄", "Emil → ← Marina"), så alla ser veckans planering direkt på startsidan.
 - **All info från kalendern.** Tryck på en händelse så visas kalenderns anteckningar (t.ex. "Samling 11:50", vad man ska ta med), med klickbara länkar. Platsen öppnas i kartan.
 - **Svar när du tänder och släcker.** Efter varje tryck på en lampa eller ett rum kollar tavlan att det faktiskt hände: "✓ Taklampa tänd" – eller "⚠ Taklampa svarade inte – är den offline eller strömlös?".
+- **Svenska lag och InfoMentor** finns som egna val bland kalendrarna, med instruktion om var prenumerationslänken finns.
+- Veckan på egen sida är lite tätare så att alla sju dagar ryms även på liggande Android-plattor.
 - **Starta och stoppa laddningen av bilen** från bilsidan, om bilens integration i Home Assistant har en laddknapp. Bilens eget laddschema (schemalagd laddning, billigaste timmarna, klar till avgång) visas under.
 
 ## 0.8.3

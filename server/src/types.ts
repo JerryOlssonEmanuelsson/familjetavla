@@ -67,7 +67,7 @@ export interface CareSchedule {
 
 export type CalendarCategory = "family" | "sport" | "school" | "work" | "other";
 
-export type CalendarProvider = "google" | "icloud" | "laget" | "sportadmin" | "outlook" | "ics" | "ha";
+export type CalendarProvider = "google" | "icloud" | "laget" | "sportadmin" | "svenskalag" | "infomentor" | "outlook" | "ics" | "ha";
 
 export interface CalendarSource {
   id: string;

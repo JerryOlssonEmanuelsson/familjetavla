@@ -143,7 +143,7 @@ const personSchema = z.object({
 const calendarSchema = z.object({
   id: z.string().regex(ID),
   name: z.string().min(1).max(60),
-  provider: z.enum(["google", "icloud", "laget", "sportadmin", "outlook", "ics", "ha"]),
+  provider: z.enum(["google", "icloud", "laget", "sportadmin", "svenskalag", "infomentor", "outlook", "ics", "ha"]),
   kind: z.enum(["ics", "ha"]),
   entityId: z.string().optional(),
   personId: z.string().optional(),

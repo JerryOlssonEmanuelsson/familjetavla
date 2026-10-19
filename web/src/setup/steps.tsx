@@ -685,6 +685,27 @@ const CAL_PROVIDERS: { id: CalendarProvider; name: string; desc: string; guide: 
       "Har barnet flera lag? Tryck Testa och bocka bara i laget du vill se.",
     ],
   },
+  {
+    id: "svenskalag",
+    name: "Svenska lag",
+    desc: "Lagets aktiviteter",
+    category: "sport",
+    guide: [
+      "Logga in på svenskalag.se och gå till lagets sida → Kalender → Prenumerera.",
+      "Kopiera länken (iCal/webcal) och klistra in här. Gör det från lagsidan, inte klubbens, så kommer bara ert lag med.",
+    ],
+  },
+  {
+    id: "infomentor",
+    name: "InfoMentor",
+    desc: "Skolans kalender",
+    category: "school",
+    guide: [
+      "Logga in i InfoMentor Hub på webben (inte appen) → Kalender → Prenumerera.",
+      "Kopiera länken och klistra in här. Ser du ingen Prenumerera har kommunen stängt av det – fråga skolan.",
+      "Skolmaten läggs in under Skola med skolmaten.se.",
+    ],
+  },
   { id: "outlook", name: "Outlook / jobbet", desc: "Publicerad kalender", category: "work", guide: ["Outlook på webben → Inställningar → Kalender → Delade kalendrar → Publicera en kalender → kopiera ICS-länken."] },
   { id: "ics", name: "Annan länk", desc: "Valfri ICS/webcal-adress", category: "other", guide: ["Klistra in en adress som börjar med webcal:// eller https:// och slutar på .ics."] },
   { id: "ha", name: "Kalender i Home Assistant", desc: "Använd en kalender du redan har i HA", category: "family", guide: [] },
@@ -698,7 +719,7 @@ function TravelDefault({ cal, cfg, name, onChange }: { cal: CalendarSource; cfg:
   const opts = [
     { value: "", label: "Varierar – välj per gång" },
     ...cfg.people.filter((x) => x.kind === "adult").map((a) => ({ value: `adult:${a.id}`, label: `${a.name} skjutsar` })),
-    { value: "ride", label: "Blir skjutsad" },
+    { value: "ride", label: "Annan skjutsar" },
     { value: "bus", label: "Buss" },
     { value: "self", label: "Cyklar/går själv" },
   ];
