@@ -9,11 +9,81 @@
     },
     "edpevent_se.py": {
       "sha256": "1c8892f640cb76528ad72e1525ae8cae0764a12a3f82ccecbf8033b6705dd5da",
-      "ours": "server/src/connectors/waste.ts (edp*)"
+      "ours": "server/src/connectors/waste.ts (EDP_PROVIDERS, edp*)"
     },
     "juneavfall_se.py": {
       "sha256": "bd41f171a9c3f84896dbfef607d4e8e4cf484b98e2f5b52bf2bbd3a9203434a1",
-      "ours": "server/src/connectors/waste.ts (edp*, June Avfall)"
+      "ours": "EDP_PROVIDERS.june"
+    },
+    "lerum_se.py": {
+      "sha256": "bc2a026df8eb53f02be4e093f4c7a4061293f0dbb1770e754eca5222e83d3c95",
+      "ours": "EDP_PROVIDERS.lerum"
+    },
+    "partille_se.py": {
+      "sha256": "bb2a1f028798f48946c28d3398c72d338a6425268ddb66c1a3a4c7119ed5afea",
+      "ours": "EDP_PROVIDERS.partille"
+    },
+    "kungalv_se.py": {
+      "sha256": "180d2162187ef34cc6e1eee8333b1ab3695f4aacf5900209d82f789f13f2dd90",
+      "ours": "EDP_PROVIDERS.kungalv"
+    },
+    "vivab_se.py": {
+      "sha256": "a262feee01a810d307d36b30ffb544dd2aa9ac78d8d9b620adcf29210374ea01",
+      "ours": "EDP_PROVIDERS.falkenberg/varberg"
+    },
+    "lund_se.py": {
+      "sha256": "a7273d61e55cffb14dbbc016a42399b7194bef4dd5e6bdb2e59a7a5d834c3768",
+      "ours": "EDP_PROVIDERS.lund"
+    },
+    "gotland_se.py": {
+      "sha256": "770740e75f1149d5ccb7dedee4fe7a3a43dac9061fe0b6120e02c2096e6c8e7f",
+      "ours": "EDP_PROVIDERS.gotland"
+    },
+    "molndal_se.py": {
+      "sha256": "af32df51b436f561671575aa9be0f59797ac9f8afab43c9b43790235ef93dd81",
+      "ours": "EDP_PROVIDERS.molndal"
     }
-  }
+  },
+  "edp": {
+    "june": {
+      "file": "juneavfall_se.py"
+    },
+    "lerum": {
+      "file": "lerum_se.py"
+    },
+    "partille": {
+      "file": "partille_se.py"
+    },
+    "kungalv": {
+      "file": "kungalv_se.py"
+    },
+    "falkenberg": {
+      "file": "vivab_se.py",
+      "filter": "falkenberg"
+    },
+    "varberg": {
+      "file": "vivab_se.py",
+      "filter": "varberg"
+    },
+    "lund": {
+      "file": "lund_se.py"
+    },
+    "gotland": {
+      "file": "gotland_se.py",
+      "extra": [
+        "Östercentrum 1, Visby",
+        "Storgatan 1, Visby"
+      ]
+    },
+    "molndal": {
+      "file": "molndal_se.py",
+      "extra": [
+        "Göteborgsvägen 11, Mölndal",
+        "Storgatan 1, Mölndal"
+      ]
+    }
+  },
+  "skolmaten": [
+    "https://skolmaten.se/skutehagens-skolan"
+  ]
 }
