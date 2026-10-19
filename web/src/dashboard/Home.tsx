@@ -304,7 +304,9 @@ export function Week({ data, actions, full = false }: { data: Dashboard; actions
   return (
     <section className="card area-week week-swipe">
       <div className="card-head" style={{ flexWrap: "wrap" }}>
-        <h2>Kommande 7 dagar</h2>
+        {/* On its own page the page title already says it – the room goes to the days. */}
+        {full ? <h2 className="sr-only">Kommande 7 dagar</h2> : <h2>Kommande 7 dagar</h2>}
+        {full && <span className="grow" />}
         {/* Always there: it is also where the week's dinners are planned, even with nothing to drive to. */}
         <button
           className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`}

@@ -98,6 +98,21 @@ docker compose up -d     # se docker-compose.yml
 - **Sätt en PIN** i guidens sista steg. Då kommer bara skärmar som låsts upp med PIN-koden en gång åt tavlan – inte gäster eller andra enheter på wifi:t.
 - **Uppdatera:** `docker compose pull && docker compose up -d`. Inställningarna ligger kvar i `./data`.
 
+### Utan Home Assistant och utan Docker
+
+Tavlan behöver inte Home Assistant. Välj **Jag har inte Home Assistant** i guiden. Då fungerar kalendrar, skjuts, skola (Vklass, SchoolSoft, skolmaten.se), sophämtning, elpris, väder, mat och inköpslista. Det som kräver Home Assistant är ljus, bilar, energi och andra prylar i hemmet.
+
+Det går att köra på vilken dator som helst som är igång dygnet runt, till exempel en Raspberry Pi, en NAS eller en gammal laptop. Den behöver [Node.js 22](https://nodejs.org) eller nyare:
+
+```bash
+git clone https://github.com/murre87/familjetavla && cd familjetavla
+npm install && npm run build
+npm start                # öppna http://<datorn>:8099
+```
+
+- Inställningarna sparas i mappen `server/data`.
+- För att uppdatera kör du `git pull && npm install && npm run build` och startar om.
+
 ### Prova i molnet först (ingen server behövs)
 
 [![Öppna i GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/murre87/familjetavla?quickstart=1)
