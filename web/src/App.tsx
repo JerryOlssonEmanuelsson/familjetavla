@@ -3,21 +3,9 @@ import type { ConfigResponse } from "../../server/src/types";
 import { ApiError, api, setPin } from "./api";
 import { Dashboard } from "./dashboard/Dashboard";
 import { Wizard } from "./setup/Wizard";
+import { navigate, useHash } from "./route";
 
-// Hash routing keeps every route under the same index.html (works behind HA ingress).
-function useHash() {
-  const [hash, setHash] = useState(() => window.location.hash.slice(1) || "/");
-  useEffect(() => {
-    const on = () => setHash(window.location.hash.slice(1) || "/");
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
-  }, []);
-  return hash;
-}
-
-export function navigate(path: string) {
-  window.location.hash = path;
-}
+export { navigate } from "./route";
 
 function PinGate({ onOk }: { onOk: () => void }) {
   const [pin, setValue] = useState("");

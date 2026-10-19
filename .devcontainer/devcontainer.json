@@ -1,0 +1,17 @@
+{
+  // "Öppna i Codespaces": tavlan körs i GitHubs moln för att prova – ingen egen server behövs.
+  // Inställningar och lösenord sparas i mappen data/ i din codespace (aldrig i git).
+  "name": "Familjetavla – prova i molnet",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "containerEnv": { "TZ": "Europe/Stockholm", "PORT": "8099" },
+  "postCreateCommand": "npm ci && npm run build",
+  "postAttachCommand": "node server/dist/index.js",
+  "forwardPorts": [8099],
+  "portsAttributes": {
+    "8099": { "label": "Familjetavla", "onAutoForward": "openPreview" }
+  },
+  "hostRequirements": { "cpus": 2 },
+  "customizations": {
+    "codespaces": { "openFiles": ["docs/PROVA-I-MOLNET.md"] }
+  }
+}

@@ -692,67 +692,88 @@ a.btn {
 .area-side {
   grid-area: side;
 }
-@media (min-width: 760px) {
+@media (min-width: 700px) {
   .home-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas: "now now" "week week" "side left";
   }
 }
-@media (min-width: 1180px) {
+@media (min-width: 1000px) and (min-height: 600px) {
   .home-grid {
-    grid-template-columns: 340px minmax(0, 1fr) 340px;
+    grid-template-columns: minmax(220px, 0.85fr) minmax(0, 1.3fr) minmax(220px, 0.85fr);
     grid-template-areas: "now now side" "left week side";
     grid-template-rows: auto 1fr;
   }
 }
-.col {
+.col,
+.fit-inner {
   display: flex;
   flex-direction: column;
   gap: 18px;
   min-width: 0;
 }
+.fit-inner > .wsize > * {
+  flex-shrink: 0;
+}
 
-/* Wall tablet in landscape (iPad and up): the whole home view fits the screen – read at a glance,
-   no page scrolling, nothing hidden behind the tab bar. Each column scrolls on its own if it overflows. */
-@media (min-width: 1180px) and (min-height: 700px) {
-  .board:has(> .tab-page > .home-grid) {
+/* Tablets (iPad, Android, both ways round): no page scrolling anywhere – the board, its pages and
+   tabs fit the screen, and each area shrinks its content to fit (see Fit.tsx) instead of scrolling.
+   Phones keep normal scrolling: the screen is too small to show everything readably. */
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  .board:has(> .tab-page),
+  .board:has(> .detail-page) {
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
   }
-  .board > .tab-page:has(> .home-grid) {
+  .board > .tab-page,
+  .board > .detail-page {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
   }
-  .tab-page > .home-grid {
+  .tab-page > .home-grid,
+  .tab-page > .tab-body,
+  .detail-page > .detail-body {
     flex: 1;
     min-height: 0;
+  }
+  .tab-page > .home-grid {
     grid-template-rows: auto minmax(0, 1fr);
   }
-  .home-grid > .area-left,
-  .home-grid > .area-side,
-  .home-grid > .area-week {
+  .fit {
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: none;
   }
-  .home-grid > .area-left::-webkit-scrollbar,
-  .home-grid > .area-side::-webkit-scrollbar,
-  .home-grid > .area-week::-webkit-scrollbar {
+  .fit::-webkit-scrollbar {
     display: none;
   }
-  .home-grid > .col > *,
-  .home-grid > .col > .wsize > * {
-    flex-shrink: 0;
+  /* Only when even the smallest readable size doesn't fit: fade the bottom edge as a scroll hint. */
+  .fit.fit-overflow {
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
   }
-  /* Columns of cards: keep a little room so card shadows are not cut at the edges. */
   .home-grid > .col {
     padding: 2px 2px 8px;
     margin: -2px -2px 0;
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  }
+  .home-grid > .area-week {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .area-week > .week-body {
+    flex: 1;
+  }
+}
+@media (min-width: 700px) and (max-width: 999px) and (min-height: 900px) {
+  /* Portrait tablet: Nu across the top, the week down the left half, the cards down the right. */
+  .tab-page > .home-grid {
+    grid-template-areas: "now now" "week side" "week left";
+    grid-template-rows: auto minmax(0, 1.4fr) minmax(0, 1fr);
   }
 }
 
@@ -1006,10 +1027,55 @@ a.btn {
   font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
+/* Event names wrap to two lines instead of being cut to a few letters ("F…") in a narrow column. */
 .event .title {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.2;
+}
+.event > :not(.title) {
+  flex: none;
+}
+/* A narrow week (phones): the day name goes on top so the events get the full width,
+   and an event whose name would get less than ~7 letters puts the extras on a new line. */
+@container (max-width: 480px) {
+  .day,
+  .day.big {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .day-name {
+    width: auto;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  /* Grid, not a column flexbox: Chromium sizes wrapping rows in a column flexbox too tall. */
+  .events {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .event {
+    flex-wrap: wrap;
+    border-radius: 20px;
+  }
+  .event .title {
+    flex: 1 1 7em;
+    display: block;
+  }
+  /* Extras that wrap go to the right on their own line. */
+  .event > :not(.title):last-child {
+    margin-left: auto;
+  }
 }
 .event .avatar {
   width: 22px;
@@ -1469,8 +1535,10 @@ a.btn {
 .wizard {
   max-width: 980px;
   margin: 0 auto;
+  height: 100vh;
+  height: 100dvh;
   padding-top: max(20px, env(safe-area-inset-top));
-  padding-bottom: 48px;
+  padding-bottom: 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: flex;
@@ -1634,10 +1702,22 @@ a.btn {
   background: var(--row);
   border: 1px solid var(--glass-edge);
 }
+.wizard-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  /* room for focus rings and card shadows */
+  padding: 4px 4px 24px;
+  margin: -4px -4px 0;
+}
 .wizard-nav {
-  position: sticky;
-  bottom: 0;
-  padding: 14px 0 max(14px, env(safe-area-inset-bottom));
+  flex: none;
+  padding: 12px 0 max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--glass-edge);
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -2113,9 +2193,360 @@ a.btn {
 .wsize-l {
   --wzoom: 1.18;
 }
+/* On a phone the name gets its own line rather than being squeezed under the controls. */
+.order-row {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.order-label {
+  flex: 1 1 150px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .size-select {
   width: auto;
   min-width: 92px;
   padding: 6px 8px;
   font-size: 14px;
+}
+
+/* ---------- Kort som öppnar sin egen sida ---------- */
+.opens > .card {
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.opens > .card:active {
+  transform: scale(0.985);
+}
+
+/* ---------- Sidor: Tillbaka · rubrik · Hem ---------- */
+.page-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.page-bar h1 {
+  font-size: 28px;
+  margin: 0;
+  text-align: center;
+}
+.page-bar .btn {
+  min-height: 48px;
+}
+.detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+.detail-page > .card .meal-line,
+.meal-day-card .meal-line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 18px;
+  margin-top: 8px;
+}
+.meal-day-card .meal-line svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.update-banner {
+  padding: 12px 18px;
+  border: 1px solid var(--accent);
+}
+.update-banner code {
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--row);
+}
+
+/* ---------- Skolan ---------- */
+.school-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) {
+  .school-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.lessons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+.lesson {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  font-size: 18px;
+}
+.lesson + .lesson {
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.18));
+}
+.lesson-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  min-width: 108px;
+}
+.lessons.compact .lesson {
+  font-size: 14px;
+  padding: 3px 0;
+}
+.lessons.compact .lesson-time {
+  min-width: 46px;
+  font-weight: 500;
+}
+.lesson .gym,
+.task-kind {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft, rgba(52, 224, 161, 0.18));
+}
+.task-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 17px;
+}
+.task-row + .task-row {
+  border-top: 1px solid var(--line, rgba(127, 127, 127, 0.18));
+}
+.task-kind.kind-prov {
+  background: rgba(255, 180, 60, 0.25);
+}
+.task-kind.kind-inlämning {
+  background: rgba(255, 120, 140, 0.22);
+}
+.school-week {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.school-day {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--row);
+}
+.school-day.today {
+  outline: 2px solid var(--accent);
+}
+
+/* ---------- Hos oss: fyra veckor ---------- */
+.custody-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin: 10px 0;
+}
+.cday {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 0;
+  border-radius: 10px;
+  background: var(--row);
+  opacity: 0.55;
+}
+.cday.home {
+  background: var(--accent-soft, rgba(52, 224, 161, 0.25));
+  opacity: 1;
+}
+.cday b {
+  font-size: 17px;
+}
+
+.steps-list {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 17px;
+}
+.cday-head {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.6;
+}
+
+/* Landscape tablet: the tabs become a slim rail on the left edge (like iPadOS apps),
+   giving the full screen height to the board. */
+@media (min-width: 1000px) and (min-height: 600px) and (orientation: landscape) {
+  .tabbar {
+    left: max(10px, env(safe-area-inset-left));
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    width: 84px;
+    border-radius: 28px;
+    grid-auto-flow: row;
+    grid-auto-rows: minmax(0, 1fr);
+    grid-auto-columns: auto;
+  }
+  .board:has(~ .tabbar) {
+    padding-left: calc(108px + env(safe-area-inset-left, 0px));
+    padding-bottom: max(18px, env(safe-area-inset-bottom));
+  }
+}
+.demo-only {
+  display: contents;
+}
+.more-hint {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.more-chip {
+  align-self: center;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--row);
+}
+.meals-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+.meals-grid > .card {
+  margin: 0;
+}
+.custody-cals {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+}
+.custody-cals .cday {
+  padding: 3px 0;
+}
+.custody-cals .cday b {
+  font-size: 15px;
+}
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  /* Tablet: Nu shows the two nearest things; the week and the cards carry the rest. */
+  .now-list > .now-item:nth-child(n + 3) {
+    display: none;
+  }
+}
+.fit {
+  position: relative;
+}
+.fit-more {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.fit-more .more-btn {
+  pointer-events: auto;
+  box-shadow: 0 8px 20px -10px var(--shadow);
+}
+.cards-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+}
+.week-full {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  /* The week's heading on one line on a tablet: title and Planera; the colour key is on the events themselves. */
+  .home-grid .area-week > .card-head {
+    flex-wrap: nowrap !important;
+    gap: 10px;
+  }
+  .home-grid .area-week > .card-head h2 {
+    white-space: nowrap;
+  }
+  .home-grid .area-week > .card-head .legend {
+    display: none;
+  }
+  .home-grid .area-week > .card-head .plan-btn {
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  /* Only today is extra big; the rest are regular rows so more days fit. */
+  .home-grid .day.big:not(.today) {
+    min-height: 60px;
+    padding: 10px 14px;
+  }
+  .home-grid .day.big:not(.today) .day-name b {
+    font-size: 18px;
+  }
+}
+@media (min-width: 1000px) and (min-height: 600px) and (orientation: landscape) {
+  /* Landscape tablet: a tighter Nu zone so the week below gets more height. */
+  .home-grid .now {
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+  .home-grid .now-headline {
+    font-size: 36px;
+  }
+  .home-grid .now-list {
+    gap: 6px;
+  }
+  .home-grid .now-item {
+    padding: 6px 10px;
+  }
+  .home-grid .area-week > .card-head .plan-btn {
+    font-size: 14px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+/* "Planera veckan · 3 att lösa" becomes "Planera · 3" when the week card is narrow. */
+.area-week {
+  container-type: inline-size;
+}
+.plan-short {
+  display: none;
+}
+@container (max-width: 520px) {
+  .plan-long {
+    display: none;
+  }
+  .plan-short {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+}
+.plan-count {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-weight: 700;
+  text-align: center;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+/* Very narrow week card: the icon and the count are enough (the full name is in aria-label). */
+@container (max-width: 400px) {
+  .plan-word {
+    display: none;
+  }
 }

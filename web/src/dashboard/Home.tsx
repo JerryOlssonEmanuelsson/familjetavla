@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Dashboard, Reminder } from "../../../server/src/types";
 import { api } from "../api";
+import { Fit } from "./Fit";
 import { Icon, type IconName } from "../Icon";
 import { AnimatedNumber, Avatar, EventIcon, eventLabel, TravelBadge, travelText } from "./bits";
 import type { Actions } from "./Dashboard";
@@ -110,8 +111,11 @@ function SchoolDay({ rows }: { rows: NonNullable<Dashboard["schoolDay"]> }) {
   );
 }
 
-function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["schoolFood"] }) {
-  if (!items.length && !food?.length) return null;
+export function Reminders({ items: all, food, limit }: { items: Reminder[]; food: Dashboard["schoolFood"]; limit?: number }) {
+  if (!all.length && !food?.length) return null;
+  // On the home screen: the most important few; the Kom ihåg page shows them all.
+  const items = limit ? all.slice(0, limit) : all;
+  const more = all.length - items.length;
   return (
     <section className="card strong">
       <h2>Kom ihåg</h2>
@@ -126,6 +130,7 @@ function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["school
           </div>
         </div>
       ))}
+      {more > 0 && <div className="more-hint">+{more} till – tryck för alla</div>}
       {food?.map((f, i) => (
         <div className="reminder" key={`f${i}`}>
           <div className="ico tone-green">
@@ -141,7 +146,7 @@ function Reminders({ items, food }: { items: Reminder[]; food: Dashboard["school
   );
 }
 
-function Custody({ c }: { c: NonNullable<Dashboard["custody"]> }) {
+export function Custody({ c }: { c: NonNullable<Dashboard["custody"]> }) {
   if (c.rows) {
     // Children with different rhythms: one row each, nearest change first.
     return (
@@ -174,11 +179,14 @@ function Custody({ c }: { c: NonNullable<Dashboard["custody"]> }) {
   );
 }
 
-function Shopping({ data, actions }: { data: Dashboard; actions: Actions }) {
+export function Shopping({ data, actions, limit }: { data: Dashboard; actions: Actions; limit?: number }) {
   const [text, setText] = useState("");
-  const items = data.shopping.items;
-  const open = items.filter((i) => !i.done).length;
-  const done = items.length - open;
+  const all = data.shopping.items;
+  // Home screen: the first few to buy; the Inköpslista page shows everything.
+  const items = limit ? all.filter((i) => !i.done).slice(0, limit) : all;
+  const hidden = all.filter((i) => !i.done).length - items.filter((i) => !i.done).length;
+  const open = all.filter((i) => !i.done).length;
+  const done = all.length - open;
   return (
     <section className="card" style={{ flexGrow: 1 }}>
       <div className="card-head">
@@ -188,13 +196,14 @@ function Shopping({ data, actions }: { data: Dashboard; actions: Actions }) {
         </span>
       </div>
       <div className="stack" style={{ gap: 2 }}>
-        {items.length === 0 && <p className="faint">Listan är tom.</p>}
+        {all.length === 0 && <p className="faint">Listan är tom.</p>}
         {items.map((i) => (
           <label key={i.id} className={`shop-item ${i.done ? "done" : ""}`}>
             <input type="checkbox" checked={i.done} onChange={(e) => actions.run("Inköpslistan", () => api.toggleItem(i.id, e.target.checked))} />
             <span>{i.name}</span>
           </label>
         ))}
+        {hidden > 0 && <div className="more-hint">+{hidden} till – tryck för hela listan</div>}
       </div>
       <form
         className="row gap"
@@ -283,15 +292,33 @@ function NowZone({ data, actions }: { data: Dashboard; actions: Actions }) {
   );
 }
 
-function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
+function MoreButton({ n, what, label, onClick }: { n: number; what: string; label?: string; onClick: () => void }) {
+  return (
+    <button className="btn small more-btn" onClick={onClick}>
+      +{n} {what} {label ? `– ${label}` : "till"} <Icon name="chevronRight" size={16} />
+    </button>
+  );
+}
+
+export function Week({ data, actions, full = false }: { data: Dashboard; actions: Actions; full?: boolean }) {
   return (
     <section className="card area-week week-swipe">
       <div className="card-head" style={{ flexWrap: "wrap" }}>
         <h2>Kommande 7 dagar</h2>
         {/* Always there: it is also where the week's dinners are planned, even with nothing to drive to. */}
-        <button className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`} onClick={actions.openPlan}>
+        <button
+          className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`}
+          aria-label={data.plan.missing ? `Planera veckan, ${data.plan.missing} att lösa` : "Planera veckan"}
+          onClick={() => actions.openPlan()}
+        >
           <Icon name="kids" size={18} />
-          {data.plan.missing ? `Planera veckan · ${data.plan.missing} att lösa` : data.plan.items.length ? "Planera veckan" : "Planera veckans mat"}
+          <span className="plan-long">
+            {data.plan.missing ? `Planera veckan · ${data.plan.missing} att lösa` : data.plan.items.length ? "Planera veckan" : "Planera veckans mat"}
+          </span>
+          <span className="plan-short">
+            <span className="plan-word">Planera</span>
+            {data.plan.missing ? <span className="plan-count">{data.plan.missing}</span> : null}
+          </span>
         </button>
         <div className="legend">
           {data.legend
@@ -304,7 +331,7 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
             ))}
         </div>
       </div>
-      <div className="stack" style={{ gap: 8 }}>
+      <Fit className={full ? "week-full" : "week-body"} deps={[data]} min={0.8} more={full ? undefined : (n) => <MoreButton n={n} what={n === 1 ? "dag" : "dagar"} label="visa hela veckan" onClick={() => actions.openPage("veckan")} />}>
         {data.days.map((d, di) => (
           <div key={d.key} className={`day ${d.isToday ? "today" : ""} ${di < 2 ? "big" : ""}`}>
             <div className="day-name">
@@ -313,7 +340,7 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
             </div>
             <div className="events">
               {d.events.length === 0 && <span className="empty-day">Inget inplanerat</span>}
-              {d.events.map((e, i) => (
+              {d.events.slice(0, full ? undefined : 3).map((e, i) => (
                 <button className="event" key={i} onClick={() => actions.openEvent({ ...e, dayLabel: d.name.toLowerCase() })} aria-label={eventLabel(e)}>
                   <EventIcon icon={e.icon} color={e.color} size={di < 2 ? 17 : 15} />
                   {e.time && <span className="t">{e.time}</span>}
@@ -322,10 +349,11 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
                   {e.who && e.initial && <Avatar initial={e.initial} color={e.color} name={e.who} />}
                 </button>
               ))}
+              {!full && d.events.length > 3 && <span className="more-chip">+{d.events.length - 3}</span>}
             </div>
           </div>
         ))}
-      </div>
+      </Fit>
     </section>
   );
 }
@@ -514,37 +542,41 @@ function ClimatesMini({ climates }: { climates: Dashboard["climates"] }) {
  * the "Nu" zone across the top, the week in the wide middle, the rest split between the
  * side columns. Widgets without data render nothing, so a choice never shows an empty box.
  */
+/** One home card. `full` (on the "Alla kort" page) shows lists in full instead of the home-screen summary. */
+export function renderWidget(id: Dashboard["home"][number]["id"], data: Dashboard, actions: Actions, full = false): React.ReactNode {
+  const mealsOn = data.home.some((w) => w.id === "meals" && w.on);
+  switch (id) {
+    case "reminders":
+      // With the Maten card on, the lunch lives there instead.
+      return <Reminders key={id} items={data.reminders} food={mealsOn ? undefined : data.schoolFood} limit={full ? undefined : 4} />;
+    case "meals":
+      return <Meals key={id} data={data} />;
+    case "schoolday":
+      return data.schoolDay?.length ? <SchoolDay key={id} rows={data.schoolDay} /> : null;
+    case "custody":
+      return data.custody ? <Custody key={id} c={data.custody} /> : null;
+    case "shopping":
+      return <Shopping key={id} data={data} actions={actions} limit={full ? undefined : 5} />;
+    case "prices":
+      return data.prices ? <PriceCard key={id} prices={data.prices} /> : null;
+    case "cars":
+      return <Cars key={id} cars={data.cars} />;
+    case "lights":
+      return <Lights key={id} data={{ ...data, temps: [] }} actions={actions} />;
+    case "temps":
+      return <Temps key={id} temps={data.temps} />;
+    case "energy":
+      return <EnergyMini key={id} e={data.energy} />;
+    case "climates":
+      return <ClimatesMini key={id} climates={data.climates} />;
+    default:
+      return null;
+  }
+}
+
 export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
   const mealsOn = data.home.some((w) => w.id === "meals" && w.on);
-  const render = (id: Dashboard["home"][number]["id"]): React.ReactNode => {
-    switch (id) {
-      case "reminders":
-        // With the Maten card on, the lunch lives there instead.
-        return <Reminders key={id} items={data.reminders} food={mealsOn ? undefined : data.schoolFood} />;
-      case "meals":
-        return <Meals key={id} data={data} />;
-      case "schoolday":
-        return data.schoolDay?.length ? <SchoolDay key={id} rows={data.schoolDay} /> : null;
-      case "custody":
-        return data.custody ? <Custody key={id} c={data.custody} /> : null;
-      case "shopping":
-        return <Shopping key={id} data={data} actions={actions} />;
-      case "prices":
-        return data.prices ? <PriceCard key={id} prices={data.prices} /> : null;
-      case "cars":
-        return <Cars key={id} cars={data.cars} />;
-      case "lights":
-        return <Lights key={id} data={{ ...data, temps: [] }} actions={actions} />;
-      case "temps":
-        return <Temps key={id} temps={data.temps} />;
-      case "energy":
-        return <EnergyMini key={id} e={data.energy} />;
-      case "climates":
-        return <ClimatesMini key={id} climates={data.climates} />;
-      default:
-        return null;
-    }
-  };
+  const render = (id: Dashboard["home"][number]["id"]) => renderWidget(id, data, actions);
   const chosen = data.home.filter((w) => w.on);
   const nowOn = chosen.some((w) => w.id === "now");
   const weekOn = chosen.some((w) => w.id === "week");
@@ -554,7 +586,7 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
     switch (id) {
       case "reminders": {
         const food = mealsOn ? 0 : (data.schoolFood?.length ?? 0);
-        return data.reminders.length || food ? 1 + data.reminders.length + food : 0;
+        return data.reminders.length || food ? 1 + Math.min(4, data.reminders.length) + food : 0;
       }
       case "schoolday":
         return data.schoolDay?.length ? 1 + data.schoolDay.length : 0;
@@ -566,7 +598,7 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
       case "custody":
         return data.custody ? 1 + (data.custody.rows?.length ?? 1) : 0;
       case "shopping":
-        return 2 + Math.min(6, data.shopping?.items?.length ?? 0);
+        return 2 + Math.min(5, data.shopping?.items?.filter((i) => !i.done).length ?? 0);
       case "prices":
         return data.prices ? 3 : 0;
       case "cars":
@@ -599,10 +631,24 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
   for (let i = 0; i < shown.length - 1; i++) {
     acc += shown[i].h;
     cut = i + 1;
-    if (acc >= total * 0.6) break;
+    if (acc >= total * 0.65) break;
   }
+  // A tap anywhere on a card (but not on its buttons, boxes and fields) opens its own page or tab.
+  const open = (id: string) => {
+    const page = ({ meals: "maten", schoolday: "skolan", reminders: "komihag", shopping: "inkop", custody: "hososs" } as const)[id as "meals"];
+    if (page) return actions.openPage(page);
+    const tab = ({ prices: "energy", energy: "energy", cars: "cars", lights: "lights", temps: "house", climates: "house" } as const)[id as "prices"];
+    if (tab) actions.openTab(tab);
+  };
   const rest = shown.map((w) => (
-    <div className={`wsize wsize-${w.sz}`} key={w.id}>
+    <div
+      className={`wsize wsize-${w.sz} opens`}
+      key={w.id}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("button, input, select, textarea, a, label, .no-open")) return;
+        open(w.id);
+      }}
+    >
       {render(w.id)}
     </div>
   ));
@@ -610,9 +656,13 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
   return (
     <main className="home-grid">
       {nowOn && <NowZone data={data} actions={actions} />}
-      <div className="col area-left">{rest.slice(half)}</div>
+      <Fit className="col area-left" deps={[data]} min={0.8} more={(n) => <MoreButton n={n} what="kort" onClick={() => actions.openPage("kort")} />}>
+        {rest.slice(half)}
+      </Fit>
       {weekOn ? <Week data={data} actions={actions} /> : <div className="area-week" />}
-      <div className="col area-side">{rest.slice(0, half)}</div>
+      <Fit className="col area-side" deps={[data]} min={0.8} more={(n) => <MoreButton n={n} what="kort" onClick={() => actions.openPage("kort")} />}>
+        {rest.slice(0, half)}
+      </Fit>
     </main>
   );
 }

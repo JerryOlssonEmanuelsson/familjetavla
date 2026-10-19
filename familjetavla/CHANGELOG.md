@@ -1,5 +1,20 @@
 # Ändringar
 
+## 0.8.0
+
+- **Tryck på ett kort** så öppnas dess egen sida: Maten → veckans mat, Skolan → skolsidan, Kom ihåg, Inköpslista och Hos oss (kommande fyra veckor). Elpris, bil, ljus och värme går till sina flikar. Knappar och kryssrutor i korten fungerar som vanligt.
+- **Tillbaka och Hem** överst på alla sidor och flikar. Androids bakåtknapp och webbläsarens bakåt fungerar också.
+- **Skolsidan** per barn: dagens hela schema (tid, ämne, sal), läxor, prov och inlämningar de kommande två veckorna, och veckan måndag–fredag.
+- **Ny version finns**: tavlan säger till när en nyare version är publicerad och hur man uppdaterar (tillägg eller Docker). Kollar GitHub var sjätte timme i bakgrunden; stängs av med `UPDATE_CHECK=off`.
+- **Installera som app**: knapp på tavlan och i guidens sista steg – installerar direkt där webbläsaren tillåter det, annars stegen för iPad, Android eller dator, och tips om kioskapp för väggplattan.
+- **Ingen scroll på surfplattor** (iPad och Android, liggande och stående): startsidan, sidorna och flikarna ryms alltid på skärmen. Innehållet krymper lite vid behov, men aldrig under läsbar storlek; det som inte ryms ligger bakom en knapp, t.ex. "+3 dagar – visa hela veckan" eller "+2 kort till". Liggande surfplatta får flikarna i en list till vänster så att tavlan får hela höjden. Mobilen scrollar som vanligt.
+- Startsidan visar sammanfattningar – Kom ihåg de 4 viktigaste, inköpslistan de 5 första, veckan 3 händelser per dag – och sidan bakom kortet visar allt.
+- **Prova i molnet**: knappen "Öppna i GitHub Codespaces" startar tavlan hos GitHub utan egen server, för att prova med Vklass och kalendrar.
+- **Självkontroll på alla skärmar** vid varje ändring: iPad liggande/stående, iPad mini, Android-platta liggande/stående, Android-mobil, iPhone, iPhone SE och iPhone liggande – 11 sidor var. Kontrollerar att inget hamnar bakom flikraden, att surfplattor inte scrollar, att inget sticker ut åt sidan och att inga fel uppstår.
+- Självkontrollen granskar också text: ingen text bakom eller ovanpå annan, inget kapat, i både ljust och mörkt läge, guiden och rutorna medräknade.
+- Rättat: **"String must contain at most 30 character(s)"** vid Hämta från Home Assistant. Långa namn från HA kortas nu i stället för att stoppa sparandet, och många givare eller rum ryms.
+- Rättat: aktivitetsnamn kapades till några bokstäver på smala mobiler; datum kring sommartid/vintertid i skolschemat.
+
 ## 0.7.0
 
 - Nytt kort: **Skolan idag** – när varje barn börjar och slutar ("Ella 08:10–14:30"), med Idrott-märke. Visar nästa skoldag när dagens är slut, och bara barn som bor hos er just då. Kommer från schemat i Vklass, SchoolSoft eller kalenderlänken; kvällsmöten räknas inte.

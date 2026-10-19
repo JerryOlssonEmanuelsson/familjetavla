@@ -97,8 +97,16 @@ docker compose up -d     # se docker-compose.yml
 - **Sätt en PIN** i guidens sista steg. Då kommer bara skärmar som låsts upp med PIN-koden en gång åt tavlan – inte gäster eller andra enheter på wifi:t.
 - **Uppdatera:** `docker compose pull && docker compose up -d`. Inställningarna ligger kvar i `./data`.
 
+### Prova i molnet först (ingen server behövs)
+
+[![Öppna i GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/murre87/familjetavla?quickstart=1)
+
+Startar tavlan på en tillfällig server hos GitHub – lägg in Vklass, kalendrar och resten och titta från iPad eller telefon. Home Assistant går inte att koppla in därifrån. Se [Prova i molnet](docs/PROVA-I-MOLNET.md).
+
 ## Väggplattan
 
+- **Installera som app:** tryck på installera-knappen uppe till höger på tavlan – den visar exakt hur för just din iPad, Android eller dator.
+- **Android-platta:** använd en kioskapp som **Fully Kiosk Browser** – helskärm, skärmen alltid på och start när plattan startar.
 - **Helskärm på iPad:** öppna tavlan i Safari → Dela → **Lägg till på hemskärmen**. Då öppnas den utan adressfält.
 - **Lås till tavlan:** Inställningar → Hjälpmedel → **Guidad åtkomst**. Sätt Inställningar → Skärm → Autolås till *Aldrig*, eller låt den släckas och väck den (nedan).
 - **Väck med rörelsesensor:** med HA Companion-appen kan en automation skicka en notis till plattan när rörelsesensorn i hallen triggar, så att skärmen tänds. Annars väcker man med ett tryck.

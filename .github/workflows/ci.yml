@@ -34,6 +34,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright-core install --with-deps chromium
+      - name: Alla skärmar (iPad, Android-platta, mobil, iPhone)
+        run: npm run build:demo -w web && node e2e/devices.mjs
       # Same build as the release, Chromium included.
       - run: docker build -t familjetavla-test .
       - name: Home Assistant-tillägg via ingress

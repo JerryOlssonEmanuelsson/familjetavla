@@ -7,5 +7,7 @@ import { defineConfig } from "vitest/config";
 process.env.TZ = "Europe/Stockholm";
 // Tests that save (middagar, hyllan) write to a throwaway folder, never to ./data.
 process.env.DATA_DIR = mkdtempSync(join(tmpdir(), "familjetavla-test-"));
+// No calls to GitHub for "ny version finns" from tests.
+process.env.UPDATE_CHECK = "off";
 
 export default defineConfig({ test: { include: ["src/**/*.test.ts"] } });
