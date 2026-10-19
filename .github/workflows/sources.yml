@@ -10,6 +10,8 @@ on:
   pull_request:
     paths:
       - server/src/connectors/waste.ts
+      - server/src/connectors/vklass.ts
+      - server/src/providers/school.ts
       - e2e/sources.mjs
       - .github/upstream-sources.json
       - .github/workflows/sources.yml
@@ -31,6 +33,9 @@ jobs:
       - run: npm run build -w server
       - id: run
         run: node e2e/sources.mjs
+        env:
+          VKLASS_USERNAME: ${{ secrets.VKLASS_USERNAME }}
+          VKLASS_PASSWORD: ${{ secrets.VKLASS_PASSWORD }}
         continue-on-error: true
       - name: Ärende vid problem
         if: steps.run.outcome == 'failure' && github.event_name != 'pull_request'
