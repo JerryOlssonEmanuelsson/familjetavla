@@ -170,6 +170,18 @@ function studentId($: cheerio.CheerioAPI, c: cheerio.Cheerio<any>): string | und
   return undefined;
 }
 
+/** Raw calendar items as Vklass sends them (used by the live check to see which kinds exist). */
+export async function vklassRawEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<Record<string, unknown>[]> {
+  const body = new URLSearchParams({ students: studentId, start: from.toISOString(), end: to.toISOString() });
+  const res = await follow(s.jar, `${CUSTODIAN}/Events/FullCalendar`, {
+    method: "POST",
+    body,
+    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json, text/html" },
+  });
+  if (!res.ok) throw new Error(`Vklass kalender svarade ${res.status}`);
+  return (await res.json()) as Record<string, unknown>[];
+}
+
 export async function vklassEvents(s: VklassSession, studentId: string, from: Date, to: Date): Promise<CalEvent[]> {
   const body = new URLSearchParams({ students: studentId, start: from.toISOString(), end: to.toISOString() });
   const res = await follow(s.jar, `${CUSTODIAN}/Events/FullCalendar`, {
