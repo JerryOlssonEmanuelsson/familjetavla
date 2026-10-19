@@ -84,11 +84,24 @@ export function TravelBadge({ t }: { t?: DashTravel }) {
         <Icon name="car" size={14} />?
       </span>
     );
+  // Who drives, so everyone sees the week's plan: "Elin ⇄", "Elin → · ← Buss".
+  const short = (l: NonNullable<DashTravel["to"]>) => l.label.replace(/ skjutsar$/, "");
+  const same = t.to && t.home && t.to.label === t.home.label;
   return (
-    <span className="travel-badge" title={travelText(t)}>
-      {t.to && <Icon name={travelIcon(t.to.mode)} size={14} />}
-      <i aria-hidden="true">⇄</i>
-      {t.home && <Icon name={travelIcon(t.home.mode)} size={14} />}
+    <span className="travel-badge" title={travelText(t)} aria-label={travelText(t)}>
+      {t.to && (
+        <>
+          <Icon name={travelIcon(t.to.mode)} size={14} />
+          <b>{short(t.to)}</b>
+        </>
+      )}
+      <i aria-hidden="true">{same ? "⇄" : t.to && t.home ? "→ ←" : t.to ? "→" : "←"}</i>
+      {t.home && !same && (
+        <>
+          <Icon name={travelIcon(t.home.mode)} size={14} />
+          <b>{short(t.home)}</b>
+        </>
+      )}
     </span>
   );
 }
@@ -98,7 +111,7 @@ export function travelText(t?: DashTravel): string {
   if (!t || (!t.to && !t.home)) return "";
   if (t.kind === "care") return [t.to && `${t.to.label} lämnar`, t.home && `${t.home.label} hämtar`].filter(Boolean).join(" · ");
   if (t.to && t.home && t.to.label === t.home.label) return `${t.to.label} dit och hem`;
-  const low = (s: string) => (/^\p{Lu}\p{Ll}+ skjutsar/u.test(s) ? s : s[0].toLowerCase() + s.slice(1));
+  const low = (s: string) => (/ skjutsar$/.test(s) ? s : s[0].toLowerCase() + s.slice(1));
   return [t.to && `${t.to.label} dit`, t.home && `${low(t.home.label)} hem`]
     .filter(Boolean)
     .join(" · ")

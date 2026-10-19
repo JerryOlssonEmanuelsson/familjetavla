@@ -20,6 +20,12 @@ export interface CarDetails {
   total: number;
   rows: { entityId: string; name: string; value: string; group: string; ok: boolean; note?: string; domain: string }[];
   actions: { entityId: string; name: string; domain: string; state: string }[];
+  charging?: {
+    switch?: { entityId: string; name: string; on: boolean };
+    start?: { entityId: string; name: string };
+    stop?: { entityId: string; name: string };
+    schedule: { entityId: string; name: string; value: string }[];
+  };
 }
 
 export interface GraphData {

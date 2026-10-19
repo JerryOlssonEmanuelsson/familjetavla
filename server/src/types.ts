@@ -362,6 +362,8 @@ export interface DashEvent {
   source?: string;
   /** Finns på barnens aktiviteter: valt sätt dit och hem. */
   travel?: DashTravel;
+  /** Beskrivningen från kalendern (samlingstid, vad som behövs …). */
+  description?: string;
 }
 
 export interface MealDay {
@@ -430,6 +432,8 @@ export interface Dashboard {
   };
   /** Valen i "Dit/Hem" för barnens aktiviteter. */
   travelOptions: { mode: TravelMode; label: string }[];
+  /** Others who drive ("Marina", "Ola"), most recent first. */
+  knownDrivers: string[];
   /** "Nu"-zonen: det som händer de närmaste timmarna. */
   now: {
     headline: string;

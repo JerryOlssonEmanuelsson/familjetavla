@@ -211,8 +211,8 @@ describe("dit/hem för barnens aktiviteter", () => {
   });
 
   it("listar vuxna först och sedan buss/skjuts", () => {
-    expect(travelOptions(people).map((o) => o.label)).toEqual(["Emil skjutsar", "Blir skjutsad", "Buss", "Cyklar/går"]);
-    expect(legLabel({ mode: "ride", by: "Saras pappa" }, people)).toBe("Skjuts med Saras pappa");
+    expect(travelOptions(people).map((o) => o.label)).toEqual(["Emil skjutsar", "Annan skjutsar", "Buss", "Cyklar/går"]);
+    expect(legLabel({ mode: "ride", by: "Saras pappa" }, people)).toBe("Saras pappa skjutsar");
   });
 
   it("eget val vinner över kalenderns standard", () => {

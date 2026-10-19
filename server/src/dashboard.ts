@@ -21,7 +21,7 @@ import {
 import { listPhotos, loadConfig, loadLocalList } from "./store.js";
 import { buildPlan, careAt, needsAttention } from "./plan.js";
 import { buildMeals, loadDinners, loadShelf, mealFavorites, sameAsLunch } from "./meals.js";
-import { isCare, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
+import { isCare, knownDrivers, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
 import {
   addDays,
   daysBetween,
@@ -162,7 +162,27 @@ function toDash(ev: SourcedEvent, people: Map<string, Person>, travel?: TravelCt
     category: ev.category,
     icon: ev.gym ? "gym" : activityIcon(`${ev.title} ${ev.sourceName ?? ""}`, ev.category),
     location: ev.location,
+    description: cleanDescription(ev.description, ev.title),
   };
+}
+
+/** Calendar notes as plain text: no HTML, no Teams/Meet boilerplate, at most ~1500 characters. */
+function cleanDescription(raw: string | undefined, title: string): string | undefined {
+  if (!raw) return undefined;
+  const t = raw
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (!t || t === title) return undefined;
+  return t.length > 1500 ? `${t.slice(0, 1500).trimEnd()}…` : t;
 }
 
 /** One letter, or two when two people share the first letter (Emil/Ella → Em/El). */
@@ -304,6 +324,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     },
     now: buildNow(withCare, people, now, travelCtx),
     travelOptions: travelOptions(people),
+    knownDrivers: knownDrivers(),
     people: cfg.people.map((p) => ({
       name: p.name,
       color: p.color,

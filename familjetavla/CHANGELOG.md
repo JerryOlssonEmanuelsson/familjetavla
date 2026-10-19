@@ -1,5 +1,13 @@
 # Ändringar
 
+## 0.8.4
+
+- **Skriv in vem som skjutsar.** Välj "Annan skjutsar" och skriv namnet – t.ex. Marina, Ola eller Therese. Namnen sparas och kommer upp som knappar nästa gång, både i händelsen och i Planera veckan.
+- **Veckan visar vem som kör.** Vid varje träning står namnet på den som skjutsar dit och hem ("Emil ⇄", "Emil → ← Marina"), så alla ser veckans planering direkt på startsidan.
+- **All info från kalendern.** Tryck på en händelse så visas kalenderns anteckningar (t.ex. "Samling 11:50", vad man ska ta med), med klickbara länkar. Platsen öppnas i kartan.
+- **Svar när du tänder och släcker.** Efter varje tryck på en lampa eller ett rum kollar tavlan att det faktiskt hände: "✓ Taklampa tänd" – eller "⚠ Taklampa svarade inte – är den offline eller strömlös?".
+- **Starta och stoppa laddningen av bilen** från bilsidan, om bilens integration i Home Assistant har en laddknapp. Bilens eget laddschema (schemalagd laddning, billigaste timmarna, klar till avgång) visas under.
+
 ## 0.8.3
 
 - **Läxor och prov från Vklass** syns på skolsidan under läxor, prov och inlämningar (Vklass "Uppgifter"), i stället för att blandas in bland lektionerna.

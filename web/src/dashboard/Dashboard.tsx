@@ -40,8 +40,8 @@ function readThemeOverride(): "dark" | "light" | null {
 }
 
 export interface Actions {
-  refresh: () => Promise<void>;
-  run: (label: string, fn: () => Promise<unknown>) => Promise<void>;
+  refresh: () => Promise<unknown>;
+  run: (label: string, fn: () => Promise<unknown>, verify?: Verify) => Promise<void>;
   /** Like run, but asks "Är du säker?" first – for heating, locks and similar. */
   confirm: (question: string, label: string, fn: () => Promise<unknown>) => void;
   openGrocery: () => void;
@@ -52,6 +52,14 @@ export interface Actions {
   /** Open a card's own page (Veckans mat, Skolan …) or one of the tabs. */
   openPage: (page: PageId) => void;
   openTab: (tab: Tab) => void;
+}
+
+/** After an action: what to say when it worked, and how to tell from fresh data that it really did. */
+export interface Verify {
+  done: string;
+  check: (d: Dash) => boolean;
+  /** Shown instead of the warning when the state did not change in time. */
+  slow?: string;
 }
 
 const SKY_ICON: Record<string, IconName> = { clear: "sun", partly: "partly", cloudy: "cloud", rain: "rain", snow: "snow", fog: "cloud" };
@@ -101,6 +109,25 @@ function IdleFrame({ data, clock, onWake }: { data: Dash; clock: string; onWake:
   );
 }
 
+/** The calendar's own notes ("Samling 11:50 …"), line breaks kept and links clickable. */
+function EventText({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s<>"]+)/g);
+  return (
+    <div className="event-text">
+      {parts.map((p, i) =>
+        /^https?:\/\//.test(p) ? (
+          <a key={i} href={p} target="_blank" rel="noreferrer">
+            {p.replace(/^https?:\/\/(www\.)?/, "").slice(0, 40)}
+            {p.length > 48 ? "…" : ""}
+          </a>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </div>
+  );
+}
+
 /** Latest copy of an event (after a travel change the dashboard is reloaded). */
 function findEvent(data: Dash, key: string): DashEvent | undefined {
   for (const day of data.days) for (const e of day.events) if (e.travel?.key === key) return e;
@@ -109,19 +136,52 @@ function findEvent(data: Dash, key: string): DashEvent | undefined {
 
 const MODE_ICON = (mode: string): IconName => (mode === "bus" ? "bus" : mode === "self" ? "bike" : "car");
 
+/** "Vem skjutsar?" – earlier names as chips plus free text (Marina, Ola, Therese …). */
+function RideBy({ by, drivers, onPick }: { by?: string; drivers: string[]; onPick: (by: string | undefined) => void }) {
+  const [text, setText] = useState(by ?? "");
+  useEffect(() => setText(by ?? ""), [by]);
+  const commit = () => text.trim() !== (by ?? "") && onPick(text.trim() || undefined);
+  return (
+    <div className="ride-by">
+      {drivers.length > 0 && (
+        <div className="fav-chips">
+          {drivers.map((n) => {
+            const on = n.toLowerCase() === (by ?? "").toLowerCase();
+            return (
+              <button key={n} className={`chip-btn ${on ? "on" : ""}`} aria-pressed={on} onClick={() => onPick(on ? undefined : n)}>
+                {on && <Icon name="check" size={14} />} {n}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <input
+        className="input"
+        placeholder="Vem skjutsar? Skriv ett namn"
+        value={text}
+        maxLength={40}
+        enterKeyHint="done"
+        onChange={(x) => setText(x.target.value)}
+        onBlur={commit}
+        onKeyDown={(x) => x.key === "Enter" && (x.currentTarget as HTMLInputElement).blur()}
+      />
+    </div>
+  );
+}
+
 function TravelPicker({
   label,
   leg,
   options,
+  drivers,
   onPick,
 }: {
   label: string;
   leg?: TravelLeg;
   options: Dash["travelOptions"];
+  drivers: string[];
   onPick: (leg: TravelLeg | undefined) => void;
 }) {
-  const [by, setBy] = useState(leg?.by ?? "");
-  useEffect(() => setBy(leg?.by ?? ""), [leg?.by]);
   return (
     <div className="travel-pick">
       <div className="travel-pick-label">
@@ -137,24 +197,15 @@ function TravelPicker({
               role="radio"
               aria-checked={on}
               className={`seg-btn ${on ? "on" : ""}`}
-              onClick={() => onPick(on ? undefined : { mode: o.mode, ...(o.mode === "ride" && by ? { by } : {}) })}
+              onClick={() => onPick(on ? undefined : { mode: o.mode })}
             >
               <Icon name={MODE_ICON(o.mode)} size={18} />
-              {o.label}
+              {o.mode === "ride" && on && leg?.by ? (o.label.endsWith(" skjutsar") ? `${leg.by} skjutsar` : leg.by) : o.label}
             </button>
           );
         })}
       </div>
-      {leg?.mode === "ride" && (
-        <input
-          className="input"
-          placeholder="Med vem? (valfritt)"
-          value={by}
-          maxLength={40}
-          onChange={(x) => setBy(x.target.value)}
-          onBlur={() => by !== (leg.by ?? "") && onPick({ mode: "ride", ...(by.trim() ? { by: by.trim() } : {}) })}
-        />
-      )}
+      {leg?.mode === "ride" && <RideBy by={leg.by} drivers={drivers} onPick={(by) => onPick({ mode: "ride", ...(by ? { by } : {}) })} />}
     </div>
   );
 }
@@ -162,7 +213,7 @@ function TravelPicker({
 const SHELF_ITEMS = ["Blöjor", "Extrakläder", "Regnkläder", "Stövlar", "Mössa och vantar", "Våtservetter", "Solkräm", "Napp"];
 
 /** "Saknas på hyllan": tap what the staff said was missing; it stays in Kom ihåg until tapped off. */
-function ShelfPicker({ data, personId, onChanged }: { data: Dash; personId: string; onChanged: () => Promise<void> }) {
+function ShelfPicker({ data, personId, onChanged }: { data: Dash; personId: string; onChanged: () => Promise<unknown> }) {
   const current = data.shelf.find((s) => s.personId === personId)?.items ?? [];
   const toggle = async (item: string) => {
     const next = current.includes(item) ? current.filter((x) => x !== item) : [...current, item];
@@ -197,12 +248,14 @@ function MiniPick({
   leg,
   options,
   onPick,
+  drivers = [],
   busy = [],
 }: {
   label: string;
   leg?: TravelLeg;
   options: Dash["travelOptions"];
   onPick: (l: TravelLeg | undefined) => void;
+  drivers?: string[];
   busy?: { personId: string; title: string }[];
 }) {
   const busyOf = (mode: string) => busy.find((b) => mode === `adult:${b.personId}`);
@@ -223,12 +276,13 @@ function MiniPick({
               title={b ? `Upptagen: ${b.title}` : undefined}
               onClick={() => onPick(on ? undefined : { mode: o.mode })}
             >
-              {o.label}
+              {o.mode === "ride" && on && leg?.by ? leg.by : o.label}
               {b && <span aria-label="upptagen"> ⚠</span>}
             </button>
           );
         })}
       </div>
+      {leg?.mode === "ride" && <RideBy by={leg.by} drivers={drivers} onPick={(by) => onPick({ mode: "ride", ...(by ? { by } : {}) })} />}
       {busy.length > 0 && (
         <small className="busy-note">
           {busy.map((b) => `${options.find((o) => o.mode === `adult:${b.personId}`)?.label ?? "?"}: ${b.title}`).join(" · ")}
@@ -247,7 +301,7 @@ function MealRow({
 }: {
   day: Dash["meals"][number];
   favorites: Dash["mealFavorites"];
-  onChanged: () => Promise<void>;
+  onChanged: () => Promise<unknown>;
   toast: (m: string) => void;
 }) {
   const [dinner, setDinner] = useState(day.dinner ?? "");
@@ -345,7 +399,7 @@ function MealRow({
 }
 
 /** "Planera veckan": everything in the next 7 days that needs someone, one tap per choice. */
-function PlanSheet({ data, onClose, onChanged, toast, startTab = "who" }: { data: Dash; onClose: () => void; onChanged: () => Promise<void>; toast: (m: string) => void; startTab?: "who" | "food" }) {
+function PlanSheet({ data, onClose, onChanged, toast, startTab = "who" }: { data: Dash; onClose: () => void; onChanged: () => Promise<unknown>; toast: (m: string) => void; startTab?: "who" | "food" }) {
   const [tab, setTab] = useState<"who" | "food">(startTab);
   const [busy, setBusy] = useState("");
   const [onlyMissing, setOnlyMissing] = useState(data.plan.missing > 0);
@@ -421,8 +475,8 @@ function PlanSheet({ data, onClose, onChanged, toast, startTab = "who" }: { data
                         <span className="grow">{i.title.replace(/^Lämning · /, "")}</span>
                         {i.initial && <Avatar initial={i.initial} color={i.color} name={i.who} />}
                       </div>
-                      <MiniPick label={care ? "Lämnar" : "Dit"} leg={cur.to} options={opts} busy={i.busy?.filter((b) => b.leg === "to")} onPick={(to) => save(t.key, { ...cur, to })} />
-                      <MiniPick label={care ? "Hämtar" : "Hem"} leg={cur.home} options={opts} busy={i.busy?.filter((b) => b.leg === "home")} onPick={(home) => save(t.key, { ...cur, home })} />
+                      <MiniPick label={care ? "Lämnar" : "Dit"} leg={cur.to} options={opts} drivers={data.knownDrivers ?? []} busy={i.busy?.filter((b) => b.leg === "to")} onPick={(to) => save(t.key, { ...cur, to })} />
+                      <MiniPick label={care ? "Hämtar" : "Hem"} leg={cur.home} options={opts} drivers={data.knownDrivers ?? []} busy={i.busy?.filter((b) => b.leg === "home")} onPick={(home) => save(t.key, { ...cur, home })} />
                       {t.calendarId && t.to && t.home && !t.fromCalendar && (
                         <button className="btn small ghost" style={{ justifySelf: "start" }} onClick={() => save(t.key, cur, true)}>
                           {care ? `Gör till standard för ${i.who}` : `Alltid så för ${t.calendarName ?? "kalendern"}`}
@@ -450,7 +504,7 @@ function EventSheet({
   e: DashEvent & { dayLabel?: string };
   data: Dash;
   onClose: () => void;
-  onChanged: () => Promise<void>;
+  onChanged: () => Promise<unknown>;
 }) {
   const fresh = initial.travel ? findEvent(data, initial.travel.key) : undefined;
   const e = { ...initial, ...(fresh ? { travel: fresh.travel } : {}) };
@@ -499,16 +553,19 @@ function EventSheet({
           {e.location && (
             <div className="row gap">
               <Icon name="pin" size={20} />
-              <span>{e.location}</span>
+              <a className="event-place" href={`https://maps.google.com/?q=${encodeURIComponent(e.location)}`} target="_blank" rel="noreferrer">
+                {e.location}
+              </a>
             </div>
           )}
+          {e.description && <EventText text={e.description} />}
         </div>
         {care && t?.calendarId && <ShelfPicker data={data} personId={t.calendarId.slice(5)} onChanged={onChanged} />}
         {t && (
           <div className={`travel-box ${busy ? "busy" : ""}`}>
             <h3>{care ? `Vem lämnar och hämtar ${e.who || "barnet"}?` : `Hur tar sig ${e.who || "barnet"} dit och hem?`}</h3>
-            <TravelPicker label={care ? "Lämnar" : "Dit"} leg={current.to} options={options} onPick={(to) => save({ ...current, to })} />
-            <TravelPicker label={care ? "Hämtar" : "Hem"} leg={current.home} options={options} onPick={(home) => save({ ...current, home })} />
+            <TravelPicker label={care ? "Lämnar" : "Dit"} leg={current.to} options={options} drivers={data.knownDrivers ?? []} onPick={(to) => save({ ...current, to })} />
+            <TravelPicker label={care ? "Hämtar" : "Hem"} leg={current.home} options={options} drivers={data.knownDrivers ?? []} onPick={(home) => save({ ...current, home })} />
             <div className="row gap wrap travel-foot">
               <span className="muted grow">
                 {t.fromCalendar ? (care ? "Brukar vara så." : `Standard för ${t.calendarName ?? "kalendern"}.`) : t.to || t.home ? (care ? "Gäller bara den här dagen." : "Gäller bara det här tillfället.") : "Inget valt än."}
@@ -603,12 +660,15 @@ export function Dashboard() {
   const toastTimer = useRef<number>(0);
   const lastTouch = useRef(Date.now());
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<Dash | null> => {
     try {
-      setData(await api.dashboard());
+      const d = await api.dashboard();
+      setData(d);
       setError("");
+      return d;
     } catch (e) {
       setError((e as Error).message);
+      return null;
     }
   }, []);
 
@@ -656,12 +716,20 @@ export function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const run: Actions["run"] = async (label, fn) => {
+  // Home Assistant accepts the call before the lamp has switched, so check the state again a
+  // few times and say clearly whether it worked.
+  const run: Actions["run"] = async (label, fn, verify) => {
     try {
       await fn();
-      await refresh();
+      let d = await refresh();
+      if (!verify) return;
+      for (let i = 0; i < 4 && d && !verify.check(d); i++) {
+        await new Promise((r) => setTimeout(r, 800));
+        d = await refresh();
+      }
+      showToast(d && verify.check(d) ? `✓ ${verify.done}` : (verify.slow ?? `⚠ ${label} svarade inte – är den offline eller strömlös?`));
     } catch (e) {
-      showToast(`${label}: ${(e as Error).message}`);
+      showToast(`⚠ ${label}: ${(e as Error).message}`);
     }
   };
   const actions: Actions = {

@@ -226,6 +226,8 @@ export interface LocalFile {
   shelf?: Record<string, string[]>;
   /** Dit/hem-val per händelse, nyckel = travelKey(). */
   travel?: Record<string, import("./types.js").TravelChoice>;
+  /** Andra som skjutsar ("Marina", "Ola"), senast använd först – snabbval i Planera veckan. */
+  drivers?: string[];
 }
 
 export function loadLocal(): LocalFile {

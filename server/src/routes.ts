@@ -9,7 +9,7 @@ import { geocode } from "./connectors/weather.js";
 import { buildDashboard, gatherFamily } from "./dashboard.js";
 import { duties, dutiesIcs } from "./plan.js";
 import { saveDinner, saveShelf } from "./meals.js";
-import { carActions, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
+import { carActions, carCharging, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
 import { haSocket } from "./connectors/haws.js";
 import { publishToHa } from "./publisher.js";
@@ -679,7 +679,7 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const { car, ents, deviceName } = await carDevice(Number((req.params as { index: string }).index));
       const rows = carRows(ents, deviceName);
-      return { name: car.name, valid: rows.filter((r) => r.ok).length, total: rows.length, rows, actions: carActions(ents, deviceName) };
+      return { name: car.name, valid: rows.filter((r) => r.ok).length, total: rows.length, rows, actions: carActions(ents, deviceName), charging: carCharging(ents, deviceName) };
     } catch (e) {
       return fail(reply, e);
     }

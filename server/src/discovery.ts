@@ -283,3 +283,42 @@ export function carActions(ents: HaEntityInfo[], deviceName: string) {
     .map((x) => ({ entityId: x.e, name: strip(x.n), domain: domain(x.e), state: x.st }))
     .sort((a, b) => a.name.localeCompare(b.name, "sv"));
 }
+
+/**
+ * Charging on the car's own device: a switch or start/stop buttons to charge now, and whatever
+ * schedule the integration exposes (scheduled charging, departure time, off-peak …). Read as is.
+ */
+/** "2026-10-20T06:30:00+02:00" → "tis 06:30", "on" → "På", "07:15:00" → "07:15". */
+export function niceState(st: string, unit?: string | null): string {
+  if (st === "on") return "På";
+  if (st === "off") return "Av";
+  if (/^\d{2}:\d{2}:\d{2}$/.test(st)) return st.slice(0, 5);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(st)) {
+    const d = new Date(st);
+    if (!Number.isNaN(d.getTime()))
+      return d.toLocaleString("sv-SE", { weekday: "short", hour: "2-digit", minute: "2-digit", timeZone: process.env.TZ || "Europe/Stockholm" });
+  }
+  return `${st}${unit ? ` ${unit}` : ""}`;
+}
+
+export function carCharging(ents: HaEntityInfo[], deviceName: string) {
+  const strip = (n: string) => (deviceName && n.startsWith(deviceName) ? n.slice(deviceName.length).trim() || n : n);
+  const live = ents.filter((x) => x.st !== "unavailable");
+  const label = (x: HaEntityInfo) => `${x.n} ${x.e}`;
+  const isCharge = (x: HaEntityInfo) => /charg|ladd/i.test(label(x)) && !/port|lucka|limit|gräns|amp|cable|kabel|current|ström/i.test(label(x));
+  const SCHEDULE = /schedul|departure|avgång|off.?peak|laddschema|schema|charge.*(start|end|time)|ladd.*(start|slut|tid)|ready.?by|klar/i;
+  const sw = live.find((x) => domain(x.e) === "switch" && isCharge(x) && !SCHEDULE.test(label(x)));
+  const start = live.find((x) => domain(x.e) === "button" && /start/i.test(label(x)) && isCharge(x));
+  const stop = live.find((x) => domain(x.e) === "button" && /stop/i.test(label(x)) && isCharge(x));
+  const schedule = live
+    .filter((x) => ["sensor", "time", "datetime", "select", "switch", "binary_sensor", "number", "input_datetime"].includes(domain(x.e)) && x.e !== sw?.e && SCHEDULE.test(label(x)))
+    .map((x) => ({ entityId: x.e, name: strip(x.n), value: niceState(x.st, x.u) }))
+    .sort((a, b) => a.name.localeCompare(b.name, "sv"))
+    .slice(0, 12);
+  return {
+    switch: sw ? { entityId: sw.e, name: strip(sw.n), on: sw.st === "on" } : undefined,
+    start: start ? { entityId: start.e, name: strip(start.n) } : undefined,
+    stop: stop ? { entityId: stop.e, name: strip(stop.n) } : undefined,
+    schedule,
+  };
+}
