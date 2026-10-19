@@ -64,11 +64,18 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     },
   });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data: { error?: string; code?: string } | null = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    // An HTML error page, e.g. from Home Assistant while the add-on restarts.
+    if (!res.ok) throw new ApiError(res.status, res.status >= 500 ? "Tavlan startar om eller går inte att nå just nu." : `Fel ${res.status}`);
+    throw new ApiError(res.status, "Oväntat svar från servern.");
+  }
   // The screen was un-paired (e.g. "Glöm alla skärmar"): start over so the app shows the unlock screen.
   if (res.status === 401 && data?.code === "pair" && path !== "config" && !path.startsWith("auth/")) location.reload();
   if (!res.ok) throw new ApiError(res.status, data?.error ?? `Fel ${res.status}`);
-  return data as T;
+  return data as unknown as T;
 }
 
 const post = <T>(path: string, body: unknown = {}) => request<T>(path, { method: "POST", body: JSON.stringify(body) });

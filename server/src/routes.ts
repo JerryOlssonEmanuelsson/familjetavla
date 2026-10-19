@@ -35,7 +35,8 @@ import { readFileSync } from "node:fs";
 import { addDays, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
-export const VERSION = "0.6.0";
+export { VERSION } from "./version.js";
+import { VERSION } from "./version.js";
 const ID = /^[a-z0-9-]{1,40}$/;
 const SUPERVISOR_IP = "172.30.32.2";
 
@@ -317,12 +318,13 @@ export async function registerRoutes(app: FastifyInstance) {
     const parsed = configSchema.safeParse(body?.config);
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
-      return fail(reply, new Error(`Ogiltiga inställningar: ${issue?.path.join(".")} ${issue?.message}`));
+      return fail(reply, new Error(readableIssue(issue?.path ?? [], issue?.message ?? "")));
     }
     const prev = loadConfig();
     const next = parsed.data as unknown as Config;
     for (const [k, v] of Object.entries(body.secrets ?? {})) {
       if (!isUserSecret(k, next)) return fail(reply, new Error(`Okänd hemlighet ${k}`));
+      if (k === "admin.pin" && v && !/^\d{4,8}$/.test(String(v))) return fail(reply, new Error("PIN-koden ska vara 4–8 siffror."));
     }
     for (const [k, v] of Object.entries(body.secrets ?? {})) setSecret(k as SecretKey, v);
     // Setting a PIN here must not lock out the screen doing it.
@@ -939,4 +941,16 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     return { ok: true };
   });
+}
+
+/** "people.1.name String must contain…" → "Person 2 saknar namn." */
+function readableIssue(path: (string | number)[], message: string): string {
+  const [area, i, field] = path;
+  const n = typeof i === "number" ? i + 1 : undefined;
+  const what: Record<string, string> = { people: "Person", calendars: "Kalender", integrations: "Koppling", schedules: "Schema" };
+  if (typeof area === "string" && what[area] && n) {
+    if (field === "name") return `${what[area]} ${n} saknar namn.`;
+    return `${what[area]} ${n}: något är inte rätt ifyllt (${path.slice(2).join(".")}).`;
+  }
+  return `Något är inte rätt ifyllt (${path.join(".") || "inställningar"}: ${message}).`;
 }

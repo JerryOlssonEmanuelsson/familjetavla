@@ -825,7 +825,21 @@ export function buildCareEvents(
 
 /** "2 saker de närmaste dagarna saknar ansvarig" – only what is close (today and tomorrow). */
 export function planReminder(plan: Dashboard["plan"], now: Date): Reminder[] {
-  const soon = plan.items.filter((i) => needsAttention(i) && (i.dayLabel === "idag" || i.dayLabel === "imorgon"));
+  // Today, only what is still ahead: a drop-off at 07:30 is not worth a nag at noon.
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const at = (t?: string) => (t && /^\d{1,2}:\d{2}$/.test(t) ? Number(t.split(":")[0]) * 60 + Number(t.split(":")[1]) : undefined);
+  const stillAhead = (i: (typeof plan.items)[number]) => {
+    if (i.dayLabel !== "idag") return needsAttention(i);
+    const start = at(i.time);
+    const end = at(i.end) ?? start;
+    if (end !== undefined && end < mins) return false;
+    if (start !== undefined && start < mins) {
+      // Already dropped off: only the way home can still need someone.
+      return !i.travel.home || (i.busy ?? []).some((b) => b.leg === "home" && i.travel.home?.mode === `adult:${b.personId}`);
+    }
+    return needsAttention(i);
+  };
+  const soon = plan.items.filter((i) => (i.dayLabel === "idag" || i.dayLabel === "imorgon") && stillAhead(i));
   if (!soon.length) return [];
   const first = soon[0];
   return [

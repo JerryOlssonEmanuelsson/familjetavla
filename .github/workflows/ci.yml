@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The release runs these same checks first and only publishes if they pass.
+  workflow_call:
 
 jobs:
   test:
@@ -19,18 +21,58 @@ jobs:
       - run: npm test
       - run: npm run build
 
-  # Build the real image and start it, so a missing runtime package is caught before release.
-  docker:
+  # Build the real image and use it like a family would: as a Home Assistant add-on behind
+  # ingress (with a stand-in Supervisor at the Supervisor's address) and as a plain Docker
+  # container. A real browser goes through the setup guide and the board.
+  e2e:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build --build-arg WITH_CHROMIUM=false -t familjetavla-test .
-      - name: Start the image and wait for it to answer
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      # Same build as the release, Chromium included.
+      - run: docker build -t familjetavla-test .
+      - name: Home Assistant-tillägg via ingress
         run: |
-          docker run -d --name ft -p 8099:8099 familjetavla-test
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8099/ > /dev/null; then echo "up"; exit 0; fi
-            sleep 2
-          done
-          docker logs ft
-          exit 1
+          wait_for() { for i in $(seq 1 45); do curl -fsS -o /dev/null "$1" && return 0; sleep 2; done; echo "svarar inte: $1"; return 1; }
+          docker network create --subnet 172.30.32.0/23 hassio
+          docker run -d --name supervisor --network hassio --ip 172.30.32.2 --network-alias supervisor -p 8123:80 \
+            -v "$PWD/e2e:/e2e:ro" -e ADDON_URL=http://familjetavla:8099 -e HA_TOKEN=e2e-supervisor-token \
+            node:22-slim node /e2e/mock-supervisor.mjs
+          docker run -d --name familjetavla --network hassio --ip 172.30.33.10 --network-alias familjetavla \
+            -e SUPERVISOR_TOKEN=e2e-supervisor-token -v addon-data:/data familjetavla-test
+          wait_for http://localhost:8123/api/hassio_ingress/e2e-token/
+          node e2e/run.mjs http://localhost:8123/api/hassio_ingress/e2e-token/ addon
+          docker restart familjetavla
+          wait_for http://localhost:8123/api/hassio_ingress/e2e-token/
+          EXPECT_TEXT="Middag hos mormor" node e2e/run.mjs http://localhost:8123/api/hassio_ingress/e2e-token/ restart
+          echo "Anrop till Home Assistant:"; curl -fsS http://localhost:8123/__calls; echo
+      - name: Inne i imagen
+        run: |
+          echo "Chromium (för Willys/Hemköp) startar med Playwright:"
+          docker exec -w /app familjetavla node --input-type=module -e "
+            import { chromium } from 'playwright-core';
+            const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox'] });
+            const p = await b.newPage(); await p.setContent('<h1>ok</h1>');
+            console.log('chromium', b.version(), await p.textContent('h1')); await b.close();"
+          echo "Stängs snabbt vid stopp (SIGTERM):"
+          start=$(date +%s); docker stop familjetavla > /dev/null; took=$(( $(date +%s) - start ))
+          echo "docker stop tog ${took}s"; test "$took" -le 5
+      - name: Docker på port 8099 utan Home Assistant
+        run: |
+          docker run -d --name ft-docker -p 8099:8099 -v docker-data:/data familjetavla-test
+          for i in $(seq 1 45); do curl -fsS -o /dev/null http://localhost:8099/ && break; sleep 2; done
+          node e2e/run.mjs http://localhost:8099/ docker
+      - name: Loggar
+        if: always()
+        run: |
+          for c in familjetavla ft-docker supervisor; do echo "=== $c"; docker logs "$c" 2>&1 | tail -60 || true; done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: skarmbilder
+          path: e2e/shots

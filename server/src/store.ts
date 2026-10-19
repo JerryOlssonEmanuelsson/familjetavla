@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync, chmodSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync, writeSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 import { HOME_WIDGETS, TAB_IDS, type Config, type SecretKey } from "./types.js";
 
@@ -47,20 +47,47 @@ function ensureDir() {
   if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 }
 
+/** Write to a temp file, flush it to disk, then rename – a power cut leaves the old or the new file, never half. */
 function writeAtomic(file: string, data: string, mode?: number) {
   ensureDir();
   const tmp = `${file}.tmp`;
-  writeFileSync(tmp, data, { encoding: "utf8", mode });
+  const fd = openSync(tmp, "w", mode ?? 0o644);
+  try {
+    writeSync(fd, data, null, "utf8");
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  if (mode !== undefined) chmodSync(tmp, mode);
   renameSync(tmp, file);
 }
 
-function readJson<T>(file: string, fallback: T): T {
+/**
+ * Missing file → fallback. A file that can't be read as the expected shape is kept aside as
+ * <file>.corrupt-<time> (so nothing is lost when the next save overwrites it) and the fallback used.
+ */
+function readJson<T>(file: string, fallback: T, isValid: (v: unknown) => boolean = () => true): T {
+  if (!existsSync(file)) return fallback;
+  let raw = "";
   try {
-    return JSON.parse(readFileSync(file, "utf8")) as T;
+    raw = readFileSync(file, "utf8");
+    const v: unknown = JSON.parse(raw);
+    if (isValid(v)) return v as T;
   } catch {
-    return fallback;
+    /* handled below */
   }
+  if (raw.trim() === "") return fallback;
+  const aside = `${file}.corrupt-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  try {
+    copyFileSync(file, aside);
+  } catch {
+    /* read-only fs */
+  }
+  console.error(`Familjetavla: kunde inte läsa ${file} – sparade en kopia som ${aside} och startar med standardvärden.`);
+  return fallback;
 }
+
+const isObject = (v: unknown) => typeof v === "object" && v !== null && !Array.isArray(v);
 
 // ---------- Config ----------
 
@@ -68,7 +95,7 @@ let cached: Config | null = null;
 
 export function loadConfig(): Config {
   if (cached) return cached;
-  const stored = readJson<Partial<Config>>(CONFIG_FILE, {});
+  const stored = readJson<Partial<Config>>(CONFIG_FILE, {}, isObject);
   // Shallow-merge onto defaults so new fields in later versions get sane values.
   const base = defaultConfig();
   cached = {
@@ -83,6 +110,11 @@ export function loadConfig(): Config {
   } as Config;
   // Widgets/tabs added in later versions are appended (off for widgets, on for tabs).
   const d = cached.dashboard;
+  if (!Array.isArray(d.home)) d.home = [];
+  if (!Array.isArray(d.tabs)) d.tabs = [];
+  for (const k of ["people", "calendars", "integrations", "schedules"] as const) {
+    if (!Array.isArray(cached[k])) (cached as unknown as Record<string, unknown[]>)[k] = [];
+  }
   // "now" (the big Nu-zon) is the headline of the 2026 layout, so it goes first and on.
   if (!d.home.some((w) => w.id === "now")) d.home.unshift({ id: "now", on: true });
   for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: false });
@@ -92,22 +124,39 @@ export function loadConfig(): Config {
 
 export function saveConfig(config: Config) {
   cached = config;
+  // One step back, in case a save goes wrong: config.json.bak
+  try {
+    if (existsSync(CONFIG_FILE)) copyFileSync(CONFIG_FILE, `${CONFIG_FILE}.bak`);
+  } catch {
+    /* ignore */
+  }
   writeAtomic(CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
 // ---------- Secrets ----------
 
+let keyCache: Buffer | null = null;
+
 function key(): Buffer {
+  if (keyCache) return keyCache;
   ensureDir();
   if (!existsSync(KEY_FILE)) {
-    writeFileSync(KEY_FILE, randomBytes(32).toString("base64"), { mode: 0o600 });
+    // A new key would make every saved secret (including the PIN) unreadable – refuse instead.
+    const saved = readJson<Record<string, string>>(SECRETS_FILE, {}, isObject);
+    if (Object.keys(saved).length) {
+      throw new Error(`secret.key saknas men secrets.json finns i ${DATA_DIR}. Återställ secret.key från backup, eller ta bort secrets.json och fyll i lösenorden igen.`);
+    }
+    writeAtomic(KEY_FILE, randomBytes(32).toString("base64"), 0o600);
   }
   try {
     chmodSync(KEY_FILE, 0o600);
   } catch {
     /* read-only fs: ignore */
   }
-  return Buffer.from(readFileSync(KEY_FILE, "utf8").trim(), "base64");
+  const k = Buffer.from(readFileSync(KEY_FILE, "utf8").trim(), "base64");
+  if (k.length !== 32) throw new Error(`secret.key i ${DATA_DIR} är skadad (fel längd).`);
+  keyCache = k;
+  return k;
 }
 
 function encrypt(plain: string): string {
@@ -125,7 +174,7 @@ function decrypt(blob: string): string {
 }
 
 function secretsFile(): Record<string, string> {
-  return readJson<Record<string, string>>(SECRETS_FILE, {});
+  return readJson<Record<string, string>>(SECRETS_FILE, {}, isObject);
 }
 
 export function getSecret(k: SecretKey): string | undefined {
@@ -170,7 +219,7 @@ export interface LocalFile {
 }
 
 export function loadLocal(): LocalFile {
-  return readJson<LocalFile>(LOCAL_FILE, {});
+  return readJson<LocalFile>(LOCAL_FILE, {}, isObject);
 }
 
 /** Merge into local.json so the shopping list and travel choices never overwrite each other. */
@@ -230,7 +279,7 @@ export interface PairedDevice {
 }
 
 export function loadDevices(): PairedDevice[] {
-  return readJson<PairedDevice[]>(DEVICES_FILE, []);
+  return readJson<PairedDevice[]>(DEVICES_FILE, [], Array.isArray);
 }
 
 export function saveDevices(list: PairedDevice[]) {

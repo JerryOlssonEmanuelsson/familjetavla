@@ -218,12 +218,11 @@ function Week({ data, actions }: { data: Dashboard; actions: Actions }) {
     <section className="card area-week week-swipe">
       <div className="card-head" style={{ flexWrap: "wrap" }}>
         <h2>Kommande 7 dagar</h2>
-        {(data.plan.items.length > 0 || data.meals.some((m) => m.lunch.length || m.dinner)) && (
-          <button className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`} onClick={actions.openPlan}>
-            <Icon name="kids" size={18} />
-            {data.plan.missing ? `Planera veckan · ${data.plan.missing} att lösa` : "Planera veckan"}
-          </button>
-        )}
+        {/* Always there: it is also where the week's dinners are planned, even with nothing to drive to. */}
+        <button className={`btn small plan-btn ${data.plan.missing ? "warn" : ""}`} onClick={actions.openPlan}>
+          <Icon name="kids" size={18} />
+          {data.plan.missing ? `Planera veckan · ${data.plan.missing} att lösa` : data.plan.items.length ? "Planera veckan" : "Planera veckans mat"}
+        </button>
         <div className="legend">
           {data.legend
             .filter((l) => !data.people.some((p) => p.name === l.name))
@@ -473,9 +472,44 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
   const chosen = data.home.filter((w) => w.on);
   const nowOn = chosen.some((w) => w.id === "now");
   const weekOn = chosen.some((w) => w.id === "week");
-  const rest = chosen.filter((w) => w.id !== "week" && w.id !== "now").map((w) => render(w.id)).filter(Boolean);
-  // Left column under the Nu zone, side column to the right: first half left, the rest right.
-  const half = Math.ceil(rest.length / 2);
+  // Decide from the data which widgets have something to show, and roughly how tall they are,
+  // before splitting them into columns. (A React element that renders nothing is still truthy.)
+  const size = (id: Dashboard["home"][number]["id"]): number => {
+    switch (id) {
+      case "reminders":
+        return data.reminders.length || data.schoolFood?.length ? 1 + data.reminders.length + (data.schoolFood?.length ?? 0) : 0;
+      case "custody":
+        return data.custody ? 1 + (data.custody.rows?.length ?? 1) : 0;
+      case "shopping":
+        return 2 + Math.min(6, data.shopping?.items?.length ?? 0);
+      case "prices":
+        return data.prices ? 3 : 0;
+      case "cars":
+        return data.cars.length ? 1 + data.cars.length : 0;
+      case "lights":
+        return data.lights.length || data.temps.length ? 2 + Math.ceil(data.lights.length / 2) : 0;
+      case "temps":
+        return data.temps.length ? 1 + Math.ceil(data.temps.length / 2) : 0;
+      case "energy":
+        return data.energy ? 2 : 0;
+      case "climates":
+        return data.climates.length ? 1 + data.climates.length : 0;
+      default:
+        return 0;
+    }
+  };
+  const shown = chosen.filter((w) => w.id !== "week" && w.id !== "now").map((w) => ({ id: w.id, h: size(w.id) })).filter((w) => w.h > 0);
+  // The left column sits under the Nu zone and is shorter than the side column, so it gets ~40 %.
+  const total = shown.reduce((a, w) => a + w.h, 0);
+  let acc = 0;
+  let cut = shown.length > 1 ? 1 : shown.length;
+  for (let i = 0; i < shown.length - 1; i++) {
+    acc += shown[i].h;
+    cut = i + 1;
+    if (acc >= total * 0.4) break;
+  }
+  const rest = shown.map((w) => render(w.id));
+  const half = cut;
   return (
     <main className="home-grid">
       {nowOn && <NowZone data={data} actions={actions} />}

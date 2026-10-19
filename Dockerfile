@@ -7,7 +7,9 @@ COPY web/package.json web/
 RUN npm ci
 COPY server server
 COPY web web
-RUN npm run build && npm prune --omit=dev
+# npm hoists most packages to the root but keeps clashing versions in server/node_modules.
+# Make sure that folder exists so the COPY below works either way.
+RUN npm run build && npm prune --omit=dev && mkdir -p server/node_modules
 
 # ---- runtime ----
 FROM node:22-bookworm-slim
@@ -29,7 +31,6 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/server/dist server/dist
-# npm puts some server deps in server/node_modules (version clashes), so copy that too
 COPY --from=build /app/server/node_modules server/node_modules
 COPY --from=build /app/server/package.json server/
 COPY --from=build /app/web/dist web/dist

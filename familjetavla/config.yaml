@@ -7,9 +7,10 @@ arch:
   - amd64
   - aarch64
 image: ghcr.io/murre87/familjetavla-{arch}
-init: false
 startup: application
 boot: auto
+# Home Assistant restarts the add-on if this stops answering.
+watchdog: http://[HOST]:[PORT:8099]/api/health
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:calendar-heart

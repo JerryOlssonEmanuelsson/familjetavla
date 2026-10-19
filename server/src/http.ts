@@ -1,4 +1,6 @@
-export const UA = "familjetavla/0.5 (+https://github.com/murre87/familjetavla)";
+import { VERSION } from "./version.js";
+
+export const UA = `familjetavla/${VERSION} (+https://github.com/murre87/familjetavla)`;
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -10,22 +12,41 @@ export interface FetchOpts extends RequestInit {
   timeoutMs?: number;
 }
 
+/**
+ * fetch with a deadline that also covers reading the body: the signal stays armed after the
+ * headers arrive, so a server that sends headers and then stalls can't hang the board.
+ */
 export async function fetchWithTimeout(url: string, opts: FetchOpts = {}): Promise<Response> {
   const { timeoutMs = 15_000, ...init } = opts;
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const host = new URL(url).host;
   try {
-    return await fetch(url, {
+    const res = await fetch(url, {
       ...init,
-      signal: ctrl.signal,
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { "user-agent": UA, ...(init.headers as Record<string, string> | undefined) },
     });
+    return withReadableTimeout(res, host);
   } catch (e) {
-    if ((e as Error).name === "AbortError") throw new Error(`Tidsgräns nådd mot ${new URL(url).host}`);
-    throw new Error(`Kunde inte nå ${new URL(url).host}: ${(e as Error).message}`);
-  } finally {
-    clearTimeout(t);
+    throw timeoutError(e, host);
   }
+}
+
+function timeoutError(e: unknown, host: string): Error {
+  const name = (e as Error).name;
+  if (name === "TimeoutError" || name === "AbortError") return new Error(`Tidsgräns nådd mot ${host}`);
+  return new Error(`Kunde inte nå ${host}: ${(e as Error).message}`);
+}
+
+/** Give body reads that hit the deadline the same readable message as the request itself. */
+function withReadableTimeout(res: Response, host: string): Response {
+  for (const m of ["text", "json", "arrayBuffer"] as const) {
+    const orig = res[m].bind(res) as () => Promise<unknown>;
+    (res as unknown as Record<string, () => Promise<unknown>>)[m] = () =>
+      orig().catch((e: unknown) => {
+        throw (e as Error).name === "SyntaxError" ? e : timeoutError(e, host);
+      });
+  }
+  return res;
 }
 
 export async function getJson<T>(url: string, opts: FetchOpts = {}): Promise<T> {

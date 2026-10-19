@@ -2,8 +2,25 @@
 
 ## 0.6.0
 
-- Nytt: **SchoolSoft** med användarnamn och lösenord – kalender och matsedel, barnen kopplas som i Vklass. Beta: inte testad mot ett riktigt vårdnadshavarkonto än.
-- InfoMentor, Unikum m.fl.: guiden för kalenderlänk säger nu hur man får med matsedeln (Skolmaten.se eller Skolmat i HA).
+**Genomlysning efter att 0.5.0 inte startade**
+- Tillägget och containern stängs nu av direkt vid stopp, omstart och uppdatering (tidigare hängde den tills den tvångsavslutades).
+- Home Assistant startar om tillägget om det slutar svara (watchdog).
+- En skadad inställningsfil sparas undan som `config.json.corrupt-…` i stället för att tyst skrivas över, och varje sparning behåller en `.bak`. Filer skrivs säkert till disk.
+- Tidsgränser gäller nu hela hämtningen – en källa som slutar svara mitt i kan inte låta tavlan hänga.
+- Ett bakgrundsfel kan inte längre stoppa hela tavlan.
+- iPad liggande: högerkolumnen var tom och resten ihoptryckt – nu fördelas korten efter innehåll, och flikradens tomma plats används när det bara finns en flik.
+- "Planera veckan" finns alltid, även för familjer utan förskola – det är också där veckans middagar planeras.
+- Postnumret slås upp av sig självt och sparas även om uppslaget misslyckas.
+- En tom rad (person eller kalender utan namn) låser inte längre guiden; felmeddelanden på svenska.
+- PIN-koden måste vara 4–8 siffror. Ören med decimalkomma går att skriva på iPad. Elområde följer postnumret.
+- Kom ihåg tjatar inte om en lämning som redan passerat.
+- Visar "Ingen kontakt med tavlan just nu" när servern inte svarar, och ett meddelande när något inte gick att spara.
+- Kalenderlänken från Påminnelser pekar på port 8099 när den skapas via Home Assistant.
+- Svenska: "2 källor", "1 timme", "Fem korta steg".
+- Ny: **SchoolSoft** med användarnamn och lösenord – kalender och matsedel, barnen kopplas som i Vklass. Beta.
+- InfoMentor, Unikum m.fl.: guiden för kalenderlänk säger hur man får med matsedeln.
+
+**Provas på riktigt före varje release:** GitHub bygger den riktiga imagen och en webbläsare går igenom guiden och tavlan – som Home Assistant-tillägg bakom ingress (med en låtsas-Supervisor), efter omstart, och som Docker med PIN och upplåsning av en ny skärm. Chromium startas i imagen och avstängningen tidtas. Releasen publiceras bara om allt går igenom.
 
 ## 0.5.1
 

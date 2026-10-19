@@ -40,7 +40,7 @@ export interface StepProps {
  * Everything else is added from the last step ("Lägg till mer") or later under settings.
  */
 const STEPS: { id: string; label: string; title: string; lead: string; C: (p: StepProps) => React.ReactNode; needsHa?: boolean; optional?: boolean; core?: boolean }[] = [
-  { id: "hem", label: "Hem", title: "Välkommen till Familjetavlan", lead: "Vi börjar med var ni bor – det ger väder och rätt dag för sopor och elpris. Fyra korta steg, sedan är tavlan igång.", C: HomeStep, core: true },
+  { id: "hem", label: "Hem", title: "Välkommen till Familjetavlan", lead: "Vi börjar med var ni bor – det ger väder och rätt dag för sopor och elpris. Fem korta steg, sedan är tavlan igång.", C: HomeStep, core: true },
   { id: "familj", label: "Familjen", title: "Vilka bor här?", lead: "Lägg till vuxna och barn. Bor ett barn växelvis i två hem väljer du det på barnet – annars behöver du inte tänka på det.", C: FamilyStep, core: true },
   { id: "kalendrar", label: "Kalendrar", title: "Kalendrar", lead: "Lägg till familjens kalendrar och barnens aktiviteter – en kalender per lag eller aktivitet.", C: CalendarsStep, core: true },
   { id: "skola", label: "Skola", title: "Skola och förskola", lead: "Skola och förskola: schema, idrott, omsorgstid och matsedel. Tavlan påminner om gympapåsen.", C: SchoolStep, optional: true, core: true },
@@ -84,6 +84,12 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
   const save = async (next: Config = cfg) => {
     setSaving(true);
     setError("");
+    // A person or calendar that was added but never named is an unfinished row – leave it out.
+    const named = next.people.filter((p) => p.name.trim());
+    const cals = next.calendars.filter((c) => c.name.trim());
+    if (named.length !== next.people.length || cals.length !== next.calendars.length) {
+      next = { ...next, people: named, calendars: cals };
+    }
     try {
       const r = await api.saveConfig(next, secrets);
       // A new PIN unlocks this screen at once (the server pairs it), and later saves send it along.
@@ -182,8 +188,9 @@ export function Wizard({ initial, startStep, onDone }: { initial: ConfigResponse
           <i style={{ width: `${((at + 1) / visible.length) * 100}%` }} />
         </div>
         <div className="stack" style={{ gap: 8 }}>
-          <h1>{step.title}</h1>
-          <p className="lead">{step.lead}</p>
+          {/* The welcome text is for the first start; in settings the step is just "Hem". */}
+          <h1>{!firstRun && step.id === "hem" ? "Hem" : step.title}</h1>
+          <p className="lead">{!firstRun && step.id === "hem" ? "Hushållets namn och var ni bor – det styr väder, sopor och elområde." : step.lead}</p>
         </div>
         <step.C {...props} />
         {error && (
