@@ -3,9 +3,10 @@ import type { Dashboard } from "../../../server/src/types";
 import { Icon } from "../Icon";
 import { goBack, goHome } from "../route";
 import type { Actions } from "./Dashboard";
-import { Custody, Reminders, Shopping } from "./Home";
+import { Custody, Reminders, Shopping, Week, renderWidget } from "./Home";
+import { Fit } from "./Fit";
 
-export type PageId = "maten" | "skolan" | "komihag" | "inkop" | "hososs";
+export type PageId = "maten" | "skolan" | "komihag" | "inkop" | "hososs" | "veckan" | "kort";
 
 export const PAGE_TITLES: Record<PageId, string> = {
   maten: "Veckans mat",
@@ -13,6 +14,8 @@ export const PAGE_TITLES: Record<PageId, string> = {
   komihag: "Kom ihåg",
   inkop: "Inköpslista",
   hososs: "Hos oss",
+  veckan: "Kommande 7 dagar",
+  kort: "Alla kort",
 };
 
 /** Every page and tab: back, the title, and home – always in the same place. */
@@ -34,11 +37,19 @@ export function DetailPage({ page, data, actions }: { page: PageId; data: Dashbo
   return (
     <main className="detail-page">
       <PageBar title={PAGE_TITLES[page]} />
-      {page === "maten" && <MealsPage data={data} actions={actions} />}
-      {page === "skolan" && <SchoolPage data={data} />}
-      {page === "komihag" && <Reminders items={data.reminders} food={data.schoolFood} />}
-      {page === "inkop" && <Shopping data={data} actions={actions} />}
-      {page === "hososs" && <CustodyPage data={data} />}
+      <Fit className="detail-body" deps={[data, page]}>
+        {page === "maten" && <MealsPage data={data} actions={actions} />}
+        {page === "skolan" && <SchoolPage data={data} />}
+        {page === "komihag" && <Reminders items={data.reminders} food={data.schoolFood} />}
+        {page === "inkop" && <Shopping data={data} actions={actions} />}
+        {page === "hososs" && <CustodyPage data={data} />}
+        {page === "veckan" && <Week data={data} actions={actions} full />}
+        {page === "kort" && (
+          <div className="cards-grid">
+            {data.home.filter((w) => w.on && w.id !== "now" && w.id !== "week").map((w) => renderWidget(w.id, data, actions, true))}
+          </div>
+        )}
+      </Fit>
     </main>
   );
 }
@@ -46,6 +57,7 @@ export function DetailPage({ page, data, actions }: { page: PageId; data: Dashbo
 function MealsPage({ data, actions }: { data: Dashboard; actions: Actions }) {
   return (
     <div className="stack">
+      <div className="meals-grid">
       {data.meals.map((m) => (
         <section className="card meal-day-card" key={m.dayKey}>
           <h2>{m.dayLabel.charAt(0).toUpperCase() + m.dayLabel.slice(1)}</h2>
@@ -71,6 +83,7 @@ function MealsPage({ data, actions }: { data: Dashboard; actions: Actions }) {
           </div>
         </section>
       ))}
+      </div>
       <button className="btn primary" style={{ alignSelf: "flex-start" }} onClick={() => actions.openPlan("food")}>
         <Icon name="food" size={20} /> Planera veckans middagar
       </button>
@@ -163,7 +176,7 @@ function Lessons({ lessons, compact = false }: { lessons: NonNullable<Dashboard[
           </span>
           <span className="grow">
             {l.title}
-            {l.gym && <span className="gym"> Idrott</span>}
+            {l.gym && !/idrott/i.test(l.title) && <span className="gym"> Idrott</span>}
           </span>
           {!compact && l.location && <small className="muted">{l.location}</small>}
         </div>
@@ -183,6 +196,7 @@ function CustodyPage({ data }: { data: Dashboard }) {
   return (
     <div className="stack">
       <Custody c={c} />
+      <div className="custody-cals">
       {c.calendar?.map((k) => (
         <section className="card" key={k.name}>
           <h2>
@@ -212,6 +226,7 @@ function CustodyPage({ data }: { data: Dashboard }) {
           <small className="muted">Färgad = hos oss · ljus = i andra hemmet</small>
         </section>
       ))}
+      </div>
     </div>
   );
 }

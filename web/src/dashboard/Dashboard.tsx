@@ -8,6 +8,7 @@ import { INNER_NAME } from "../IpadFrame";
 import { Avatar, EventIcon } from "./bits";
 import { GroceryModal } from "./GroceryModal";
 import { Home } from "./Home";
+import { Fit } from "./Fit";
 import { DetailPage, PageBar, PAGE_TITLES, type PageId } from "./Detail";
 import { navigate, useHash } from "../route";
 import { InstallHelp } from "../InstallHelp";
@@ -820,7 +821,7 @@ export function Dashboard() {
               {data.header.sky && <Icon name={SKY_ICON[data.header.sky] ?? "partly"} size={20} />}
               <span>Vecka {data.header.week}</span>
               {isDemo && (
-                <>
+                <span className="demo-only">
                   <button className="btn small ghost" style={{ minHeight: 30, color: "var(--blue)" }} onClick={() => setIdle(true)}>
                     Visa viloläge
                   </button>
@@ -847,7 +848,7 @@ export function Dashboard() {
                       Visa som iPad
                     </button>
                   )}
-                </>
+                </span>
               )}
               {data.header.weather && <span>· {data.header.weather}</span>}
             </p>
@@ -905,11 +906,15 @@ export function Dashboard() {
         <div className="tab-page">
           {tab !== "home" && <PageBar title={TABS.find((t) => t.id === tab)?.label ?? ""} />}
           {tab === "home" && <Home data={data} actions={actions} />}
-          {tab === "cars" && <CarsPage data={data} actions={actions} />}
-          {tab === "lights" && <LightsPage data={data} actions={actions} />}
-          {tab === "house" && <HousePage data={data} actions={actions} />}
-          {tab === "energy" && <EnergyPage data={data} />}
-          {tab === "graphs" && <GraphsPage data={data} />}
+          {tab !== "home" && (
+            <Fit className="tab-body" deps={[data, tab]}>
+              {tab === "cars" && <CarsPage data={data} actions={actions} />}
+              {tab === "lights" && <LightsPage data={data} actions={actions} />}
+              {tab === "house" && <HousePage data={data} actions={actions} />}
+              {tab === "energy" && <EnergyPage data={data} />}
+              {tab === "graphs" && <GraphsPage data={data} />}
+            </Fit>
+          )}
         </div>
         )}
       </div>

@@ -7,7 +7,10 @@
 - **Skolsidan** per barn: dagens hela schema (tid, ämne, sal), läxor, prov och inlämningar de kommande två veckorna, och veckan måndag–fredag.
 - **Ny version finns**: tavlan säger till när en nyare version är publicerad och hur man uppdaterar (tillägg eller Docker). Kollar GitHub var sjätte timme i bakgrunden; stängs av med `UPDATE_CHECK=off`.
 - **Installera som app**: knapp på tavlan och i guidens sista steg – installerar direkt där webbläsaren tillåter det, annars stegen för iPad, Android eller dator, och tips om kioskapp för väggplattan.
-- Provat som Android-surfplatta (Chrome, pekskärm): alla kort, sidor, flikar och bakåtknappen.
+- **Ingen scroll på surfplattor** (iPad och Android, liggande och stående): startsidan, sidorna och flikarna ryms alltid på skärmen. Innehållet krymper lite vid behov, men aldrig under läsbar storlek; det som inte ryms ligger bakom en knapp, t.ex. "+3 dagar – visa hela veckan" eller "+2 kort till". Liggande surfplatta får flikarna i en list till vänster så att tavlan får hela höjden. Mobilen scrollar som vanligt.
+- Startsidan visar sammanfattningar – Kom ihåg de 4 viktigaste, inköpslistan de 5 första, veckan 3 händelser per dag – och sidan bakom kortet visar allt.
+- **Prova i molnet**: knappen "Öppna i GitHub Codespaces" startar tavlan hos GitHub utan egen server, för att prova med Vklass och kalendrar.
+- **Självkontroll på alla skärmar** vid varje ändring: iPad liggande/stående, iPad mini, Android-platta liggande/stående, Android-mobil, iPhone, iPhone SE och iPhone liggande – 11 sidor var. Kontrollerar att inget hamnar bakom flikraden, att surfplattor inte scrollar, att inget sticker ut åt sidan och att inga fel uppstår.
 - Rättat: datum kring sommartid/vintertid i skolschemat.
 
 ## 0.7.0
