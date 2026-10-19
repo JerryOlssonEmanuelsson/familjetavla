@@ -9,7 +9,7 @@ import { geocode } from "./connectors/weather.js";
 import { buildDashboard, gatherFamily } from "./dashboard.js";
 import { duties, dutiesIcs } from "./plan.js";
 import { saveDinner, saveShelf } from "./meals.js";
-import { carActions, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
+import { carActions, carCharging, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
 import { haSocket } from "./connectors/haws.js";
 import { publishToHa } from "./publisher.js";
@@ -105,6 +105,7 @@ function fail(reply: FastifyReply, e: unknown, code = 400) {
 
 // ---------- Validation ----------
 
+const careDays = z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().regex(/^\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}$/));
 const personSchema = z.object({
   id: z.string().regex(ID),
   name: z.string().min(1).max(40),
@@ -133,7 +134,9 @@ const personSchema = z.object({
   care: z
     .object({
       name: z.string().max(30).optional(),
-      days: z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().regex(/^\d{1,2}[:.]\d{2}\s*[-–]\s*\d{1,2}[:.]\d{2}$/)),
+      days: careDays,
+      weeks: z.array(careDays).max(3).optional(),
+      anchorDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       travel: z.lazy(() => travelChoiceSchema).optional(),
       notes: z.record(z.enum(["1", "2", "3", "4", "5", "6", "7"]), z.string().max(60)).optional(),
     })
@@ -143,7 +146,7 @@ const personSchema = z.object({
 const calendarSchema = z.object({
   id: z.string().regex(ID),
   name: z.string().min(1).max(60),
-  provider: z.enum(["google", "icloud", "laget", "sportadmin", "outlook", "ics", "ha"]),
+  provider: z.enum(["google", "icloud", "laget", "sportadmin", "svenskalag", "infomentor", "outlook", "ics", "ha"]),
   kind: z.enum(["ics", "ha"]),
   entityId: z.string().optional(),
   personId: z.string().optional(),
@@ -679,7 +682,7 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const { car, ents, deviceName } = await carDevice(Number((req.params as { index: string }).index));
       const rows = carRows(ents, deviceName);
-      return { name: car.name, valid: rows.filter((r) => r.ok).length, total: rows.length, rows, actions: carActions(ents, deviceName) };
+      return { name: car.name, valid: rows.filter((r) => r.ok).length, total: rows.length, rows, actions: carActions(ents, deviceName), charging: carCharging(ents, deviceName) };
     } catch (e) {
       return fail(reply, e);
     }

@@ -25,7 +25,7 @@ export function travelOptions(people: Map<string, Person>): { mode: TravelMode; 
   const adults = [...people.values()].filter((p) => p.kind === "adult");
   return [
     ...adults.map((a) => ({ mode: `adult:${a.id}` as TravelMode, label: `${a.name} skjutsar` })),
-    { mode: "ride", label: "Blir skjutsad" },
+    { mode: "ride", label: "Annan skjutsar" },
     { mode: "bus", label: "Buss" },
     { mode: "self", label: "Cyklar/går" },
   ];
@@ -34,7 +34,7 @@ export function travelOptions(people: Map<string, Person>): { mode: TravelMode; 
 export function legLabel(leg: TravelLeg, people: Map<string, Person>, care = false): string {
   if (leg.mode === "bus") return "Buss";
   if (leg.mode === "self") return care ? "Går själv" : "Cyklar/går";
-  if (leg.mode === "ride") return care ? leg.by || "Någon annan" : leg.by ? `Skjuts med ${leg.by}` : "Blir skjutsad";
+  if (leg.mode === "ride") return care ? leg.by || "Någon annan" : leg.by ? `${leg.by} skjutsar` : "Annan skjutsar";
   const p = people.get(leg.mode.slice(6));
   return p ? (care ? p.name : `${p.name} skjutsar`) : "Skjuts";
 }
@@ -64,7 +64,18 @@ export function travelSummary(t: DashTravel | undefined): string {
   if (t.to && t.home && t.to.label === t.home.label) return `${t.to.label} dit och hem`;
   return [t.to && `${t.to.label} dit`, t.home && `${lower(t.home.label)} hem`].filter(Boolean).join(" · ").replace(/^./, (c) => c.toUpperCase());
 }
-const lower = (s: string) => (/^[A-ZÅÄÖ][a-zåäö]+ skjutsar/.test(s) ? s : s[0].toLowerCase() + s.slice(1));
+const lower = (s: string) => (/ skjutsar$/.test(s) ? s : s[0].toLowerCase() + s.slice(1));
+
+/** Names used for "Annan skjutsar", most recent first. */
+export function knownDrivers(): string[] {
+  return loadLocal().drivers ?? [];
+}
+function rememberDrivers(choice: TravelChoice | null) {
+  const names = [choice?.to?.by, choice?.home?.by].map((n) => n?.trim()).filter((n): n is string => Boolean(n));
+  if (!names.length) return;
+  const list = [...names, ...knownDrivers()].filter((n, i, all) => all.findIndex((m) => m.toLowerCase() === n.toLowerCase()) === i);
+  saveLocal({ drivers: list.slice(0, 12) });
+}
 
 export function loadTravel(): Record<string, TravelChoice> {
   return loadLocal().travel ?? {};
@@ -72,6 +83,7 @@ export function loadTravel(): Record<string, TravelChoice> {
 
 /** Save one event's choice (null clears it). Old entries are dropped after two days. */
 export function saveTravel(key: string, choice: TravelChoice | null, now = new Date()) {
+  rememberDrivers(choice);
   const all = { ...loadTravel() };
   if (choice && (choice.to || choice.home)) all[key] = choice;
   else delete all[key];

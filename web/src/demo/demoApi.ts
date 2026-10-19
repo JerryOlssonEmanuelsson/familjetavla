@@ -211,17 +211,39 @@ function syncMeals() {
 d.travelOptions = [
   { mode: "adult:emil", label: "Emil skjutsar" },
   { mode: "adult:anna", label: "Anna skjutsar" },
-  { mode: "ride", label: "Blir skjutsad" },
+  { mode: "ride", label: "Annan skjutsar" },
   { mode: "bus", label: "Buss" },
   { mode: "self", label: "Cyklar/går" },
 ];
+d.knownDrivers = ["Saras pappa", "Marina", "Ola", "Therese"];
+function rememberDriver(c: TravelChoice | null) {
+  for (const n of [c?.to?.by, c?.home?.by]) if (n) d.knownDrivers = [n, ...d.knownDrivers.filter((x) => x.toLowerCase() !== n.toLowerCase())].slice(0, 12);
+}
+// Calendar notes, as SportAdmin/laget.se send them.
+for (const day of d.days)
+  for (const e of day.events)
+    if (e.category === "sport")
+      e.description = e.title.startsWith("F14")
+        ? "Samling: 15 min innan\nPlats: Konstgräset, Heden\nTa med: vattenflaska, benskydd och mörk tröja\n\nhttps://www.sportadmin.se/"
+        : "Samling i entrén 10 min innan.\nTa med: badmössa, handduk och schampo.";
+// Charging from the car's own integration (Tesla-style switch and schedule).
+fx.cars.forEach((c, i) => {
+  c.charging = {
+    switch: { entityId: `switch.car${i}_charger`, name: "Laddning", on: Boolean(d.cars[i]?.charging) },
+    schedule: [
+      { entityId: `time.car${i}_scheduled_charging`, name: "Schemalagd laddning", value: "01:00" },
+      { entityId: `switch.car${i}_off_peak`, name: "Ladda billigaste timmarna", value: "På" },
+      { entityId: `sensor.car${i}_ready_by`, name: "Klar till avgång", value: "tis 07:00" },
+    ],
+  };
+});
 const demoCal = (title: string) => (title.startsWith("F14") ? { id: "ella-sport", name: "Fotboll F14" } : { id: "leo-sim", name: "Simning" });
 const savedTravel: Record<string, TravelChoice> = {
   "ella-sport@2026-10-19T17:30": { to: { mode: "adult:emil" }, home: { mode: "ride", by: "Saras pappa" } },
 };
 const calTravel: Record<string, TravelChoice> = { "leo-sim": { to: { mode: "bus" }, home: { mode: "adult:emil" } } };
 const legLabel = (l: TravelLeg) =>
-  l.mode === "bus" ? "Buss" : l.mode === "self" ? "Cyklar/går" : l.mode === "ride" ? (l.by ? `Skjuts med ${l.by}` : "Blir skjutsad") : l.mode === "adult:anna" ? "Anna skjutsar" : "Emil skjutsar";
+  l.mode === "bus" ? "Buss" : l.mode === "self" ? "Cyklar/går" : l.mode === "ride" ? (l.by ? `${l.by} skjutsar` : "Annan skjutsar") : l.mode === "adult:anna" ? "Anna skjutsar" : "Emil skjutsar";
 function decorate(e: DashEvent, dayKey: string) {
   if (e.category !== "sport" || !e.time) return;
   const cal = demoCal(e.title);
@@ -235,7 +257,7 @@ function summary(e: DashEvent) {
   const t = e.travel;
   if (!t || (!t.to && !t.home)) return "";
   if (t.to && t.home && t.to.label === t.home.label) return `${t.to.label} dit och hem`;
-  const low = (x: string) => (/^(Emil|Anna)/.test(x) ? x : x[0].toLowerCase() + x.slice(1));
+  const low = (x: string) => (/ skjutsar$/.test(x) ? x : x[0].toLowerCase() + x.slice(1));
   return [t.to && `${t.to.label} dit`, t.home && `${low(t.home.label)} hem`].filter(Boolean).join(" · ").replace(/^./, (c) => c.toUpperCase());
 }
 function syncTravel() {
@@ -464,6 +486,12 @@ export const demoApi = {
   discover: () => wait(fx.discover, 900),
   car: (index: number) => wait(fx.cars[index]),
   carAction: (index: number, entityId: string, action: "on" | "off" | "press") => {
+    const ch = fx.cars[index].charging?.switch;
+    if (ch && ch.entityId === entityId) {
+      ch.on = action === "on";
+      if (d.cars[index]) d.cars[index].charging = ch.on;
+      return wait({});
+    }
     const a = fx.cars[index].actions.find((x) => x.entityId === entityId);
     if (a && a.domain !== "button") a.state = a.domain === "lock" ? (action === "off" ? "unlocked" : "locked") : action === "off" ? "off" : "on";
     return wait({});
@@ -556,6 +584,7 @@ export const demoApi = {
     return wait({});
   },
   travel: (key: string, choice: TravelChoice | null, forCalendar = false) => {
+    rememberDriver(choice);
     if (key.startsWith("care:")) {
       // Förskola in the demo: one day, or (forCalendar) the default for all days.
       if (forCalendar) {

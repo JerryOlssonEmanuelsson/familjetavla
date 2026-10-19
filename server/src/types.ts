@@ -59,6 +59,13 @@ export interface CareSchedule {
   name?: string;
   /** ISO-veckodag "1"–"7" → "07:30-16:00". Saknas en dag = ingen omsorg den dagen. */
   days: Record<string, string>;
+  /**
+   * Rullande schema (skift): vecka 2, 3, 4 … i samma format som `days`, som då är vecka 1.
+   * Saknas = samma tider varje vecka.
+   */
+  weeks?: Record<string, string>[];
+  /** Ett datum (YYYY-MM-DD) i schemats vecka 1. Krävs när `weeks` finns. */
+  anchorDate?: string;
   /** Vem som brukar lämna (to) och hämta (home). */
   travel?: TravelChoice;
   /** Återkommande per veckodag ("1"–"5"), t.ex. tisdag "Utflykt – packa ryggsäck och frukt". */
@@ -67,7 +74,7 @@ export interface CareSchedule {
 
 export type CalendarCategory = "family" | "sport" | "school" | "work" | "other";
 
-export type CalendarProvider = "google" | "icloud" | "laget" | "sportadmin" | "outlook" | "ics" | "ha";
+export type CalendarProvider = "google" | "icloud" | "laget" | "sportadmin" | "svenskalag" | "infomentor" | "outlook" | "ics" | "ha";
 
 export interface CalendarSource {
   id: string;
@@ -362,6 +369,8 @@ export interface DashEvent {
   source?: string;
   /** Finns på barnens aktiviteter: valt sätt dit och hem. */
   travel?: DashTravel;
+  /** Beskrivningen från kalendern (samlingstid, vad som behövs …). */
+  description?: string;
 }
 
 export interface MealDay {
@@ -430,6 +439,8 @@ export interface Dashboard {
   };
   /** Valen i "Dit/Hem" för barnens aktiviteter. */
   travelOptions: { mode: TravelMode; label: string }[];
+  /** Others who drive ("Marina", "Ola"), most recent first. */
+  knownDrivers: string[];
   /** "Nu"-zonen: det som händer de närmaste timmarna. */
   now: {
     headline: string;

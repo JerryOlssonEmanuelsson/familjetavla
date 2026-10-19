@@ -169,9 +169,25 @@ function PatternEditor({ custody, name, setC }: { custody: Custody; name: string
 
 const CARE_DAYS = ["1", "2", "3", "4", "5"];
 
+/** This week's Monday as YYYY-MM-DD. */
+function mondayKey(d = new Date()): string {
+  const m = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+  return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}-${String(m.getDate()).padStart(2, "0")}`;
+}
+/** Which week (1…n) of a rolling schedule today is in – same counting as the server. */
+function currentCareWeek(anchor: string | undefined, n: number): number {
+  if (!anchor) return 1;
+  const [y, mo, da] = anchor.split("-").map(Number);
+  const a = new Date(mondayKey(new Date(y, mo - 1, da)) + "T12:00");
+  const t = new Date(mondayKey() + "T12:00");
+  const w = Math.round((t.getTime() - a.getTime()) / (7 * 86_400_000));
+  return (((w % n) + n) % n) + 1;
+}
+
 /** Förskola/fritids: weekly times and who usually drops off and picks up. */
 function CareEditor({ p, adults, onChange }: { p: Person; adults: Person[]; onChange: (p: Person) => void }) {
   const care = p.care;
+  const [week, setWeek] = useState(0);
   if (!care) {
     return (
       <button className="btn small" style={{ alignSelf: "flex-start" }} onClick={() => onChange({ ...p, care: { name: "Förskola", days: Object.fromEntries(CARE_DAYS.map((d) => [d, "07:30-16:00"])) } })}>
@@ -180,12 +196,22 @@ function CareEditor({ p, adults, onChange }: { p: Person; adults: Person[]; onCh
     );
   }
   const setCare = (patch: Partial<NonNullable<Person["care"]>>) => onChange({ ...p, care: { ...care, ...patch } });
-  const times = (d: string) => (care.days[d] ?? "").split("-");
+  // Rolling schedule (shift work): week 1 is care.days, weeks 2…n are care.weeks.
+  const cycle = 1 + (care.weeks?.length ?? 0);
+  const wk = Math.min(week, cycle - 1);
+  const cur = wk === 0 ? care.days : (care.weeks?.[wk - 1] ?? {});
+  const times = (d: string) => (cur[d] ?? "").split("-");
   const setDay = (d: string, v: string | null) => {
-    const days = { ...care.days };
+    const days = { ...cur };
     if (v) days[d] = v;
     else delete days[d];
-    setCare({ days });
+    if (wk === 0) setCare({ days });
+    else setCare({ weeks: (care.weeks ?? []).map((w, i) => (i === wk - 1 ? days : w)) });
+  };
+  const setCycle = (n: number) => {
+    const weeks = Array.from({ length: n - 1 }, (_, i) => care.weeks?.[i] ?? { ...care.days });
+    setCare({ weeks: weeks.length ? weeks : undefined, anchorDate: weeks.length ? (care.anchorDate ?? mondayKey()) : undefined });
+    setWeek(0);
   };
   const who = (leg?: TravelChoice["to"]) => (leg?.mode?.startsWith("adult:") ? leg.mode : leg?.mode === "ride" ? "ride" : "");
   const setWho = (k: "to" | "home", v: string) =>
@@ -201,14 +227,37 @@ function CareEditor({ p, adults, onChange }: { p: Person; adults: Person[]; onCh
           <Icon name="trashSmall" size={20} />
         </button>
       </div>
+      <Select
+        label="Schema"
+        value={String(cycle)}
+        onChange={(v) => setCycle(Number(v))}
+        options={[
+          { value: "1", label: "Samma tider varje vecka" },
+          { value: "2", label: "Rullande 2 veckor" },
+          { value: "4", label: "Rullande 4 veckor" },
+        ]}
+      />
+      {cycle > 1 && (
+        <>
+          <div className="seg small" role="tablist" aria-label="Vecka i schemat">
+            {Array.from({ length: cycle }, (_, i) => (
+              <button key={i} role="tab" aria-selected={wk === i} className={`seg-btn ${wk === i ? "on" : ""}`} onClick={() => setWeek(i)}>
+                Vecka {i + 1}
+              </button>
+            ))}
+          </div>
+          <Text label="Vecka 1 är veckan med datumet" type="date" value={care.anchorDate ?? ""} onChange={(v) => v && setCare({ anchorDate: v })} />
+          <small className="faint">Just nu är det vecka {currentCareWeek(care.anchorDate, cycle)} i schemat.</small>
+        </>
+      )}
       <div className="care-days">
         {CARE_DAYS.map((d, i) => {
           const [from, to] = times(d);
-          const on = Boolean(care.days[d]);
+          const on = Boolean(cur[d]);
           return (
             <div key={d} className={`care-day ${on ? "" : "off"}`}>
               <label className="check">
-                <input type="checkbox" checked={on} onChange={(e) => setDay(d, e.target.checked ? care.days["1"] ?? "07:30-16:00" : null)} />
+                <input type="checkbox" checked={on} onChange={(e) => setDay(d, e.target.checked ? (cur["1"] ?? care.days["1"] ?? "07:30-16:00") : null)} />
                 <span>{WEEKDAYS[i].slice(0, 3)}</span>
               </label>
               <input type="time" aria-label={`${WEEKDAYS[i]} lämning`} disabled={!on} value={from ?? ""} onChange={(e) => e.target.value && setDay(d, `${e.target.value}-${to || "16:00"}`)} />
@@ -223,7 +272,7 @@ function CareEditor({ p, adults, onChange }: { p: Person; adults: Person[]; onCh
           Återkommande att komma ihåg ({Object.keys(care.notes ?? {}).length})
         </summary>
         <div className="stack" style={{ marginTop: 8, gap: 8 }}>
-          {CARE_DAYS.filter((d) => care.days[d]).map((d) => (
+          {CARE_DAYS.filter((d) => care.days[d] || care.weeks?.some((w) => w[d])).map((d) => (
             <Text
               key={d}
               label={WEEKDAYS[Number(d) - 1][0].toUpperCase() + WEEKDAYS[Number(d) - 1].slice(1)}
@@ -685,6 +734,27 @@ const CAL_PROVIDERS: { id: CalendarProvider; name: string; desc: string; guide: 
       "Har barnet flera lag? Tryck Testa och bocka bara i laget du vill se.",
     ],
   },
+  {
+    id: "svenskalag",
+    name: "Svenska lag",
+    desc: "Lagets aktiviteter",
+    category: "sport",
+    guide: [
+      "Logga in på svenskalag.se och gå till lagets sida → Kalender → Prenumerera.",
+      "Kopiera länken (iCal/webcal) och klistra in här. Gör det från lagsidan, inte klubbens, så kommer bara ert lag med.",
+    ],
+  },
+  {
+    id: "infomentor",
+    name: "InfoMentor",
+    desc: "Skolans kalender",
+    category: "school",
+    guide: [
+      "Logga in i InfoMentor Hub på webben (inte appen) → Kalender → Prenumerera.",
+      "Kopiera länken och klistra in här. Ser du ingen Prenumerera har kommunen stängt av det – fråga skolan.",
+      "Skolmaten läggs in under Skola med skolmaten.se.",
+    ],
+  },
   { id: "outlook", name: "Outlook / jobbet", desc: "Publicerad kalender", category: "work", guide: ["Outlook på webben → Inställningar → Kalender → Delade kalendrar → Publicera en kalender → kopiera ICS-länken."] },
   { id: "ics", name: "Annan länk", desc: "Valfri ICS/webcal-adress", category: "other", guide: ["Klistra in en adress som börjar med webcal:// eller https:// och slutar på .ics."] },
   { id: "ha", name: "Kalender i Home Assistant", desc: "Använd en kalender du redan har i HA", category: "family", guide: [] },
@@ -698,7 +768,7 @@ function TravelDefault({ cal, cfg, name, onChange }: { cal: CalendarSource; cfg:
   const opts = [
     { value: "", label: "Varierar – välj per gång" },
     ...cfg.people.filter((x) => x.kind === "adult").map((a) => ({ value: `adult:${a.id}`, label: `${a.name} skjutsar` })),
-    { value: "ride", label: "Blir skjutsad" },
+    { value: "ride", label: "Annan skjutsar" },
     { value: "bus", label: "Buss" },
     { value: "self", label: "Cyklar/går själv" },
   ];

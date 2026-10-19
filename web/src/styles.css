@@ -2005,7 +2005,10 @@ a.btn {
   font-size: 12px;
   line-height: 1;
 }
-.travel-badge i { font-style: normal; opacity: 0.55; font-size: 11px; }
+.travel-badge i { font-style: normal; opacity: 0.55; font-size: 11px; white-space: nowrap; }
+.travel-badge { white-space: nowrap; gap: 3px; padding: 3px 8px; }
+.travel-badge svg { flex-shrink: 0; }
+.travel-badge b { font-weight: 650; }
 .travel-badge.unset { color: var(--muted); opacity: 0.7; }
 .travel-box {
   display: grid;
@@ -2544,7 +2547,12 @@ a.btn {
 .week-full {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+}
+/* The whole week on its own page: a little tighter so seven days fit on a short tablet too. */
+.week-full .day {
+  padding-block: 6px;
+  min-height: 52px;
 }
 @media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
   /* The week's heading on one line on a tablet: title and Planera; the colour key is on the events themselves. */
@@ -2635,4 +2643,35 @@ a.btn {
   display: grid;
   gap: 8px;
   line-height: 1.4;
+}
+
+/* ---------- Vem skjutsar (fritt namn) ---------- */
+.ride-by {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.mini-pick .ride-by {
+  grid-column: 2;
+}
+.ride-by .input {
+  min-height: 42px;
+}
+.event-text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 1.45;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--row);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.event-text a,
+.event-place {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
 }

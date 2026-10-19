@@ -234,6 +234,68 @@ function CarDetailsSheet({ index, onClose, actions }: { index: number; onClose: 
   );
 }
 
+/** Start/stop charging and the car's own charge schedule, read from its Home Assistant integration. */
+function ChargingCard({ index, charging, actions }: { index: number; charging: boolean; actions: Actions }) {
+  const [c, setC] = useState<CarDetails["charging"] | null>(null);
+  const load = () =>
+    api
+      .car(index)
+      .then((d) => setC(d.charging ?? null))
+      .catch(() => setC(null));
+  useEffect(() => {
+    setC(null);
+    load();
+  }, [index]);
+  if (!c || (!c.switch && !c.start && !c.stop && c.schedule.length === 0)) return null;
+  const on = c.switch ? c.switch.on : charging;
+  const target = on ? (c.switch ?? c.stop) : (c.switch ?? c.start);
+  const toggle = () => {
+    if (!target) return;
+    const action = target.entityId.startsWith("button.") ? "press" : on ? "off" : "on";
+    actions.confirm(on ? "Stoppa laddningen?" : "Starta laddningen?", on ? "Stoppa" : "Starta", () =>
+      actions.run(
+        on ? "Stoppa laddning" : "Starta laddning",
+        async () => {
+          await api.carAction(index, target.entityId, action);
+          await load();
+        },
+        {
+          done: on ? "Laddningen stoppad" : "Laddningen startad",
+          check: (d) => Boolean(d.cars[index]?.charging) === !on,
+          slow: "Skickat till bilen – den kan ta en minut att svara.",
+        },
+      ),
+    );
+  };
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Laddning</h2>
+        <span className={`chip ${on ? "good" : ""}`}>{on ? "Laddar" : "Laddar inte"}</span>
+      </div>
+      {target && (
+        <button className={`big-btn ${on ? "" : "amber"}`} onClick={toggle}>
+          {on ? "Stoppa laddning" : "Starta laddning"}
+        </button>
+      )}
+      {!target && <p className="muted">Bilen går inte att starta härifrån – integrationen saknar laddknapp.</p>}
+      {c.schedule.length > 0 && (
+        <div className="stack" style={{ gap: 0 }}>
+          <h3 className="muted" style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Laddschema i bilen
+          </h3>
+          {c.schedule.map((r) => (
+            <div key={r.entityId} className="row gap" style={{ padding: "10px 0", borderBottom: "1px solid var(--card-border)" }}>
+              <span className="grow" style={{ minWidth: 0, overflowWrap: "anywhere" }}>{r.name}</span>
+              <b style={{ textAlign: "right" }}>{r.value}</b>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function CarsPage({ data, actions }: { data: Dashboard; actions: Actions }) {
   const [sel, setSel] = useState(0);
   const [details, setDetails] = useState(false);
@@ -274,6 +336,7 @@ export function CarsPage({ data, actions }: { data: Dashboard; actions: Actions 
             {car.ageHours !== null && car.ageHours >= 3 && <span className="chip warn">Data {car.ageHours} h gammal</span>}
           </div>
         </section>
+        <ChargingCard index={data.cars.indexOf(car)} charging={Boolean(car.charging)} actions={actions} />
         <ScheduleEditor car={car} actions={actions} />
         {data.prices && <PriceCard prices={data.prices} />}
       </div>
@@ -291,9 +354,13 @@ function LampRow({ lamp, actions }: { lamp: Lamp; actions: Actions }) {
   useEffect(() => {
     if (!dragging && lamp.brightness) setPct(lamp.brightness);
   }, [lamp.brightness, dragging]);
+  const find = (d: Dashboard) => [...d.lights, ...d.lightGroups.flatMap((g) => g.lamps)].find((l) => l.entityId === lamp.entityId);
   const send = (v: number) => {
     setDragging(false);
-    actions.run(lamp.name, () => api.brightness(lamp.entityId, v));
+    actions.run(lamp.name, () => api.brightness(lamp.entityId, v), {
+      done: v ? `${lamp.name} ${v}%` : `${lamp.name} släckt`,
+      check: (d) => (v ? Boolean(find(d)?.on) : !find(d)?.on),
+    });
   };
   return (
     <div className={`lamp-row ${lamp.on ? "on" : ""} ${lamp.offline ? "offline" : ""}`}>
@@ -301,7 +368,12 @@ function LampRow({ lamp, actions }: { lamp: Lamp; actions: Actions }) {
         className={`light-btn ${lamp.on ? "on" : ""}`}
         aria-pressed={lamp.on}
         disabled={lamp.offline}
-        onClick={() => actions.run(lamp.name, () => api.toggleLight(lamp.entityId))}
+        onClick={() =>
+          actions.run(lamp.name, () => api.toggleLight(lamp.entityId), {
+            done: `${lamp.name} ${lamp.on ? "släckt" : "tänd"}`,
+            check: (d) => find(d)?.on === !lamp.on,
+          })
+        }
       >
         <Icon name="bulb" size={20} />
         <span className="lamp-name">{lamp.name}</span>
@@ -352,10 +424,29 @@ export function LightsPage({ data, actions }: { data: Dashboard; actions: Action
             {g.on} av {g.total} tända{g.offline.length ? ` · offline: ${g.offline.join(", ")}` : ""}
           </p>
           <div className="big-buttons">
-            <button className="big-btn amber" onClick={() => actions.run(g.name, () => api.lightGroup(g.index, true))}>
+            <button
+              className="big-btn amber"
+              onClick={() =>
+                actions.run(g.name, () => api.lightGroup(g.index, true), {
+                  done: `${g.name}: alla tända`,
+                  check: (d) => {
+                    const x = d.lightGroups.find((y) => y.index === g.index);
+                    return Boolean(x && x.on >= x.total - x.offline.length);
+                  },
+                })
+              }
+            >
               Tänd alla
             </button>
-            <button className="big-btn" onClick={() => actions.run(g.name, () => api.lightGroup(g.index, false))}>
+            <button
+              className="big-btn"
+              onClick={() =>
+                actions.run(g.name, () => api.lightGroup(g.index, false), {
+                  done: `${g.name}: alla släckta`,
+                  check: (d) => d.lightGroups.find((y) => y.index === g.index)?.on === 0,
+                })
+              }
+            >
               Släck alla
             </button>
           </div>
@@ -373,7 +464,7 @@ export function LightsPage({ data, actions }: { data: Dashboard; actions: Action
         <section className="card">
           <div className="card-head">
             <h2>Lampor</h2>
-            <button className="btn small" onClick={() => actions.run("Släck allt", () => api.lightsOff())}>
+            <button className="btn small" onClick={() => actions.run("Släck allt", () => api.lightsOff(), { done: "Allt släckt", check: (d) => d.lights.every((l) => !l.on || l.offline) })}>
               Släck allt
             </button>
           </div>

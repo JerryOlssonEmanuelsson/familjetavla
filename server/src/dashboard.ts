@@ -5,7 +5,7 @@ import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.j
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
 import { haSocket } from "./connectors/haws.js";
 import { forecast, rainBetween, skyNow, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
-import { custodyStatus, isHome } from "./custody.js";
+import { careTimesFor, custodyStatus, isHome } from "./custody.js";
 import {
   collectCalendars,
   collectPrices,
@@ -21,7 +21,7 @@ import {
 import { listPhotos, loadConfig, loadLocalList } from "./store.js";
 import { buildPlan, careAt, needsAttention } from "./plan.js";
 import { buildMeals, loadDinners, loadShelf, mealFavorites, sameAsLunch } from "./meals.js";
-import { isCare, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
+import { isCare, knownDrivers, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
 import {
   addDays,
   daysBetween,
@@ -162,7 +162,27 @@ function toDash(ev: SourcedEvent, people: Map<string, Person>, travel?: TravelCt
     category: ev.category,
     icon: ev.gym ? "gym" : activityIcon(`${ev.title} ${ev.sourceName ?? ""}`, ev.category),
     location: ev.location,
+    description: cleanDescription(ev.description, ev.title),
   };
+}
+
+/** Calendar notes as plain text: no HTML, no Teams/Meet boilerplate, at most ~1500 characters. */
+function cleanDescription(raw: string | undefined, title: string): string | undefined {
+  if (!raw) return undefined;
+  const t = raw
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (!t || t === title) return undefined;
+  return t.length > 1500 ? `${t.slice(0, 1500).trimEnd()}…` : t;
 }
 
 /** One letter, or two when two people share the first letter (Emil/Ella → Em/El). */
@@ -304,6 +324,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     },
     now: buildNow(withCare, people, now, travelCtx),
     travelOptions: travelOptions(people),
+    knownDrivers: knownDrivers(),
     people: cfg.people.map((p) => ({
       name: p.name,
       color: p.color,
@@ -661,7 +682,7 @@ export function buildReminders(
     const place = p.care!.name || "Förskola";
     if (shelf[p.id]?.length) out.push({ icon: "bag", title: `${p.name} · ta med ${careAt(place).replace(/^(på|hos) /, "till ")}: ${shelf[p.id].join(", ").toLowerCase()}`, sub: "Bocka av när det är lämnat – tryck på lämningen", tone: "amber" });
     const note = p.care!.notes?.[String(isoWeekday(focusDay))];
-    if (note && p.care!.days[String(isoWeekday(focusDay))]) out.push({ icon: "bag", title: `${p.name} · ${note}`, sub: `${place} ${evening ? "imorgon" : "idag"}`, tone: "blue" });
+    if (note && careTimesFor(p.care, focusDay)) out.push({ icon: "bag", title: `${p.name} · ${note}`, sub: `${place} ${evening ? "imorgon" : "idag"}`, tone: "blue" });
   }
 
   // Förskola/fritids: who drops off and picks up (today, or tomorrow in the evening).
@@ -831,7 +852,7 @@ export function buildCareEvents(
     if (!p.care && !live) continue;
     for (let i = 0; i < days; i++) {
       const day = addDays(today, i);
-      const text = i === 0 && live && TIME_RANGE.test(live) ? live : p.care?.days[String(isoWeekday(day))];
+      const text = i === 0 && live && TIME_RANGE.test(live) ? live : careTimesFor(p.care, day);
       const m = text ? TIME_RANGE.exec(text) : null;
       if (!m || !isHome(p.custody, day) || closed.has(`${p.name}@${dayKey(day)}`)) continue;
       const at = (h: string, min: string) => new Date(day.getFullYear(), day.getMonth(), day.getDate(), Number(h), Number(min));
