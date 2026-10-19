@@ -1064,11 +1064,20 @@ export function SchoolStep({ cfg, set, secrets, setSecrets, resp, haOk }: StepPr
   );
 }
 
+/** SRV Återvinning is owned by these five municipalities. */
+const SRV_TOWNS = /botkyrka|haninge|huddinge|nynäshamn|salem/i;
+
 export function WasteStep({ cfg, set, secrets, setSecrets, resp, haOk, postcode }: StepProps) {
   const [integ, put] = useIntegration(cfg, set, "waste");
   const meta = integ && resp.providers.find((p) => p.id === integ.provider && p.category === "waste");
+  const srvTown = SRV_TOWNS.test(cfg.household.municipality ?? "") && resp.providers.some((p) => p.id === "srv");
   return (
     <div className="stack">
+      {srvTown && integ?.provider !== "srv" && (
+        <button className="btn" style={{ alignSelf: "flex-start", whiteSpace: "normal", textAlign: "left", height: "auto" }} onClick={() => put({ id: "waste", category: "waste", provider: "srv", settings: {} })}>
+          {cfg.household.municipality} hämtas av SRV Återvinning – välj SRV
+        </button>
+      )}
       <ProviderTiles
         providers={resp.providers}
         category="waste"

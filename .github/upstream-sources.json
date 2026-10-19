@@ -1,0 +1,9 @@
+{
+  "_om": "Filer i Waste Collection Schedule (MIT) som våra sopleverantörer bygger på. Veckokollen (.github/workflows/sources.yml) larmar när någon av dem ändras. Uppdatera hashen när vår kod har setts över mot den nya versionen.",
+  "repo": "mampfes/hacs_waste_collection_schedule",
+  "path": "custom_components/waste_collection_schedule/waste_collection_schedule/source",
+  "files": {
+    "srvatervinning_se.py": { "sha256": "bfb828cbfe61ff4265a7488d55371cb7cc963630eb3404cf32ad2329c4d49aaf", "ours": "server/src/connectors/waste.ts (srv*)" },
+    "edpevent_se.py": { "sha256": "1c8892f640cb76528ad72e1525ae8cae0764a12a3f82ccecbf8033b6705dd5da", "ours": "server/src/connectors/waste.ts (edp*)" }
+  }
+}

@@ -123,3 +123,67 @@ export async function edpByAddress(apiUrl: string, address: string): Promise<{ b
   const building = buildings[0];
   return { building, pickups: await edpSchedule(apiUrl, building) };
 }
+
+/*
+ * SRV Återvinning (Botkyrka, Haninge, Huddinge, Nynäshamn, Salem).
+ *
+ * Ported from Waste Collection Schedule, source srvatervinning_se.py (MIT,
+ * github.com/mampfes/hacs_waste_collection_schedule). It is the open REST layer behind
+ * "När töms mitt kärl" on srvatervinning.se – not an official API, so
+ * .github/workflows/sources.yml checks it weekly and watches the upstream file for changes.
+ *
+ *   GET …/getSuggestions?query=<text>        → { results: [{ name: "Gata 1, 13760 TUNGELSTA" }] }
+ *   GET …/search?query=<street>&city=<CITY>  → { results: [{ containers: [{ contentType, calendars: [{ startDate }] }] }] }
+ */
+export const SRV_API = "https://www.srvatervinning.se/rest-api/core/sewagePickup";
+
+export async function srvSuggest(text: string): Promise<string[]> {
+  const res = await fetchWithTimeout(`${SRV_API}/getSuggestions?query=${encodeURIComponent(text.trim())}`, { timeoutMs: 20_000 });
+  if (!res.ok) throw new Error(`SRV svarade ${res.status}`);
+  const data = (await res.json()) as { results?: { name?: string }[] };
+  return [...new Set((data.results ?? []).map((r) => (r.name ?? "").trim()).filter(Boolean))];
+}
+
+/** "Skolvägen 10, 13760 TUNGELSTA" → street "Skolvägen 10", city "TUNGELSTA". The search takes them apart. */
+export function splitSrvAddress(full: string): { street: string; city: string } {
+  const [street, rest = ""] = full.split(/,(.*)/s).map((s) => s.trim());
+  const city = rest.replace(/^\d{3}\s?\d{2}\s*/, "").trim().toUpperCase();
+  return { street, city };
+}
+
+/** SRV writes types in capitals or with codes; make them read like the rest of the board. */
+function srvType(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "Sophämtning";
+  return t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t;
+}
+
+export function parseSrvSchedule(data: unknown, now = new Date()): Pickup[] {
+  const today = startOfDay(now);
+  const results = (data as { results?: { containers?: { contentType?: string; containerType?: string; calendars?: { startDate?: string }[] }[] }[] })?.results;
+  if (!Array.isArray(results)) throw new Error("SRV svarade i ett okänt format.");
+  const out: Pickup[] = [];
+  const seen = new Set<string>();
+  for (const c of results[0]?.containers ?? []) {
+    const type = srvType(c.contentType || c.containerType || "");
+    for (const cal of c.calendars ?? []) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(cal.startDate ?? "");
+      if (!m) continue;
+      const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      const key = `${m[0]}|${type}`;
+      if (date < today || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ date, type });
+    }
+  }
+  return out.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+export async function srvSchedule(address: string): Promise<Pickup[]> {
+  const { street, city } = splitSrvAddress(address);
+  const res = await fetchWithTimeout(`${SRV_API}/search?query=${encodeURIComponent(street)}&city=${encodeURIComponent(city)}`, { timeoutMs: 20_000 });
+  if (!res.ok) throw new Error(`SRV svarade ${res.status}`);
+  const data = await res.json();
+  if (!(data as { results?: unknown[] })?.results?.length) throw new Error(`SRV hittade ingen hämtning för "${address}".`);
+  return parseSrvSchedule(data);
+}

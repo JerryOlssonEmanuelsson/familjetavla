@@ -1,6 +1,6 @@
 import { fetchIcs } from "../connectors/ics.js";
 import { ha, haConnection } from "../connectors/ha.js";
-import { EDP_PROVIDERS, edpSchedule, edpSearch, type Pickup } from "../connectors/waste.js";
+import { EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest, type Pickup } from "../connectors/waste.js";
 import { addDays, daysBetween, parseDayKey, shortDate, shortWeekday, startOfDay } from "../time.js";
 import type { ManualPickup } from "../types.js";
 import type { ProviderCtx, WasteProvider } from "./types.js";
@@ -65,6 +65,47 @@ export const wasteEdp: WasteProvider = {
     const building = ctx.str("building");
     if (!building) return [];
     return edpSchedule(edpUrl(ctx), building);
+  },
+};
+
+export const wasteSrv: WasteProvider = {
+  meta: {
+    id: "srv",
+    category: "waste",
+    name: "SRV Återvinning",
+    description: "Botkyrka, Haninge, Huddinge, Nynäshamn och Salem – sök på adress.",
+    status: "beta",
+    fields: [
+      { key: "address", label: "Gatuadress", type: "text", placeholder: "Skolvägen 10" },
+      { key: "building", label: "Välj din adress", type: "select", optional: true, help: "Tryck Testa för att söka." },
+    ],
+    guide: [
+      "Skriv gatuadress och tryck Testa.",
+      "Välj rätt adress i listan och tryck Testa igen för att se hämtdagarna.",
+      "Slutar det fungera: välj Eget schema, eller Från Home Assistant om du har Waste Collection Schedule.",
+    ],
+  },
+  async test(ctx) {
+    const building = ctx.str("building");
+    if (!building) {
+      const address = ctx.str("address");
+      if (address.length < 3) throw new Error("Skriv gatuadress och nummer.");
+      const found = await srvSuggest(address);
+      if (!found.length) throw new Error(`SRV hittade ingen adress som matchar "${address}".`);
+      return {
+        ok: true,
+        message: `Hittade ${found.length} adress${found.length === 1 ? "" : "er"} – välj din och testa igen.`,
+        choices: { field: "building", options: found.slice(0, 15).map((b) => ({ value: b, label: b })) },
+      };
+    }
+    const pickups = await srvSchedule(building);
+    return { ok: true, message: pickups.length ? "Hämtdagar hittade." : "Adressen hittades men inga kommande hämtningar.", preview: pickups.slice(0, 6).map(fmt) };
+  },
+  async fetch(ctx) {
+    const building = ctx.str("building");
+    if (!building) return [];
+    const until = addDays(startOfDay(new Date()), 21);
+    return (await srvSchedule(building)).filter((p) => p.date < until);
   },
 };
 

@@ -1,0 +1,49 @@
+name: Källkoll
+
+# Weekly: are the outside services without an official API (SRV Återvinning) still answering,
+# and has the Waste Collection Schedule code we ported changed? Opens an issue if so.
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+  # Changes to the SRV/EDP code are tried against the live services before they are merged.
+  pull_request:
+    paths:
+      - server/src/connectors/waste.ts
+      - e2e/sources.mjs
+      - .github/upstream-sources.json
+      - .github/workflows/sources.yml
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w server
+      - id: run
+        run: node e2e/sources.mjs
+        continue-on-error: true
+      - name: Ärende vid problem
+        if: steps.run.outcome == 'failure' && github.event_name != 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const title = "Källkoll: en extern källa behöver ses över";
+            const body = fs.readFileSync("sources-report.md", "utf8") + `\n\nKörning: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({ ...context.repo, state: "open", per_page: 100 });
+            const existing = open.find((i) => i.title === title && !i.pull_request);
+            if (existing) await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body });
+            else await github.rest.issues.create({ ...context.repo, title, body });
+      - name: Misslyckad koll syns som rött
+        if: steps.run.outcome == 'failure'
+        run: exit 1

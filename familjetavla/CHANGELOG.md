@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.8.1
+
+- **Sophämtning från SRV Återvinning** (Botkyrka, Haninge, Huddinge, Nynäshamn och Salem): skriv gatuadress, tryck Testa och välj din adress. Bygger på samma öppna tjänst som Waste Collection Schedule i Home Assistant (beta).
+- **Veckovis källkoll**: GitHub provar SRV varje vecka och bevakar koden i Waste Collection Schedule som SRV- och EDP-kopplingarna bygger på. Ändras något skapas ett ärende, så att en rättad version kan komma innan någon märker felet.
+
 ## 0.8.0
 
 - **Tryck på ett kort** så öppnas dess egen sida: Maten → veckans mat, Skolan → skolsidan, Kom ihåg, Inköpslista och Hos oss (kommande fyra veckor). Elpris, bil, ljus och värme går till sina flikar. Knappar och kryssrutor i korten fungerar som vanligt.
