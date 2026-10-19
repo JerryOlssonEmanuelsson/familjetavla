@@ -1,5 +1,9 @@
 # Ändringar
 
+## 0.6.1
+
+- Skolsteget: "Saknas er skolplattform? Berätta vilken" – länk till ett färdigt formulär på GitHub (plattform, kommun, hur föräldrar loggar in, om du kan testa).
+
 ## 0.6.0
 
 **Genomlysning efter att 0.5.0 inte startade**
