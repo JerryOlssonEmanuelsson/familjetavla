@@ -22,6 +22,9 @@ const LIST = [
   ["iPhone SE", "iPhone SE (3rd gen)", false],
   ["iPhone liggande", "iPhone 15 Pro landscape", false],
 ];
+// PART=1/3 runs every third device (for running in parallel).
+const [partNo, parts] = (process.env.PART ?? "1/1").split("/").map(Number);
+const DEVICES = LIST.filter((_, i) => i % parts === partNo - 1);
 const ROUTES = [
   ["guide-hem", "#/setup/hem"], ["guide-familj", "#/setup/familj"], ["guide-skola", "#/setup/skola"], ["guide-startskarm", "#/setup/visning"], ["guide-klart", "#/setup/klart"],
   ["planera", "", "plan"], ["handelse", "", "event"],
@@ -31,7 +34,7 @@ const line = (row) => {
   if (row.issues.length || row.more?.length) console.log(`${row.issues.length ? "FEL " : "obs "} ${row.device} · ${row.route}: ${row.issues.join("; ")} ${row.more?.length ? `[knappar: ${row.more.join(" / ")}]` : ""}`);
 };
 for (const [theme, clock] of [["ljust", "2026-10-18T16:00:00+02:00"], ["mörkt", "2026-10-18T20:30:00+02:00"]])
-for (const [name0, dev, tablet] of LIST) {
+for (const [name0, dev, tablet] of DEVICES) {
   const name = `${name0} ${theme}`;
   const d = devices[dev];
   // A fresh browser per device keeps memory in check over 300 views.
@@ -87,7 +90,7 @@ for (const [name0, dev, tablet] of LIST) {
         if (cs.visibility === "hidden" || Number(cs.opacity) === 0) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
-        for (const r of range.getClientRects()) {
+        for (let r of range.getClientRects()) {
           if (r.width < 2 || r.height < 2) continue;
           if (r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) continue;
           // Hidden by a fit area or a scroll box? Then it is not shown – skip.
@@ -105,6 +108,14 @@ for (const [name0, dev, tablet] of LIST) {
             }
           }
           if (clipped) continue;
+          // What is actually visible: the part of the text inside every clipping box (ellipsis, line clamp).
+          for (let a = el; a && a !== document.body; a = a.parentElement) {
+            const s3 = getComputedStyle(a);
+            if (s3.overflowX === "visible" && s3.overflowY === "visible") continue;
+            const cr = a.getBoundingClientRect();
+            r = new DOMRect(Math.max(r.left, cr.left), Math.max(r.top, cr.top), Math.max(0, Math.min(r.right, cr.right) - Math.max(r.left, cr.left)), Math.max(0, Math.min(r.bottom, cr.bottom) - Math.max(r.top, cr.top)));
+          }
+          if (r.width < 2 || r.height < 2) continue;
           // Line boxes are taller than the letters (big numbers especially): compare the middle of the line.
           const pad = r.height * 0.22;
           texts.push({ el, r: { left: r.left, right: r.right, width: r.width, top: r.top + pad, bottom: r.bottom - pad, height: r.height - 2 * pad }, t: n.textContent.trim().slice(0, 24) });
@@ -165,7 +176,7 @@ for (const [name0, dev, tablet] of LIST) {
   await ctx.close();
   await b.close();
 }
-fs.writeFileSync(`${S}/report.json`, JSON.stringify(report, null, 1));
+fs.writeFileSync(`${S}/report-${partNo}.json`, JSON.stringify(report, null, 1));
 const bad = report.filter((r) => r.issues.length).length;
 console.log(`\n${report.length} kontroller, ${bad} med fel`);
 if (bad) process.exit(1);

@@ -1027,10 +1027,21 @@ a.btn {
   font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
+/* Event names wrap to two lines instead of being cut to a few letters ("F…") in a narrow column. */
 .event .title {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.2;
+}
+.event > :not(.title) {
+  flex: none;
 }
 .event .avatar {
   width: 22px;
