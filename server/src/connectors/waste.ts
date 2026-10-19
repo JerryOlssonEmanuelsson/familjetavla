@@ -11,34 +11,41 @@ import { isoWeek, startOfDay } from "../time.js";
  * For any other provider: use an ICS link, or a Waste Collection Schedule calendar in HA.
  */
 export const EDP_PROVIDERS: Record<string, { title: string; apiUrl: string }> = {
-  boden: { title: "Boden", apiUrl: "https://edpmobile.boden.se/FutureWeb/SimpleWastePickup" },
   boras: { title: "Borås Energi och Miljö", apiUrl: "https://kundportal.borasem.se/EDPFutureWeb/SimpleWastePickup" },
   danderyd: { title: "Danderyd", apiUrl: "https://future.danderyd.se/Danderyd/EDPFutureweb/SimpleWastePickup" },
   falkenberg: { title: "Falkenberg (VIVAB)", apiUrl: "https://minasidor.vivab.info/FutureWebFalken/SimpleWastePickup" },
-  gotland: { title: "Gotland", apiUrl: "https://edpfuture.gotland.se/FutureWeb/SimpleWastePickup" },
   "herrljunga-vargarda": { title: "Herrljunga & Vårgårda", apiUrl: "https://edpfuture.remondis.se/EDPFutureWeb/SimpleWastePickup" },
-  june: { title: "June Avfall (Jönköping m.fl.)", apiUrl: "https://minasidor.juneavfall.se/FutureWebJuneBasic/SimpleWastePickup" },
-  kiruna: { title: "Kiruna – Tekniska Verken", apiUrl: "https://kund.tekniskaverkenikiruna.se/FutureWebBasic/SimpleWastePickup" },
+  june: { title: "June Avfall (Jönköping, Habo, Mullsjö)", apiUrl: "https://minasidor.juneavfall.se/FutureWebJuneBasic/SimpleWastePickup" },
   "kretslopp-sydost": { title: "Kretslopp Sydost", apiUrl: "https://kundportal.kretsloppsydost.se/FutureWeb/SimpleWastePickup" },
-  kungalv: { title: "Kungälv", apiUrl: "https://minasidor-va-avfall.kungalv.se/FutureWeb/SimpleWastePickup" },
-  lerum: { title: "Lerum", apiUrl: "https://vatjanst.lerum.se/FutureWeb/SimpleWastePickup" },
-  lidkoping: { title: "Lidköping", apiUrl: "https://futureweb.lidkoping.se/FutureWebBasic/SimpleWastePickup" },
   ljungby: { title: "Ljungby", apiUrl: "https://edpwebb.ljungby.se/FutureWeb/SimpleWastePickup" },
   lund: { title: "Lund", apiUrl: "https://eservice431601.lund.se/Lund/FutureWeb/SimpleWastePickup" },
   lycksele: { title: "Lycksele", apiUrl: "https://future.lycksele.se/FutureWeb/SimpleWastePickup" },
   mark: { title: "Marks kommun", apiUrl: "https://va-renhallning.mark.se/FutureWeb/SimpleWastePickup" },
-  molndal: { title: "Mölndal", apiUrl: "https://future.molndal.se/FutureWeb/SimpleWastePickup" },
-  nvoa: { title: "Nacka (NVOA)", apiUrl: "https://futureweb.nvoa.se/EDP/FutureWebBasic/SimpleWastePickup" },
-  orebro: { title: "Örebro", apiUrl: "https://futureweb.orebro.se/FutureWeb/SimpleWastePickup" },
   orust: { title: "Orust", apiUrl: "https://va-renhallning-minasidor.orust.se/FutureWebBasic/SimpleWastePickup" },
   partille: { title: "Partille", apiUrl: "https://vatjanst.partille.se/FutureWeb/SimpleWastePickup" },
-  roslagsvatten: { title: "Roslagsvatten (Österåker, Vaxholm m.fl.)", apiUrl: "https://edpmypage.roslagsvatten.se/FutureWebOS/SimpleWastePickup" },
   skelleftea: { title: "Skellefteå", apiUrl: "https://wwwtk2.skelleftea.se/FutureWeb/SimpleWastePickup" },
   ssam: { title: "SSAM (Växjö m.fl.)", apiUrl: "https://edpfuture.ssam.se/FutureWeb/SimpleWastePickup" },
   stenungsund: { title: "Stenungsund", apiUrl: "https://futureweb.stenungsund.se/FutureWebBasic/SimpleWastePickup" },
   uppsalavatten: { title: "Uppsala Vatten", apiUrl: "https://futureweb.uppsalavatten.se/Uppsala/FutureWeb/SimpleWastePickup" },
   vafab: { title: "Vafab Miljö (Västerås m.fl.)", apiUrl: "https://services.vafabmiljo.se/FutureWebVKFHus/SimpleWastePickup" },
   varberg: { title: "Varberg (VIVAB)", apiUrl: "https://minasidor.vivab.info/FutureWebVarberg/SimpleWastePickup" },
+};
+
+/**
+ * Companies that did not answer in the live check (e2e/sources.mjs, 2026-10-19). Not offered in
+ * the wizard; the weekly check keeps trying them and says when one can be moved back.
+ */
+export const EDP_PARKED: Record<string, { title: string; apiUrl: string; reason: string }> = {
+  boden: { title: "Boden", apiUrl: "https://edpmobile.boden.se/FutureWeb/SimpleWastePickup", reason: "svarar inte (tidsgräns)" },
+  gotland: { title: "Gotland", apiUrl: "https://edpfuture.gotland.se/FutureWeb/SimpleWastePickup", reason: "söker bara på id, inte adress" },
+  kiruna: { title: "Kiruna – Tekniska Verken", apiUrl: "https://kund.tekniskaverkenikiruna.se/FutureWebBasic/SimpleWastePickup", reason: "svarar inte (tidsgräns)" },
+  kungalv: { title: "Kungälv", apiUrl: "https://minasidor-va-avfall.kungalv.se/FutureWeb/SimpleWastePickup", reason: "felaktigt certifikat på servern" },
+  lerum: { title: "Lerum", apiUrl: "https://vatjanst.lerum.se/FutureWeb/SimpleWastePickup", reason: "spärrar anrop (403)" },
+  lidkoping: { title: "Lidköping", apiUrl: "https://futureweb.lidkoping.se/FutureWebBasic/SimpleWastePickup", reason: "svarar inte (tidsgräns)" },
+  molndal: { title: "Mölndal", apiUrl: "https://future.molndal.se/FutureWeb/SimpleWastePickup", reason: "söker bara på id, inte adress" },
+  nvoa: { title: "Nacka (NVOA)", apiUrl: "https://futureweb.nvoa.se/EDP/FutureWebBasic/SimpleWastePickup", reason: "tjänsten svarar med en webbsida i stället för data" },
+  orebro: { title: "Örebro", apiUrl: "https://futureweb.orebro.se/FutureWeb/SimpleWastePickup", reason: "tjänsten svarar med fel (500)" },
+  roslagsvatten: { title: "Roslagsvatten (Österåker, Vaxholm m.fl.)", apiUrl: "https://edpmypage.roslagsvatten.se/FutureWebOS/SimpleWastePickup", reason: "tjänsten finns inte längre på adressen (404)" },
 };
 
 export interface Pickup {
@@ -89,12 +96,24 @@ export interface EdpAddress {
 }
 
 export async function edpSearch(apiUrl: string, address: string): Promise<string[]> {
-  const url = `${apiUrl.replace(/\/+$/, "")}/SearchAdress?searchText=${encodeURIComponent(address)}`;
-  const res = await fetchWithTimeout(url, { method: "POST", timeoutMs: 20_000 });
-  if (!res.ok) throw new Error(`Renhållaren svarade ${res.status}`);
-  const data = (await res.json()) as { Succeeded?: boolean; Buildings?: string[] };
-  if (!data.Succeeded) throw new Error("Renhållaren kunde inte söka just nu.");
-  return data.Buildings ?? [];
+  // "Storgatan 1, Lund (19120)" from an earlier pick: search on the address part only.
+  const text = address.split("(")[0].trim();
+  const url = `${apiUrl.replace(/\/+$/, "")}/SearchAdress?searchText=${encodeURIComponent(text)}`;
+  // Most EDP sites read searchText from the URL or a form body; some (Lund) only from JSON.
+  const bodies = [
+    { type: "application/x-www-form-urlencoded", body: new URLSearchParams({ searchText: text }).toString() },
+    { type: "application/json", body: JSON.stringify({ searchText: text }) },
+  ];
+  let last: string[] = [];
+  for (const b of bodies) {
+    const res = await fetchWithTimeout(url, { method: "POST", headers: { "content-type": b.type }, body: b.body, timeoutMs: 20_000 });
+    if (!res.ok) throw new Error(`Renhållaren svarade ${res.status}`);
+    const data = (await res.json()) as { Succeeded?: boolean; Buildings?: string[] };
+    if (!data.Succeeded) throw new Error("Renhållaren kunde inte söka just nu.");
+    last = data.Buildings ?? [];
+    if (last.length) return last;
+  }
+  return last;
 }
 
 export async function edpSchedule(apiUrl: string, building: string): Promise<Pickup[]> {
@@ -122,4 +141,68 @@ export async function edpByAddress(apiUrl: string, address: string): Promise<{ b
   if (buildings.length === 0) throw new Error(`Hittade ingen adress som matchar "${address}".`);
   const building = buildings[0];
   return { building, pickups: await edpSchedule(apiUrl, building) };
+}
+
+/*
+ * SRV Återvinning (Botkyrka, Haninge, Huddinge, Nynäshamn, Salem).
+ *
+ * Ported from Waste Collection Schedule, source srvatervinning_se.py (MIT,
+ * github.com/mampfes/hacs_waste_collection_schedule). It is the open REST layer behind
+ * "När töms mitt kärl" on srvatervinning.se – not an official API, so
+ * .github/workflows/sources.yml checks it weekly and watches the upstream file for changes.
+ *
+ *   GET …/getSuggestions?query=<text>        → { results: [{ name: "Gata 1, 13760 TUNGELSTA" }] }
+ *   GET …/search?query=<street>&city=<CITY>  → { results: [{ containers: [{ contentType, calendars: [{ startDate }] }] }] }
+ */
+export const SRV_API = "https://www.srvatervinning.se/rest-api/core/sewagePickup";
+
+export async function srvSuggest(text: string): Promise<string[]> {
+  const res = await fetchWithTimeout(`${SRV_API}/getSuggestions?query=${encodeURIComponent(text.trim())}`, { timeoutMs: 20_000 });
+  if (!res.ok) throw new Error(`SRV svarade ${res.status}`);
+  const data = (await res.json()) as { results?: { name?: string }[] };
+  return [...new Set((data.results ?? []).map((r) => (r.name ?? "").trim()).filter(Boolean))];
+}
+
+/** "Skolvägen 10, 13760 TUNGELSTA" → street "Skolvägen 10", city "TUNGELSTA". The search takes them apart. */
+export function splitSrvAddress(full: string): { street: string; city: string } {
+  const [street, rest = ""] = full.split(/,(.*)/s).map((s) => s.trim());
+  const city = rest.replace(/^\d{3}\s?\d{2}\s*/, "").trim().toUpperCase();
+  return { street, city };
+}
+
+/** SRV writes types in capitals or with codes; make them read like the rest of the board. */
+function srvType(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "Sophämtning";
+  return t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t;
+}
+
+export function parseSrvSchedule(data: unknown, now = new Date()): Pickup[] {
+  const today = startOfDay(now);
+  const results = (data as { results?: { containers?: { contentType?: string; containerType?: string; calendars?: { startDate?: string }[] }[] }[] })?.results;
+  if (!Array.isArray(results)) throw new Error("SRV svarade i ett okänt format.");
+  const out: Pickup[] = [];
+  const seen = new Set<string>();
+  for (const c of results[0]?.containers ?? []) {
+    const type = srvType(c.contentType || c.containerType || "");
+    for (const cal of c.calendars ?? []) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(cal.startDate ?? "");
+      if (!m) continue;
+      const date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      const key = `${m[0]}|${type}`;
+      if (date < today || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ date, type });
+    }
+  }
+  return out.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+export async function srvSchedule(address: string): Promise<Pickup[]> {
+  const { street, city } = splitSrvAddress(address);
+  const res = await fetchWithTimeout(`${SRV_API}/search?query=${encodeURIComponent(street)}&city=${encodeURIComponent(city)}`, { timeoutMs: 20_000 });
+  if (!res.ok) throw new Error(`SRV svarade ${res.status}`);
+  const data = await res.json();
+  if (!(data as { results?: unknown[] })?.results?.length) throw new Error(`SRV hittade ingen hämtning för "${address}".`);
+  return parseSrvSchedule(data);
 }

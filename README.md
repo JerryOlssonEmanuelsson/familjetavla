@@ -62,7 +62,8 @@ Det som inte finns i HA sköts av **leverantörsmoduler**:
 | Skolmat | Skolmat-integrationen i HA | Mashie, Matilda, FoodIT, Mateo, skolmat.info | stabil |
 | Skola och förskola | **Vklass** | Schema, idrott, omsorgstid, matsedel. Användarnamn + lösenord (inte BankID) | beta |
 | Skola | **SchoolSoft** | Kalender och matsedel. Användarnamn + lösenord (inte BankID) | beta, nytt |
-| Sopor | Sök på adress | ~30 kommuner/renhållare (EDP Future) | beta |
+| Sopor | Sök på adress | 18 renhållare (EDP Future) – provas mot riktiga adresser varje vecka | stabil |
+| Sopor | **SRV Återvinning** | Botkyrka, Haninge, Huddinge, Nynäshamn, Salem – sök på adress, provas varje vecka | stabil |
 | Sopor | Eget schema | Kärl, en hämtdag, intervall, ev. vissa månader | stabil |
 | Sopor | ICS eller HA-kalender | t.ex. Waste Collection Schedule (~50 svenska renhållare) | stabil |
 | Mataffär | **Willys** | Inloggning via dold webbläsare, sedan varukorgen | beta |
@@ -70,7 +71,7 @@ Det som inte finns i HA sköts av **leverantörsmoduler**:
 | Elpris | Spotpris SE1–SE4 | elprisetjustnu.se + ditt påslag, nät, skatt, moms | stabil |
 | Elpris | HA-sensor | Nordpool, Tibber m.fl. | beta |
 
-> Vklass, SchoolSoft, Willys/Hemköp och EDP är **inofficiella** kopplingar och kan sluta fungera när sajterna ändras. BankID går inte att automatisera – kontona behöver ett lösenord.
+> Vklass, SchoolSoft, Willys/Hemköp, EDP och SRV är **inofficiella** kopplingar och kan sluta fungera när sajterna ändras. BankID går inte att automatisera – kontona behöver ett lösenord.
 
 ## Installera
 
@@ -143,7 +144,7 @@ npm test                 # vitest
 
 ## Tack
 
-Kopplingarna bygger på kartläggning från andra öppna projekt: [willys-mcp](https://github.com/oscarthroedsson/willys-mcp) (Willys/Axfood), [Waste Collection Schedule](https://github.com/mampfes/hacs_waste_collection_schedule) (EDP Future-renhållare), [Vklass scrape sensor](https://community.home-assistant.io/t/vklass-scrape-sensor/939402), [node-schoolsoft](https://github.com/CarelessInternet/node-schoolsoft) (SchoolSoft) och [Skolmat](https://github.com/Kaptensanders/skolmat) (skolmaten.se). Elpris från [elprisetjustnu.se](https://www.elprisetjustnu.se), väder från [Open-Meteo](https://open-meteo.com), postnummer från [OpenStreetMap Nominatim](https://nominatim.org).
+Kopplingarna bygger på kartläggning från andra öppna projekt: [willys-mcp](https://github.com/oscarthroedsson/willys-mcp) (Willys/Axfood), [Waste Collection Schedule](https://github.com/mampfes/hacs_waste_collection_schedule) (EDP Future-renhållare och SRV Återvinning – en veckovis koll larmar om deras kod eller tjänsten ändras), [Vklass scrape sensor](https://community.home-assistant.io/t/vklass-scrape-sensor/939402), [node-schoolsoft](https://github.com/CarelessInternet/node-schoolsoft) (SchoolSoft) och [Skolmat](https://github.com/Kaptensanders/skolmat) (skolmaten.se). Elpris från [elprisetjustnu.se](https://www.elprisetjustnu.se), väder från [Open-Meteo](https://open-meteo.com), postnummer från [OpenStreetMap Nominatim](https://nominatim.org).
 
 ## Licens
 

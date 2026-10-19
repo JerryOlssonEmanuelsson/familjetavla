@@ -4,7 +4,7 @@ import { hemkop, willys } from "./grocery.js";
 import { haPrice, spotPrice } from "./price.js";
 import { schoolIcs, schoolsoft, skolmatHa, skolmaten, vklass } from "./school.js";
 import type { AnyProvider, GroceryProvider, PriceProvider, ProviderCtx, SchoolProvider, WasteProvider } from "./types.js";
-import { wasteEdp, wasteHa, wasteIcs, wasteManual } from "./waste.js";
+import { wasteEdp, wasteHa, wasteIcs, wasteManual, wasteSrv } from "./waste.js";
 
 /**
  * Every supported service, per category. To add one: implement the interface in
@@ -13,7 +13,7 @@ import { wasteEdp, wasteHa, wasteIcs, wasteManual } from "./waste.js";
 export const PROVIDERS = {
   school: [schoolIcs, skolmaten, skolmatHa, vklass, schoolsoft] as SchoolProvider[],
   grocery: [willys, hemkop] as GroceryProvider[],
-  waste: [wasteEdp, wasteManual, wasteIcs, wasteHa] as WasteProvider[],
+  waste: [wasteEdp, wasteSrv, wasteManual, wasteIcs, wasteHa] as WasteProvider[],
   price: [spotPrice, haPrice] as PriceProvider[],
 } satisfies Record<IntegrationCategory, AnyProvider[]>;
 

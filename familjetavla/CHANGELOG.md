@@ -1,5 +1,13 @@
 # Ändringar
 
+## 0.8.1
+
+- **Sophämtning från SRV Återvinning** (Botkyrka, Haninge, Huddinge, Nynäshamn och Salem): skriv gatuadress, tryck Testa och välj din adress. Bygger på samma öppna tjänst som Waste Collection Schedule i Home Assistant.
+- **Alla sopleverantörer provade på riktigt.** Varje renhållare i Sök på adress har provats mot en riktig adress. 18 fungerar: Borås, Danderyd, Falkenberg, Varberg, Herrljunga/Vårgårda, June Avfall (Jönköping, Habo, Mullsjö), Kretslopp Sydost, Ljungby, Lund, Lycksele, Mark, Orust, Partille, Skellefteå, SSAM (Växjö m.fl.), Stenungsund, Uppsala Vatten och Vafab Miljö – plus SRV.
+- Tio svarade inte och går inte längre att välja: Boden, Gotland, Kiruna, Kungälv, Lerum, Lidköping, Mölndal, Nacka, Örebro och Roslagsvatten. Har du valt någon av dem säger tavlan det tydligt; använd Eget schema eller Från Home Assistant. De provas varje vecka och kommer tillbaka när de fungerar.
+- Rättat: **Lund** gav aldrig träff (deras tjänst vill ha sökningen i ett annat format). June Avfall känner nu igen Habo och Mullsjö från postnumret.
+- **Veckovis källkoll**: GitHub provar varje vecka alla renhållare, SRV, skolmaten.se, elpriset, vädret och postnummersökningen mot de riktiga tjänsterna, och bevakar koden i Waste Collection Schedule som sopkopplingarna bygger på. Ändras något skapas ett ärende, så att en rättad version kan komma innan någon märker felet.
+
 ## 0.8.0
 
 - **Tryck på ett kort** så öppnas dess egen sida: Maten → veckans mat, Skolan → skolsidan, Kom ihåg, Inköpslista och Hos oss (kommande fyra veckor). Elpris, bil, ljus och värme går till sina flikar. Knappar och kryssrutor i korten fungerar som vanligt.
