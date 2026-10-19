@@ -2624,3 +2624,15 @@ a.btn {
     display: none;
   }
 }
+
+.edlevo-steps {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding-left: 22px;
+}
+.edlevo-steps li {
+  display: grid;
+  gap: 8px;
+  line-height: 1.4;
+}

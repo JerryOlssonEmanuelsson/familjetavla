@@ -1053,6 +1053,12 @@ export function SchoolStep({ cfg, set, secrets, setSecrets, resp, haOk }: StepPr
       })}
       <h2 style={{ fontSize: 18 }}>Lägg till skola</h2>
       <ProviderTiles providers={resp.providers} category="school" onSelect={(id) => id && add(id)} haAvailable={haOk} />
+      <EdlevoHelp
+        hasMenu={schools.some((s) => s.provider === "skolmaten")}
+        hasLink={schools.some((s) => s.provider === "school-ics" && s.settings.platform === "Edlevo")}
+        onMenu={() => add("skolmaten")}
+        onLink={() => set({ ...cfg, integrations: [...cfg.integrations, { id: uid("s"), category: "school", provider: "school-ics", settings: { platform: "Edlevo" } }] })}
+      />
       <small className="faint">
         Saknas er skolplattform?{" "}
         <a href="https://github.com/murre87/familjetavla/issues/new?template=skolplattform.yml" target="_blank" rel="noreferrer">
@@ -1061,6 +1067,71 @@ export function SchoolStep({ cfg, set, secrets, setSecrets, resp, haOk }: StepPr
         – då vet vi vad som ska byggas härnäst. Under tiden fungerar ofta en kalenderlänk.
       </small>
     </div>
+  );
+}
+
+/**
+ * Edlevo (Tieto) has no login a board can use: guardians sign in with BankID/Freja only, and
+ * Tieto's API needs a licence and an agreement with the municipality. This shows what works instead.
+ */
+function EdlevoHelp({ hasMenu, hasLink, onMenu, onLink }: { hasMenu: boolean; hasLink: boolean; onMenu: () => void; onLink: () => void }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button className="btn" style={{ alignSelf: "flex-start" }} onClick={() => setOpen(true)}>
+        Har ni Edlevo? <Icon name="chevronRight" size={18} />
+      </button>
+    );
+  }
+  return (
+    <section className="card edlevo-help">
+      <div className="card-head">
+        <h2>Edlevo</h2>
+        <button className="btn small ghost" onClick={() => setOpen(false)}>
+          Stäng
+        </button>
+      </div>
+      <p className="muted">
+        Edlevo går inte att hämta automatiskt: vårdnadshavare loggar bara in med BankID eller Freja, och det kan ingen app göra på egen hand. Så här får ni ändå in det viktigaste:
+      </p>
+      <ol className="edlevo-steps">
+        <li>
+          <b>Skolmaten</b> – de flesta Edlevo-kommuner lägger ut matsedeln på skolmaten.se. Sök upp skolan där och klistra in adressen.
+          <div className="row gap wrap">
+            {hasMenu ? (
+              <span className="chip">✓ Tillagd ovan</span>
+            ) : (
+              <button className="btn small" onClick={onMenu}>
+                <Icon name="plus" size={18} /> Lägg till skolmaten.se
+              </button>
+            )}
+            <a className="btn small ghost" href="https://skolmaten.se" target="_blank" rel="noreferrer">
+              Sök skola på skolmaten.se
+            </a>
+          </div>
+        </li>
+        <li>
+          <b>Omsorgstider</b> (förskola och fritids) – lägg in dem en gång per termin under barnet i steget Familj, "Förskola eller fritids". Då vet tavlan när barnet ska lämnas och hämtas.
+          <div className="row gap wrap">
+            <a className="btn small ghost" href="#/setup/familj">
+              Till steget Familj
+            </a>
+          </div>
+        </li>
+        <li>
+          <b>Skolschemat</b> – fråga skolan om schemat finns som kalenderlänk (ICS). Då visas lektioner, "Skolan idag" och idrott med gympapåse.
+          <div className="row gap wrap">
+            {hasLink ? (
+              <span className="chip">✓ Tillagd ovan</span>
+            ) : (
+              <button className="btn small" onClick={onLink}>
+                <Icon name="plus" size={18} /> Lägg till kalenderlänk
+              </button>
+            )}
+          </div>
+        </li>
+      </ol>
+    </section>
   );
 }
 

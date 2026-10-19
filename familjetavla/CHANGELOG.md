@@ -6,6 +6,8 @@
 - **Tryck på en läxa eller ett prov** så visas allt: dag och tid, lärarens hela beskrivning (t.ex. "Inför provet ska du kunna…") och en knapp till uppgiften i Vklass.
 - **Ljus: varje lampa för sig.** Rummen visar sina lampor var för sig – tänd och släck en i taget – och ett reglage för ljusstyrka på lampor som går att dimma. "Tänd alla"/"Släck alla" finns kvar.
 - **"+2" i veckan** går att trycka på och öppnar hela veckan.
+- **Har ni Edlevo?** Ny hjälp i guidens skolsteg: Edlevo kan inte hämtas automatiskt (bara BankID), men skolmaten.se, omsorgstider och kalenderlänk ger det viktigaste – med knappar som lägger till dem.
+- **Prova i molnet** (Codespaces) startar tavlan av sig själv, även när man öppnar den från mobilen.
 - Lektionsnamnen städas: "Svenska (5:a:TH-26__SV)" blir "Svenska". Lärarnas planeringar visas inte.
 - Rättat: uppdateringen kunde ge **"manifest unknown"** om man uppdaterade inom en halvtimme från en ny version. Nu annonseras en version till Home Assistant först när den går att hämta.
 

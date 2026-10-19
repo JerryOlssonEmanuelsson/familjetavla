@@ -24,6 +24,6 @@ Adressen fungerar i Safari och Chrome. Du loggar in med ditt GitHub-konto först
   30 minuter utan aktivitet; starta den igen från github.com/codespaces så finns allt kvar.
 - **Dina uppgifter** sparas krypterat i mappen `data/` i din egen codespace och följer aldrig med till GitHub-projektet.
   Ta bort codespacen när du är klar (github.com/codespaces → … → Delete) så försvinner allt.
-- Startar tavlan inte av sig själv: skriv `node server/dist/index.js` i terminalen.
+- Ger adressen 502 eller startar tavlan inte av sig själv: öppna Terminal och skriv `test -f server/dist/index.js || (npm ci && npm run build); node server/dist/index.js`. Loggen finns i `/tmp/familjetavla.log`.
 
 När du sedan installerar hemma (tillägg eller Docker) går du igenom guiden igen – det tar fem minuter.
