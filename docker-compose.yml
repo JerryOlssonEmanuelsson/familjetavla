@@ -6,6 +6,7 @@ services:
     # build: .            # eller bygg själv från källkoden
     container_name: familjetavla
     restart: unless-stopped
+    init: true
     ports:
       - "8099:8099"
     volumes:

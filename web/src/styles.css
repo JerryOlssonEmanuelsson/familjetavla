@@ -588,6 +588,10 @@ a.btn {
   flex-direction: column;
   gap: 18px;
 }
+/* No tab bar (only the home screen): give its space back to the board. */
+.board.no-tabs {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
 @media (min-width: 900px) {
   .board {
     padding-left: max(28px, env(safe-area-inset-left, 0px));
@@ -1790,6 +1794,14 @@ a.btn {
   }
   .day-name {
     width: 62px;
+  }
+  /* "Imorgon" in the big display font is wider than 62px on a phone */
+  .day.big .day-name {
+    width: auto;
+    min-width: 62px;
+  }
+  .day.big .day-name b {
+    font-size: 18px;
   }
   .now {
     padding: 20px;

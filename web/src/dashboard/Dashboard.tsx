@@ -576,6 +576,17 @@ export function Dashboard() {
     toastTimer.current = window.setTimeout(() => setToast(""), 3500);
   };
 
+  // Anything that fails without its own message (a sheet save, a shelf tick) still tells the user.
+  useEffect(() => {
+    const onFail = (ev: PromiseRejectionEvent) => {
+      ev.preventDefault();
+      showToast(`Det gick inte att spara: ${(ev.reason as Error)?.message ?? "okänt fel"}`);
+    };
+    window.addEventListener("unhandledrejection", onFail);
+    return () => window.removeEventListener("unhandledrejection", onFail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const run: Actions["run"] = async (label, fn) => {
     try {
       await fn();
@@ -721,7 +732,7 @@ export function Dashboard() {
       <div className={`pull ${refreshing ? "spin" : ""}`} style={{ ["--pull" as string]: `${refreshing ? 30 : pull - 80}px` }} aria-hidden="true">
         <Icon name="refresh" size={22} />
       </div>
-      <div className="board">
+      <div className={`board ${tabs.length > 1 ? "" : "no-tabs"}`}>
         <header className="board-header">
           <div className="grow">
             <h1>
@@ -784,10 +795,15 @@ export function Dashboard() {
           </div>
         </header>
 
+        {error && (
+          <div className="card result bad" role="status" style={{ padding: "12px 18px" }}>
+            Ingen kontakt med tavlan just nu – visar det som hämtades {new Date(data.generatedAt ?? Date.now()).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}. Försöker igen.
+          </div>
+        )}
         {data.errors.length > 0 && (
           <details className="card" style={{ padding: "12px 18px" }}>
             <summary className="muted" style={{ cursor: "pointer" }}>
-              {data.errors.length} källa{data.errors.length === 1 ? "" : "or"} svarar inte just nu
+              {data.errors.length} {data.errors.length === 1 ? "källa" : "källor"} svarar inte just nu
             </summary>
             <ul className="muted" style={{ margin: "8px 0 0", paddingLeft: 18 }}>
               {data.errors.map((e, i) => (

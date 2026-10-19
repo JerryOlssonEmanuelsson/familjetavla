@@ -36,17 +36,31 @@ export function HomeStep({ cfg, set, postcode, setPostcode }: StepProps) {
       );
       set({ ...cfg, integrations, household: { ...cfg.household, postcode: p.postcode, place: p.place, municipality: p.municipality, lat: p.lat, lon: p.lon } });
     } catch (e) {
-      setError((e as Error).message);
+      setError(`${(e as Error).message} Postnumret sparas ändå – väder och elområde kan fyllas i senare under Inställningar.`);
     } finally {
       setBusy(false);
     }
+  };
+  // Look up by itself once five digits are in – a "Hämta" button is easy to miss.
+  const digits = pnr.replace(/\s/g, "");
+  useEffect(() => {
+    if (digits.length !== 5 || (cfg.household.postcode?.replace(/\s/g, "") === digits && cfg.household.place)) return;
+    const t = setTimeout(() => void lookup(), 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [digits]);
+  const typePnr = (v: string) => {
+    setPnr(v);
+    // Keep what was typed even if the lookup fails; a new number clears the old place.
+    const d = v.replace(/\s/g, "");
+    if (d !== (cfg.household.postcode ?? "").replace(/\s/g, "")) set({ ...cfg, household: { ...cfg.household, postcode: d || undefined, place: undefined, municipality: undefined, lat: undefined, lon: undefined } });
   };
   return (
     <section className="card">
       <Text label="Vad heter hushållet?" value={cfg.household.name} onChange={(v) => set({ ...cfg, household: { ...cfg.household, name: v } })} placeholder="Familjen Svensson" />
       <div className="row gap" style={{ alignItems: "flex-end" }}>
         <div className="grow">
-          <Text label="Postnummer" inputMode="numeric" value={pnr} onChange={setPnr} placeholder="123 45" />
+          <Text label="Postnummer" inputMode="numeric" value={pnr} onChange={typePnr} placeholder="123 45" />
         </div>
         <button className="btn" onClick={lookup} disabled={busy || pnr.replace(/\s/g, "").length !== 5}>
           {busy ? "Söker…" : "Hämta"}
@@ -334,7 +348,7 @@ function PersonEditor({ p, adults, onChange, onRemove }: { p: Person; adults: Pe
                 className="btn small"
                 style={{ alignSelf: "flex-start" }}
                 onClick={() => {
-                  const d = new Date().toISOString().slice(0, 10);
+                  const d = ymd(new Date());
                   setC({ overrides: [...(custody.overrides ?? []), { from: d, to: d, home: true }] });
                 }}
               >
@@ -1115,13 +1129,32 @@ export function ShoppingStep({ cfg, set, secrets, setSecrets, resp, haOk }: Step
   );
 }
 
-export function ElectricityStep({ cfg, set, secrets, setSecrets, resp, haOk }: StepProps) {
+/** Number field that accepts "12,5" from a Swedish keyboard and keeps what is typed while typing. */
+function DecimalField({ label, value, help, onChange }: { label: string; value: number; help: string; onChange: (n: number) => void }) {
+  const [text, setText] = useState(String(value).replace(".", ","));
+  return (
+    <Text
+      label={label}
+      inputMode="decimal"
+      value={text}
+      help={help}
+      onChange={(v) => {
+        setText(v);
+        const n = Number(v.replace(/\s/g, "").replace(",", "."));
+        if (Number.isFinite(n) && n >= 0) onChange(n);
+        else if (v.trim() === "") onChange(0);
+      }}
+    />
+  );
+}
+
+export function ElectricityStep({ cfg, set, secrets, setSecrets, resp, haOk, postcode }: StepProps) {
   const [integ, put] = useIntegration(cfg, set, "price");
   const meta = integ && resp.providers.find((p) => p.id === integ.provider && p.category === "price");
   const e = cfg.electricity;
   const setE = (patch: Partial<Config["electricity"]>) => set({ ...cfg, electricity: { ...e, ...patch } });
   const ore = (label: string, k: "markupOre" | "gridOre" | "taxOre", help: string) => (
-    <Text label={label} type="number" inputMode="decimal" value={String(e[k])} help={help} onChange={(v) => setE({ [k]: Math.max(0, Number(v.replace(",", ".")) || 0) })} />
+    <DecimalField key={k} label={label} value={e[k]} help={help} onChange={(n) => setE({ [k]: n })} />
   );
   return (
     <div className="stack">
@@ -1131,7 +1164,7 @@ export function ElectricityStep({ cfg, set, secrets, setSecrets, resp, haOk }: S
         selected={integ?.provider}
         allowNone="Visa inte elpris"
         haAvailable={haOk}
-        onSelect={(id) => put(id ? { id: "price", category: "price", provider: id, settings: id === "spot" ? { area: "SE3", ...(integ?.provider === "spot" ? integ.settings : {}) } : {} } : null)}
+        onSelect={(id) => put(id ? { id: "price", category: "price", provider: id, settings: id === "spot" ? { area: postcode?.area ?? "SE3", ...(integ?.provider === "spot" ? integ.settings : {}) } : {} } : null)}
       />
       {integ && meta && (
         <section className="card">
@@ -1153,7 +1186,7 @@ export function ElectricityStep({ cfg, set, secrets, setSecrets, resp, haOk }: S
             label="Markera billigaste"
             value={String(e.cheapHours)}
             onChange={(v) => setE({ cheapHours: Number(v) })}
-            options={[1, 2, 3, 4, 5, 6, 8].map((n) => ({ value: String(n), label: `${n} timmar i följd` }))}
+            options={[1, 2, 3, 4, 5, 6, 8].map((n) => ({ value: String(n), label: `${n} ${n === 1 ? "timme" : "timmar"} i följd` }))}
             help="Bra för att ladda bilen eller köra disk/tvätt."
           />
         </section>
@@ -1683,7 +1716,11 @@ export function NotifyStep({ cfg, set, resp }: StepProps) {
                     onClick={async () => {
                       try {
                         const r = await api.newFeed(a.id);
-                        setFeeds({ ...feeds, [a.id]: new URL(r.path, location.href.split("#")[0]).toString() });
+                        // Under ingress the page address needs a Home Assistant login, which calendar apps don't have:
+                        // point at the add-on's own port 8099 instead.
+                        const here = new URL(location.href.split("#")[0]);
+                        const base = resp.runtime.supervisor && here.pathname.includes("/hassio_ingress/") ? `http://${here.hostname}:8099/` : here.toString();
+                        setFeeds({ ...feeds, [a.id]: new URL(r.path, base).toString() });
                       } catch (e) {
                         setResults({ ...results, [a.id]: (e as Error).message });
                       }
@@ -1712,7 +1749,7 @@ export function DoneStep({ cfg, secrets, setSecrets, resp, haOk, addSteps }: Ste
     { title: "Hemmet", desc: "Bil, ljus, värme och energi från Home Assistant.", ids: ha(["hamta", "huset"]), done: e.cars.length + e.lights.length + e.climates.length > 0 },
     { title: "Sophämtning", desc: "Påminnelse kvällen innan kärlen töms.", ids: ["sopor"], done: cfg.integrations.some((i) => i.category === "waste") },
     { title: "Inköpslista", desc: "Lista på tavlan, och skicka till butikens varukorg.", ids: ["inkop"], done: cfg.shopping.source === "ha" || cfg.integrations.some((i) => i.category === "grocery") },
-    { title: "Elpris", desc: "Timpris och billigaste timmarna.", ids: ["el"], done: false },
+    { title: "Elpris", desc: "Timpris och billigaste timmarna.", ids: ["el"], done: cfg.integrations.some((i) => i.category === "price") },
     { title: "Startskärm och utseende", desc: "Vad som visas, tema, nattläge och fotoram.", ids: ["visning"], done: false },
   ];
   const kids = cfg.people.filter((p) => p.kind === "child").length;

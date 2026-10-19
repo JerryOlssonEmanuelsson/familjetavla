@@ -13,7 +13,12 @@ permissions:
   packages: write
 
 jobs:
+  # Unit tests plus the full end-to-end run of the real image. Nothing is published unless they pass.
+  checks:
+    uses: ./.github/workflows/ci.yml
+
   image:
+    needs: checks
     runs-on: ubuntu-latest
     strategy:
       matrix:

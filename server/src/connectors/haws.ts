@@ -101,6 +101,7 @@ export class HaSocket {
       const was = this.connected;
       this.connected = false;
       if (was) this.log.warn("HA WebSocket stängdes – försöker igen");
+      else if (this.retry === 0 && !this.stopped) this.log.warn(`Kunde inte ansluta till Home Assistant (${HaSocket.wsUrl(conn)}) – försöker igen`);
       if (!this.stopped) this.schedule();
     };
     ws.onerror = () => {
@@ -118,9 +119,16 @@ export class HaSocket {
     if (msg.type === "auth_required") {
       ws.send(JSON.stringify({ type: "auth", access_token: conn.token }));
     } else if (msg.type === "auth_invalid") {
-      this.log.error("HA WebSocket: ogiltig token");
+      // A wrong token won't fix itself quickly, but a restored HA backup can: try again in 5 minutes.
+      this.log.error("HA WebSocket: Home Assistant godkände inte token – försöker igen om 5 minuter");
       this.stopped = true;
       ws.close();
+      if (this.timer) clearTimeout(this.timer);
+      this.timer = setTimeout(() => {
+        this.stopped = false;
+        this.retry = 0;
+        this.open();
+      }, 5 * 60_000);
     } else if (msg.type === "auth_ok") {
       this.connected = true;
       this.retry = 0;
