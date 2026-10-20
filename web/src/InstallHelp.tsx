@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { Icon } from "./Icon";
 import { canPrompt, inIngress, isInstalled, onInstallChange, platform, promptInstall } from "./install";
 
+/** Where the phone opens "Lägg till från mobilen": the direct port when we are inside HA. */
+export function quickAddUrl() {
+  const base = inIngress() ? `http://${location.hostname}:8099/` : `${location.origin}${location.pathname}`;
+  return `${base}#/lagg-till`;
+}
+
 /** "Lägg tavlan på hemskärmen" – a real install button where the browser allows it, otherwise the steps for this device. */
 export function InstallHelp() {
   const [, rerender] = useState(0);

@@ -3023,3 +3023,56 @@ marker.pf-buy path {
   flex: 1 1 280px;
   min-width: 0;
 }
+
+/* ---------- Lägg till från mobilen (#/lagg-till) ---------- */
+.quick-add {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 16px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.quick-add h1 {
+  font-size: 26px;
+  margin: 0;
+}
+.quick-add .btn.big {
+  min-height: 52px;
+  font-size: 18px;
+}
+.quick-add .seg-btn {
+  min-height: 44px;
+}
+.quick-add .qa-date {
+  position: relative;
+  overflow: hidden;
+}
+/* The native date picker sits invisibly over the chip, so a tap opens it. */
+.quick-add .qa-date input {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  opacity: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  cursor: pointer;
+}
+.quick-add .card.stack {
+  gap: 12px;
+}
+.qa-done p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+}
+.qa-done svg {
+  color: var(--accent);
+  flex: none;
+}
+.qa-list {
+  margin: 0;
+}

@@ -3,7 +3,8 @@ import type { Control, Dashboard, Lamp } from "../../../server/src/types";
 import { api, type CarDetails, type GraphData } from "../api";
 import { Icon } from "../Icon";
 import type { Actions } from "./Dashboard";
-import { PriceCard, Ring } from "./Home";
+import { Ring } from "./bits";
+import { PriceCard } from "../widgets/prices";
 
 const DAYS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
 const fmtNum = (n: number | null | undefined, d = 1) => (n === null || n === undefined ? "–" : String(Math.round(n * 10 ** d) / 10 ** d).replace(".", ","));
