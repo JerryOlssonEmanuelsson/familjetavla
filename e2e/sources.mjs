@@ -176,7 +176,7 @@ for (const site of Object.values(AXFOOD_SITES)) {
 for (const [name, key] of [["SportAdmin", "SPORTADMIN_ICS"], ["laget.se", "LAGET_ICS"]]) {
   const url = process.env[key];
   if (!url) {
-    ok.push(`${name}: hoppas över (ingen ${key} i repots hemliga nycklar)`);
+    ok.push(`${name}: provas i det privata test-repot (riktig kalender)`);
     continue;
   }
   await check(`${name} (riktig kalender)`, async () => {
@@ -217,7 +217,7 @@ if (process.env.VKLASS_USERNAME && process.env.VKLASS_PASSWORD) {
     return `${kids.length} barn (${withId} med schema), mat för ${withFood} barn (${days} dagar), omsorgstid för ${care}, ${r.events.filter((e) => !e.task).length} lektioner (${r.events.filter((e) => e.gym).length} med idrott), ${r.events.filter((e) => e.task).length} läxor/prov/uppgifter två veckor framåt, ${newsNote}`;
   });
 } else {
-  ok.push("Vklass: hoppas över (inga VKLASS_USERNAME/VKLASS_PASSWORD i repots hemliga nycklar)");
+  ok.push("Vklass: provas i det privata test-repot (riktigt konto)");
 }
 
 const report = [

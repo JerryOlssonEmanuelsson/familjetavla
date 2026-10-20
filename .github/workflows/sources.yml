@@ -1,5 +1,8 @@
 name: Källkoll
 
+# Bara öppna tjänster här (sopor, skolmat, elpris, väder …). Kollen mot riktiga konton (Vklass,
+# SportAdmin, laget.se) körs i ett privat repo så att loggarna inte syns för andra.
+
 # Weekly: are the outside services without an official API (SRV Återvinning) still answering,
 # and has the Waste Collection Schedule code we ported changed? Opens an issue if so.
 on:
@@ -35,11 +38,6 @@ jobs:
       - run: npm run build -w server
       - id: run
         run: node e2e/sources.mjs
-        env:
-          VKLASS_USERNAME: ${{ secrets.VKLASS_USERNAME }}
-          VKLASS_PASSWORD: ${{ secrets.VKLASS_PASSWORD }}
-          SPORTADMIN_ICS: ${{ secrets.SPORTADMIN_ICS }}
-          LAGET_ICS: ${{ secrets.LAGET_ICS }}
         continue-on-error: true
       - name: Ärende vid problem
         if: steps.run.outcome == 'failure' && github.event_name != 'pull_request'
