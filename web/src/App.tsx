@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ConfigResponse } from "../../server/src/types";
 import { ApiError, api, setPin } from "./api";
 import { Dashboard } from "./dashboard/Dashboard";
+import { QuickAdd } from "./QuickAdd";
 import { Wizard } from "./setup/Wizard";
 import { navigate, useHash } from "./route";
 
@@ -142,5 +143,6 @@ export function App() {
       />
     );
   }
+  if (hash.startsWith("/lagg-till")) return <QuickAdd people={cfg.config.people} />;
   return <Dashboard />;
 }

@@ -11,7 +11,7 @@ import { Home } from "./Home";
 import { Fit } from "./Fit";
 import { DetailPage, PageBar, PAGE_TITLES, type PageId } from "./Detail";
 import { navigate, useHash } from "../route";
-import { InstallHelp } from "../InstallHelp";
+import { InstallHelp, quickAddUrl } from "../InstallHelp";
 import { isInstalled } from "../install";
 import { CarsPage, EnergyPage, GraphsPage, HousePage, LightsPage } from "./Pages";
 
@@ -1083,6 +1083,22 @@ export function Dashboard() {
               </button>
             </div>
             <InstallHelp />
+            <h3 style={{ marginTop: 18 }}>Lägg till från mobilen</h3>
+            <p className="muted">
+              Öppna den här adressen på telefonen och lägg den på hemskärmen. Där skriver ni in en händelse eller något att handla, och det syns på
+              tavlan direkt.
+            </p>
+            <p>
+              <b style={{ wordBreak: "break-all" }}>{quickAddUrl()}</b>
+            </p>
+            <div className="row gap">
+              <button className="btn small" onClick={() => navigator.clipboard?.writeText(quickAddUrl()).then(() => showToast("Länken kopierad"))}>
+                Kopiera länken
+              </button>
+              <button className="btn small ghost" onClick={() => navigate("/lagg-till")}>
+                Prova här
+              </button>
+            </div>
           </div>
         </div>
       )}

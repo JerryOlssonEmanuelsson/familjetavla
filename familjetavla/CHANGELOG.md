@@ -1,5 +1,9 @@
 # Ändringar
 
+## 0.9.0
+
+- **Lägg till från mobilen.** En enkel sida för telefonen: skriv "Tandläkare", välj dag, tid och vem, så hamnar det i veckan på tavlan direkt. Under Handla lägger man till på inköpslistan och ser vad som redan står där. Länken finns i guidens sista steg och under "Lägg tavlan på hemskärmen". Lägg den på telefonens hemskärm så är det ett tryck bort.
+
 ## 0.8.9
 
 - **Vad elen kostar just nu.** Energi visar "Kostar nu 4,10 kr/tim" utifrån det ni köper och elpriset den här timmen, eller "Gratis just nu" när solen räcker till huset. Startsidans energiruta visar det också.
