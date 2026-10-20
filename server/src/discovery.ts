@@ -102,6 +102,7 @@ const has = (s: string | null | undefined, re: RegExp) => Boolean(s && re.test(s
 const domain = (e: string) => e.split(".")[0];
 
 const CAR_MAKERS = /tesla|nissan|volvo|polestar|kia|hyundai|volkswagen|vw|skoda|audi|bmw|mini|mercedes|renault|peugeot|citro|opel|toyota|lexus|ford|mg |mg$|byd|porsche|cupra|seat|fiat|jaguar|zeekr|xpeng|nio|honda|mazda|subaru|smart/i;
+const PHONE_MAKERS = /^(samsung|apple|google|oneplus|xiaomi|huawei|oppo|motorola|sony|nokia|nothing|fairphone|realme|vivo|honor)\b/i;
 const SOLAR = /solar|sol(el|ar)?\b|pv\b|photovolt|inverter|växelriktare|produktion|production|yield/i;
 const INVERTER_MAKERS = /solaredge|huawei|fronius|sma\b|growatt|enphase|goodwe|solis|sungrow|deye|victron|ferroamp|solax|kostal|apsystems/i;
 const HEATPUMP = /husdata|h60|h66|nibe|thermia|ivt|ctc|bosch|daikin|mitsubishi|panasonic|vaillant|viessmann|heat ?pump|värmepump|bergvärme|luft.?vatten|ecoforest|qvantum|nordic/i;
@@ -133,7 +134,9 @@ export function discover(all: HaEntityInfo[]): Discovery {
     if (!battery) continue;
     const tracker = ents.find((x) => domain(x.e) === "device_tracker");
     const maker = ents[0].m ?? "";
-    const isCar = (tracker && ents.some((x) => has(x.n, /range|räckvidd|odometer|mätarställ|charg|laddning/i))) || has(maker, CAR_MAKERS) || has(ents[0].mo, CAR_MAKERS);
+    // Phones (Companion app) also have a battery, a location and "charging" – never a car.
+    const phone = has(maker, PHONE_MAKERS) || has(ents[0].mo, /^(SM-|iPhone|iPad|Pixel|CPH|M\d{4})/i) || ents.some((x) => has(x.n, /app version|sim \d|wifi bssid|mobile data|android auto|carplay/i));
+    const isCar = !phone && ((tracker && ents.some((x) => has(x.n, /range|räckvidd|odometer|mätarställ|charg|laddning/i))) || has(maker, CAR_MAKERS) || has(ents[0].mo, CAR_MAKERS));
     if (!isCar) continue;
     const range = ents.find((x) => domain(x.e) === "sensor" && has(x.u, /^(km|mi)$/) && has(x.n, /range|räckvidd/i) && !has(x.n, /ac on/i));
     const charging =
@@ -213,9 +216,11 @@ export function discover(all: HaEntityInfo[]): Discovery {
     .slice(0, 12)
     .map((x) => ({ name: x.n, entityId: x.e }));
 
+  const live = (c: Discovery["cars"][number]) => (Number.isFinite(Number(all.find((x) => x.e === c.battery)?.st)) ? 0 : 1);
+  cars.sort((a, b) => live(a) - live(b));
   const todo = all.filter((x) => domain(x.e) === "todo").map((x) => ({ name: x.n, entityId: x.e }));
   const calendars = all
-    .filter((x) => domain(x.e) === "calendar")
+    .filter((x) => domain(x.e) === "calendar" && x.st !== "unavailable")
     .map((x) => ({ name: x.n, entityId: x.e, waste: has(`${x.n} ${x.e} ${x.m ?? ""}`, /waste|sop|avfall|renhåll|tömning|hämtning/i) }));
   const priceSensors = all
     .filter((x) => domain(x.e) === "sensor" && (has(x.e, /nordpool|tibber|electricity_price|elpris|spot/i) || has(x.u, /(SEK|öre|kr)\/kWh/i)))

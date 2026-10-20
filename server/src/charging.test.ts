@@ -27,3 +27,20 @@ describe("car charging", () => {
     expect(c.stop?.entityId).toBe("button.leaf_stop_charging");
   });
 });
+
+describe("car discovery", () => {
+  it("does not take a phone with battery, location and charging for a car", async () => {
+    const { discover } = await import("./discovery.js");
+    const ent = (e: string, n: string, extra: Partial<HaEntityInfo> = {}): HaEntityInfo => ({ e, n, a: null, d: "p1", dn: "Emil-S24", m: "samsung", mo: "SM-S921B", dc: null, u: null, st: "1", lu: "", ...extra });
+    const phone = [
+      ent("sensor.s24_battery_level", "Emil-S24 Battery level", { u: "%", dc: "battery", st: "82" }),
+      ent("device_tracker.s24", "Emil-S24"),
+      ent("sensor.s24_charger_type", "Emil-S24 Charger type"),
+    ];
+    const car = ["sensor.tesla_battery|Tesla Battery|%|battery|97", "device_tracker.tesla|Tesla Location||", "sensor.tesla_range|Tesla Range|km||410"].map((r) => {
+      const [e, n, u, dc, st] = r.split("|");
+      return { e, n, a: null, d: "c1", dn: "Tesla MY", m: "Tesla", mo: "Model Y", dc: dc || null, u: u || null, st: st ?? "1", lu: "" };
+    });
+    expect(discover([...phone, ...car]).cars.map((c) => c.name)).toEqual(["Tesla MY"]);
+  });
+});
