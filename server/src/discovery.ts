@@ -22,7 +22,15 @@ export interface HaEntityInfo {
   u: string | null; // unit
   st: string; // state
   lu: string; // last_updated
+  o?: boolean; // made by the user in HA (template, helper, YAML sensor) – never suggested for energy
 }
+
+/**
+ * Integrations whose entities a user builds by hand (templates and helpers). The board computes
+ * energy itself from the real meters, so these are never suggested: they differ from home to home.
+ */
+const OWN_PLATFORMS = ["template", "integration", "utility_meter", "statistics", "derivative", "min_max", "group", "filter", "compensation", "threshold", "trend", "sql", "rest", "command_line", "scrape"];
+const OWN_TEMPLATE = `{{ (${OWN_PLATFORMS.map((p) => `integration_entities('${p}')`).join(" + ")}) | tojson }}`;
 
 const TEMPLATE = `{% set ns = namespace(out=[]) %}{% for s in states %}{% set d = device_id(s.entity_id) %}{% set ns.out = ns.out + [{"e": s.entity_id, "n": s.name, "a": area_name(s.entity_id), "d": d, "dn": (device_attr(d, 'name_by_user') or device_attr(d, 'name')) if d else none, "m": device_attr(d, 'manufacturer') if d else none, "mo": device_attr(d, 'model') if d else none, "dc": s.attributes.device_class | default(none), "u": s.attributes.unit_of_measurement | default(none), "st": s.state, "lu": s.last_updated | string}] %}{% endfor %}{{ ns.out | tojson }}`;
 
@@ -30,7 +38,7 @@ const TEMPLATE = `{% set ns = namespace(out=[]) %}{% for s in states %}{% set d 
 async function readRegistryWs(): Promise<HaEntityInfo[] | null> {
   const sock = haSocket();
   if (!sock?.connected) return null;
-  type Ent = { entity_id: string; device_id: string | null; area_id: string | null; name: string | null; original_name: string | null; disabled_by: string | null; hidden_by: string | null };
+  type Ent = { entity_id: string; platform?: string; device_id: string | null; area_id: string | null; name: string | null; original_name: string | null; disabled_by: string | null; hidden_by: string | null };
   type Dev = { id: string; name: string | null; name_by_user: string | null; manufacturer: string | null; model: string | null; area_id: string | null };
   type Area = { area_id: string; name: string };
   const [ents, devs, areas] = await Promise.all([
@@ -54,6 +62,8 @@ async function readRegistryWs(): Promise<HaEntityInfo[] | null> {
       a: areaId ? (areaMap.get(areaId) ?? null) : null,
       d: e?.device_id ?? null,
       dn: d ? (d.name_by_user ?? d.name) : null,
+      // Not in the registry at all (YAML without unique_id) or from a helper/template platform.
+      o: !e || OWN_PLATFORMS.includes(e.platform ?? ""),
       m: d?.manufacturer ?? null,
       mo: d?.model ?? null,
       dc: (s.attributes.device_class as string | undefined) ?? null,
@@ -68,6 +78,15 @@ async function readRegistryWs(): Promise<HaEntityInfo[] | null> {
 export async function readRegistry(conn: HaConn): Promise<HaEntityInfo[]> {
   const viaWs = await readRegistryWs().catch(() => null);
   if (viaWs) return viaWs;
+  const list = await readRegistryRest(conn);
+  const own = await ha
+    .template(conn, OWN_TEMPLATE)
+    .then((r) => new Set<string>(typeof r === "string" ? JSON.parse(r) : (r as string[])))
+    .catch(() => new Set<string>());
+  return list.map((x) => (own.has(x.e) ? { ...x, o: true } : x));
+}
+
+async function readRegistryRest(conn: HaConn): Promise<HaEntityInfo[]> {
   try {
     return parseTemplate(await ha.template(conn, TEMPLATE));
   } catch {
@@ -163,17 +182,18 @@ export function discover(all: HaEntityInfo[]): Discovery {
   // Sensors with a real value first: a meter that says "unknown" is no use on the board.
   const working = (x: HaEntityInfo) => Number.isFinite(Number(x.st));
   const power = all
-    .filter((x) => domain(x.e) === "sensor" && x.dc === "power" && !carDevices.has(x.d))
+    .filter((x) => domain(x.e) === "sensor" && x.dc === "power" && !carDevices.has(x.d) && !x.o)
     .sort((a, b) => Number(working(b)) - Number(working(a)) || Number(has(`${b.n} ${b.m ?? ""}`, /tibber pulse|p1|han\b/i)) - Number(has(`${a.n} ${a.m ?? ""}`, /tibber pulse|p1|han\b/i)));
   const solar =
     power.find((x) => has(x.n, SOLAR) && has(`${x.m} ${x.n}`, INVERTER_MAKERS)) ?? power.find((x) => has(x.n, SOLAR) || has(x.m, INVERTER_MAKERS));
   const grid = power.find((x) => x !== solar && has(`${x.n} ${x.m ?? ""}`, GRID) && !has(x.n, /produktion|production|export|sälj|max|min|genomsnitt|average/i));
-  const house = power.find((x) => x !== solar && x !== grid && has(x.n, /house|hus|home|hem|load|last|förbrukning|consumption/i));
+  // Only needed without sun or meter: with both, the board counts the house itself.
+  const house = solar && grid ? undefined : power.find((x) => x !== solar && x !== grid && has(x.n, /house|hus|home|hem|load|last|förbrukning|consumption/i));
   // Sold power, when the meter gives it separately (Tibber Pulse "Elproduktion", P1 "Power production").
   const SELL = /produktion|production|export|sälj|utmatning|returned|feed.?in|inmatning/i;
   const gridExport = grid ? power.find((x) => x !== grid && x !== solar && x.d === grid.d && has(x.n, SELL) && !has(x.n, /max|min|genomsnitt|average|medel/i)) : undefined;
   // Meter readings for today's kWh: on the grid meter (bought, sold) and on the inverter (made).
-  const counters = all.filter((x) => domain(x.e) === "sensor" && has(x.u, /^(k|M)?Wh$/) && working(x));
+  const counters = all.filter((x) => domain(x.e) === "sensor" && has(x.u, /^(k|M)?Wh$/) && working(x) && !x.o);
   const lifetime = /mätar|meter|total|livstid|lifetime|ackumulerad|accumulated|senaste/i;
   const pick = (list: HaEntityInfo[]) => list.sort((a, b) => Number(has(b.n, lifetime)) - Number(has(a.n, lifetime)) || Number(has(a.n, /timme|hour/i)) - Number(has(b.n, /timme|hour/i)))[0];
   const meterDev = grid?.d;
@@ -182,7 +202,7 @@ export function discover(all: HaEntityInfo[]): Discovery {
   const solarEnergy = solar?.d ? pick(counters.filter((x) => x.d === solar.d && has(x.n, /energy|energi|producerad|produced|production|yield|lifetime|livstid|ac energy/i) && !has(x.n, /import|export|förbruk|consum|månad|month|år\b|year/i))) : undefined;
 
   const homeBattery = all.find(
-    (x) => domain(x.e) === "sensor" && x.dc === "battery" && x.u === "%" && working(x) && !carDevices.has(x.d) && has(`${x.n} ${x.m ?? ""}`, /storage|hembatteri|home battery|powerwall|battery soc|ferroamp|huawei|solaredge|sonnen|pixii|victron/i),
+    (x) => domain(x.e) === "sensor" && x.dc === "battery" && x.u === "%" && working(x) && !carDevices.has(x.d) && !x.o && has(`${x.n} ${x.m ?? ""}`, /storage|hembatteri|home battery|powerwall|battery soc|ferroamp|huawei|solaredge|sonnen|pixii|victron/i),
   );
 
   // ---- Climate devices (heat pump, thermostats, hot water, spa) with the device's pumps/lights/blowers
@@ -240,7 +260,7 @@ export function discover(all: HaEntityInfo[]): Discovery {
     .map((x) => ({ name: x.n, entityId: x.e, waste: has(`${x.n} ${x.e} ${x.m ?? ""}`, /waste|sop|avfall|renhåll|tömning|hämtning/i) }));
   const priceSensors = all
     // A price has a currency per kWh as its unit; the name alone ("spottar", Tibber's consumption) is not enough.
-    .filter((x) => domain(x.e) === "sensor" && has(x.u, /^(SEK|öre|kr|EUR|NOK|DKK|€)\/kWh$/i))
+    .filter((x) => domain(x.e) === "sensor" && has(x.u, /^(SEK|öre|kr|EUR|NOK|DKK|€)\/kWh$/i) && !x.o)
     .sort((a, b) => Number(working(b)) - Number(working(a)) || Number(has(`${b.e} ${b.n}`, /nordpool|tibber|elpris|spot|price/i)) - Number(has(`${a.e} ${a.n}`, /nordpool|tibber|elpris|spot|price/i)))
     .map((x) => ({ name: x.n, entityId: x.e }));
   const buttons = all.filter((x) => domain(x.e) === "scene" || domain(x.e) === "script").map((x) => ({ name: x.n, entityId: x.e }));

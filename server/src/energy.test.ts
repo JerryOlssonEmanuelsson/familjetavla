@@ -14,6 +14,13 @@ describe("energy now", () => {
     const states = new Map([st("sensor.solar", "5.2", "kW"), st("sensor.pulse", "0", "W"), st("sensor.pulse_prod", "3800", "W")].map((s) => [s.entity_id, s]));
     expect(energyNow({ solar: "sensor.solar", grid: "sensor.pulse", gridExport: "sensor.pulse_prod" }, states)).toEqual({ solarKw: 5.2, gridKw: -3.8, houseKw: 1.4, selfUseKw: 1.4 });
   });
+  it("a home's own consumption sensor that is only the bought power does not hide the sun", () => {
+    // Tibber Effekt is 0 while selling; a template copying it says the house uses nothing.
+    const states = new Map([st("sensor.solar", "4000", "W"), st("sensor.pulse", "0", "W"), st("sensor.pulse_prod", "2500", "W"), st("sensor.tpl", "0", "kW")].map((s) => [s.entity_id, s]));
+    expect(energyNow({ solar: "sensor.solar", grid: "sensor.pulse", gridExport: "sensor.pulse_prod", house: "sensor.tpl" }, states).houseKw).toBe(1.5);
+    // Without a solar sensor the house sensor is used.
+    expect(energyNow({ grid: "sensor.pulse", house: "sensor.tpl" }, states).houseKw).toBe(0);
+  });
   it("live: the flow and the battery, and only power sensors move it (not the kWh meters)", () => {
     const states = new Map([st("sensor.solar", "2000", "W"), st("sensor.pulse", "500", "W"), st("sensor.bat", "64", "%")].map((s) => [s.entity_id, s]));
     const e = { solar: "sensor.solar", grid: "sensor.pulse", battery: "sensor.bat", importEnergy: "sensor.meter" };
@@ -27,6 +34,17 @@ describe("energy today", () => {
   it("counts a lifetime meter and a counter that restarts at midnight the same way", () => {
     expect(increase([{ t: t(0), v: 56079.4 }, { t: t(8), v: 56090 }, { t: t(14), v: 56103.0 }])).toBeCloseTo(23.6, 1);
     expect(increase([{ t: t(0), v: 21.4 }, { t: t(0, 1), v: 0.2 }, { t: t(14), v: 23.6 }])).toBeCloseTo(23.6, 1);
+  });
+  it("a short glitch to 0 is not counted twice (real home: 57.5 kWh instead of 31.9)", () => {
+    const pts = [{ t: t(0), v: 0 }, { t: t(12), v: 20 }, { t: t(18, 40), v: 25.6 }, { t: t(18, 41), v: 0 }, { t: t(18, 43), v: 25.7 }, { t: t(21), v: 31.9 }];
+    expect(increase(pts)).toBeCloseTo(31.9, 1);
+  });
+  it("a day that passes yesterday's total still counts from midnight", () => {
+    expect(increase([{ t: t(0), v: 30 }, { t: t(0, 1), v: 0.1 }, { t: t(0, 20), v: 0.5 }, { t: t(21), v: 35 }])).toBeCloseTo(35, 1);
+  });
+  it("hourly counters restart every hour, small corrections count nothing", () => {
+    expect(increase([{ t: t(9, 50), v: 1.8 }, { t: t(10, 0), v: 0 }, { t: t(10, 20), v: 2 }, { t: t(10, 59), v: 3 }, { t: t(11, 1), v: 0.1 }])).toBeCloseTo(3.1, 1);
+    expect(increase([{ t: t(9), v: 10 }, { t: t(10), v: 9.99 }, { t: t(11), v: 11 }])).toBeCloseTo(1, 1);
   });
   it("gives consumption, own solar use, self-sufficiency and cost", () => {
     const series = {
@@ -55,5 +73,18 @@ describe("energy discovery", () => {
       e("sensor.pulse_hour", "Tibber Pulse Malmgatan 34 Ackumulerad förbrukning under aktuell timme", "pulse", "Tibber", "energy", "kWh", "0.6"),
     ]);
     expect(d.energy).toMatchObject({ solar: "sensor.ac_power", grid: "sensor.pulse_effekt", gridExport: "sensor.elproduktion", solarEnergy: "sensor.ac_energy", importEnergy: "sensor.pulse_meter_in", exportEnergy: "sensor.pulse_meter_out" });
+  });
+  it("never suggests the home's own templates and helpers, only real meters", () => {
+    const e = (id: string, n: string, d: string | null, dc: string | null, u: string, st: string, o = false): HaEntityInfo => ({ e: id, n, a: null, d, dn: null, m: d ? "Tibber" : null, mo: null, dc, u, st, lu: "", o });
+    const d = discover([
+      e("sensor.husets_forbrukning", "Husets förbrukning", null, "power", "kW", "0.42", true),
+      e("sensor.elnetto", "Elnetto grid", null, "power", "W", "417", true),
+      e("sensor.smartbox_elpris", "Smartbox Elpris", null, null, "kr/kWh", "0.72", true),
+      e("sensor.pulse_effekt", "Tibber Pulse Effekt", "pulse", "power", "W", "417"),
+      e("sensor.nordpool", "nordpool", null, null, "SEK/kWh", "0.90"),
+    ]);
+    expect(d.energy.grid).toBe("sensor.pulse_effekt");
+    expect(d.energy.house).toBeUndefined();
+    expect(d.priceSensors.map((p) => p.entityId)).toEqual(["sensor.nordpool"]);
   });
 });

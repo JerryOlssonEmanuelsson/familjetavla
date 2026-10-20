@@ -1,5 +1,12 @@
 # Ändringar
 
+## 0.8.8
+
+- **Bara riktiga mätare föreslås.** Guiden föreslår aldrig egna mallsensorer eller hjälpare (template, utility meter, statistik m.m.) för energi och elpris, bara integrationer som Tibber, SolarEdge, Huawei, P1-mätare och Nord Pool. Tavlan räknar resten själv, så det fungerar likadant i alla hem. Vill du ändå använda en egen sensor kan du välja den själv i listan.
+- **Husets förbrukning stämmer även när ni säljer el.** Med både solel och elmätare räknar tavlan alltid själv: solel + köpt − såld. Tidigare kunde en egen "förbrukning"-sensor användas, och om den bara visar köpt el (som Tibber, 0 när ni säljer) såg det ut som att huset inte drog något. En egen hussensor används nu bara om solel eller elmätare saknas.
+- **Rätt "Idag" även när mätaren hackar.** Om en mätare i Home Assistant en kort stund visar 0 och sedan sitt riktiga värde igen räknades dagen dubbelt (t.ex. 57 kWh köpt i stället för 32). Nu skiljs en kort glitch från en riktig nollställning vid midnatt eller timskifte, och små rättningar bakåt räknas inte alls.
+- **Kungälv** fungerar igen i Sök på adress (sophämtning) och går att välja.
+
 ## 0.8.7
 
 - **Elen live med animation.** Energi visar "Just nu": sol, elnät och hus med strömmen som rör sig mellan dem. Prickarna går fortare och linjerna blir tjockare ju mer effekt som flyter, och pilarna visar åt vilket håll (köper eller säljer). Värdena följer Home Assistant ungefär varje sekund, utan att tavlan laddas om. Startsidans energiruta följer också med live.

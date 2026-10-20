@@ -1431,7 +1431,7 @@ export function HouseStep({ cfg, set }: StepProps) {
         <div className="grid-2">
           <EntityPicker label="Solproduktion (växelriktare)" domains={["sensor"]} units={POWER} value={en.energy.solar} onChange={(v) => setEn({ energy: { ...en.energy, solar: v } })} />
           <EntityPicker label="Elnät – köp positivt (elmätare)" domains={["sensor"]} units={POWER} value={en.energy.grid} onChange={(v) => setEn({ energy: { ...en.energy, grid: v } })} help="T.ex. Tibber Pulse, P1/HAN-mätare eller Shelly EM." />
-          <EntityPicker label="Husets förbrukning" domains={["sensor"]} units={POWER} value={en.energy.house} onChange={(v) => setEn({ energy: { ...en.energy, house: v } })} help="Saknas den räknar tavlan sol + nät." />
+          <EntityPicker label="Husets förbrukning" domains={["sensor"]} units={POWER} value={en.energy.house} onChange={(v) => setEn({ energy: { ...en.energy, house: v } })} help="Behövs bara om du saknar solel eller elmätare. Annars räknar tavlan själv: solel + köpt − såld." />
           <EntityPicker label="Elnät – sålt (om mätaren har det separat)" domains={["sensor"]} units={POWER} value={en.energy.gridExport} onChange={(v) => setEn({ energy: { ...en.energy, gridExport: v } })} help="T.ex. Tibber Pulse Elproduktion. Visar mätaren köp som plus och sälj som minus behövs den inte." />
           <EntityPicker label="Hembatteri (%)" domains={["sensor"]} units={/^%$/} value={en.energy.battery} onChange={(v) => setEn({ energy: { ...en.energy, battery: v } })} />
         </div>

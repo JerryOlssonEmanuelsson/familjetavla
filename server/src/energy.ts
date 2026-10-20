@@ -17,15 +17,18 @@ export function kwOf(states: Map<string, HaState>, id?: string): number | undefi
 
 /**
  * Power right now. The grid meter may give one signed value (+ buy, − sell) or two (buy and sell,
- * like Tibber Pulse "Effekt" and "Elproduktion"). The house is its own sensor if there is one, else
- * what the sun makes plus what is bought minus what is sold.
+ * like Tibber Pulse "Effekt" and "Elproduktion"). The house is what the sun makes plus what is
+ * bought minus what is sold; a house sensor is only used when the sun or the meter is missing.
  */
 export function energyNow(e: EnergyEntities, states: Map<string, HaState>): Omit<Energy, "today" | "batteryPct"> {
   const solar = kwOf(states, e.solar);
   const buy = kwOf(states, e.grid);
   const sell = kwOf(states, e.gridExport);
   const grid = buy !== undefined ? round(buy - (sell ?? 0)) : sell !== undefined ? -sell : undefined;
-  const house = kwOf(states, e.house) ?? (solar !== undefined && grid !== undefined ? round(Math.max(0, solar + grid)) : undefined);
+  // With both sun and meter the board counts the house itself: sun + bought − sold. A home's own
+  // "consumption" sensor often is just the bought power (0 while selling), so it is only used when
+  // one of the two is missing.
+  const house = solar !== undefined && grid !== undefined ? round(Math.max(0, solar + grid)) : kwOf(states, e.house);
   const sold = grid !== undefined && grid < 0 ? -grid : 0;
   const selfUse = solar !== undefined ? round(Math.max(0, Math.min(solar - sold, house ?? solar))) : undefined;
   return { solarKw: solar, gridKw: grid, houseKw: house, selfUseKw: selfUse };
@@ -46,17 +49,42 @@ export function energyLive(e: EnergyEntities, states: Map<string, HaState>): Omi
 export const liveEnergyIds = (e: EnergyEntities) => [e.solar, e.grid, e.gridExport, e.house, e.battery].filter((x): x is string => Boolean(x));
 
 /**
- * How much a meter has counted since midnight. Works for lifetime readings (total_increasing) and
- * for counters that restart at midnight or every hour: a drop is a restart, and counting goes on.
+ * What a meter counted between readings. Works for lifetime readings (total_increasing) and for
+ * counters that restart at midnight or every hour. Real meters misbehave, so a drop is only a
+ * restart when it looks like one:
+ *  - a small dip (still at least half) is a correction: nothing is counted
+ *  - a drop at the start of an hour is a restart (midnight, hourly counters)
+ *  - a drop that comes back to the old level within 30 minutes is a glitch (e.g. a short 0)
+ *  - any other big drop is a restart: the new value is what has been counted since
  */
+function steps(points: { t: number; v: number }[]): { t: number; inc: number }[] {
+  const out: { t: number; inc: number }[] = [];
+  if (!points.length) return out;
+  let last = points[0].v;
+  for (let i = 1; i < points.length; i++) {
+    const p = points[i];
+    if (p.v >= last) {
+      out.push({ t: p.t, inc: p.v - last });
+      last = p.v;
+      continue;
+    }
+    if (p.v >= last * 0.5) {
+      last = p.v;
+      continue;
+    }
+    const minute = new Date(p.t).getMinutes();
+    const comesBack = points.slice(i + 1).some((q) => q.t - p.t <= 30 * 60_000 && q.v >= last * 0.9);
+    if (minute > 5 && comesBack) continue;
+    out.push({ t: p.t, inc: p.v });
+    last = p.v;
+  }
+  return out;
+}
+
+/** How much a meter has counted since midnight (see steps for how restarts and glitches are read). */
 export function increase(points: { t: number; v: number }[]): number | undefined {
   if (!points.length) return undefined;
-  let total = 0;
-  for (let i = 1; i < points.length; i++) {
-    const d = points[i].v - points[i - 1].v;
-    total += d >= 0 ? d : points[i].v; // reset → the new value is what has been counted since
-  }
-  return total;
+  return steps(points).reduce((a, s) => a + s.inc, 0);
 }
 
 const toKwh = (n: number, unit: string) => (unit === "Wh" ? n / 1000 : unit === "MWh" ? n * 1000 : n);
@@ -64,10 +92,8 @@ const toKwh = (n: number, unit: string) => (unit === "Wh" ? n / 1000 : unit === 
 /** Per hour (ms of the hour start → kWh), to price what was bought. */
 export function hourly(points: { t: number; v: number }[]): Map<number, number> {
   const out = new Map<number, number>();
-  for (let i = 1; i < points.length; i++) {
-    const d = points[i].v - points[i - 1].v;
-    const inc = d >= 0 ? d : points[i].v;
-    const h = new Date(points[i].t);
+  for (const { t, inc } of steps(points)) {
+    const h = new Date(t);
     h.setMinutes(0, 0, 0);
     out.set(h.getTime(), (out.get(h.getTime()) ?? 0) + inc);
   }
