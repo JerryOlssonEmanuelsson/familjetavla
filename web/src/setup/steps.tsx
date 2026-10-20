@@ -168,6 +168,7 @@ function PatternEditor({ custody, name, setC }: { custody: Custody; name: string
 }
 
 const CARE_DAYS = ["1", "2", "3", "4", "5"];
+const POWER = /^(W|kW|MW)$/;
 
 /** This week's Monday as YYYY-MM-DD. */
 function mondayKey(d = new Date()): string {
@@ -1417,12 +1418,14 @@ export function HouseStep({ cfg, set }: StepProps) {
       />
       <section className="card">
         <h2>Energi</h2>
-        <p className="muted">Valfri växelriktare och elmätare – välj effektsensorerna (W eller kW).</p>
+        <p className="muted">
+          Välj själv vilken växelriktare och elmätare tavlan ska använda, t.ex. SolarEdge för solel och Tibber Pulse för elnätet. Listorna visar bara effekt (W eller kW) med aktuellt värde – sök på märket.
+        </p>
         <div className="grid-2">
-          <EntityPicker label="Solproduktion" domains={["sensor"]} value={en.energy.solar} onChange={(v) => setEn({ energy: { ...en.energy, solar: v } })} />
-          <EntityPicker label="Elnät (köp positivt)" domains={["sensor"]} value={en.energy.grid} onChange={(v) => setEn({ energy: { ...en.energy, grid: v } })} />
-          <EntityPicker label="Husets förbrukning" domains={["sensor"]} value={en.energy.house} onChange={(v) => setEn({ energy: { ...en.energy, house: v } })} />
-          <EntityPicker label="Hembatteri (%)" domains={["sensor"]} value={en.energy.battery} onChange={(v) => setEn({ energy: { ...en.energy, battery: v } })} />
+          <EntityPicker label="Solproduktion (växelriktare)" domains={["sensor"]} units={POWER} value={en.energy.solar} onChange={(v) => setEn({ energy: { ...en.energy, solar: v } })} />
+          <EntityPicker label="Elnät – köp positivt (elmätare)" domains={["sensor"]} units={POWER} value={en.energy.grid} onChange={(v) => setEn({ energy: { ...en.energy, grid: v } })} help="T.ex. Tibber Pulse, P1/HAN-mätare eller Shelly EM." />
+          <EntityPicker label="Husets förbrukning" domains={["sensor"]} units={POWER} value={en.energy.house} onChange={(v) => setEn({ energy: { ...en.energy, house: v } })} help="Saknas den räknar tavlan sol + nät." />
+          <EntityPicker label="Hembatteri (%)" domains={["sensor"]} units={/^%$/} value={en.energy.battery} onChange={(v) => setEn({ energy: { ...en.energy, battery: v } })} />
         </div>
       </section>
       <section className="card">

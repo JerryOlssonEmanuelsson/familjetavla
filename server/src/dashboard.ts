@@ -606,7 +606,8 @@ function buildEnergy(cfg: Config, states: Map<string, HaState>): Dashboard["ener
   const out = {
     solarKw: kw(states, e.solar),
     gridKw: kw(states, e.grid),
-    houseKw: kw(states, e.house),
+    // No house meter: what the house uses is the sun's production plus what is bought (negative = sold).
+    houseKw: kw(states, e.house) ?? (e.solar && e.grid && kw(states, e.solar) !== undefined && kw(states, e.grid) !== undefined ? Math.round((kw(states, e.solar)! + kw(states, e.grid)!) * 100) / 100 : undefined),
     batteryPct: num(states, e.battery) ?? undefined,
   };
   return Object.values(out).some((v) => v !== undefined) ? out : undefined;

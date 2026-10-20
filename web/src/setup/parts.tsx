@@ -139,6 +139,7 @@ export function EntityPicker({
   onChange,
   help,
   optional = true,
+  units,
 }: {
   label: string;
   domains: string[];
@@ -146,10 +147,19 @@ export function EntityPicker({
   onChange: (v: string | undefined, option?: EntityOption) => void;
   help?: string;
   optional?: boolean;
+  /** Only sensors with these units (e.g. W/kW for power), the rest behind "Visa alla". */
+  units?: RegExp;
 }) {
-  const [all, setAll] = useState<EntityOption[]>([]);
+  const [loaded, setAll] = useState<EntityOption[]>([]);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
+  const [every, setEvery] = useState(false);
+  // Sensors that answer with a value first, those saying "unknown"/"unavailable" last.
+  const all = useMemo(() => {
+    const fits = units && !every ? loaded.filter((e) => units.test(e.unit ?? "") || e.entityId === value) : loaded;
+    const live = (e: EntityOption) => (["unknown", "unavailable", ""].includes(e.state) ? 1 : 0);
+    return [...fits].sort((a, b) => live(a) - live(b) || a.name.localeCompare(b.name, "sv"));
+  }, [loaded, units, every, value]);
   useEffect(() => {
     loadEntities(domains)
       .then(setAll)
@@ -164,7 +174,7 @@ export function EntityPicker({
   return (
     <div className="field entity-picker">
       <span>{label}</span>
-      {all.length > 12 && <input placeholder="Sök…" value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Sök ${label}`} />}
+      {(all.length > 12 || loaded.length > 12) && <input placeholder="Sök, t.ex. tibber eller solaredge…" value={q} onChange={(e) => setQ(e.target.value)} aria-label={`Sök ${label}`} />}
       <select
         value={value ?? ""}
         aria-label={label}
@@ -181,6 +191,11 @@ export function EntityPicker({
           </option>
         ))}
       </select>
+      {units && loaded.length > all.length && (
+        <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setEvery(!every)}>
+          {every ? "Visa bara de som passar" : `Visa alla (${loaded.length})`}
+        </button>
+      )}
       {error ? <small className="error-text">{error}</small> : help && <small>{help}</small>}
     </div>
   );
