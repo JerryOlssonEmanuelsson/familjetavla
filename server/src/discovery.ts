@@ -68,9 +68,27 @@ async function readRegistryWs(): Promise<HaEntityInfo[] | null> {
 export async function readRegistry(conn: HaConn): Promise<HaEntityInfo[]> {
   const viaWs = await readRegistryWs().catch(() => null);
   if (viaWs) return viaWs;
-  const res = (await ha.template(conn, TEMPLATE)) as string;
-  const parsed = typeof res === "string" ? JSON.parse(res) : res;
-  return parsed as HaEntityInfo[];
+  try {
+    return parseTemplate(await ha.template(conn, TEMPLATE));
+  } catch {
+    // Large homes: Home Assistant refuses a template answer that is too big (400). Read it in parts.
+    // A part that still fails (one odd entity) is read in smaller pieces and the odd one skipped.
+    const total = (await ha.states(conn)).length;
+    const part = (from: number, to: number) => ha.template(conn, TEMPLATE.replace("{% for s in states %}", `{% for s in (states | list)[${from}:${to}] %}`)).then(parseTemplate);
+    const out: HaEntityInfo[] = [];
+    for (let i = 0; i < total; i += 150) {
+      try {
+        out.push(...(await part(i, i + 150)));
+      } catch {
+        for (let j = i; j < Math.min(i + 150, total); j += 10) out.push(...(await part(j, j + 10).catch(() => [])));
+      }
+    }
+    return out;
+  }
+}
+
+function parseTemplate(res: unknown): HaEntityInfo[] {
+  return (typeof res === "string" ? JSON.parse(res) : res) as HaEntityInfo[];
 }
 
 export async function deviceEntities(conn: HaConn, anyEntityOfDevice: string): Promise<HaEntityInfo[]> {

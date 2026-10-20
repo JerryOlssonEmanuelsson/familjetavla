@@ -4,6 +4,7 @@
 import { writeFileSync } from "node:fs";
 import { ha, haConnection } from "../server/dist/connectors/ha.js";
 import { carCharging, discover, readRegistry } from "../server/dist/discovery.js";
+import { initHaSocket } from "../server/dist/connectors/haws.js";
 
 const url = process.env.HA_URL;
 const token = process.env.HA_TOKEN;
@@ -36,12 +37,21 @@ if (!states.length) {
   process.exit(1);
 }
 
-await check("Register (enheter och rum)", async () => {
-  all = await readRegistry(conn);
-  const withDevice = all.filter((x) => x.d).length;
-  const withArea = all.filter((x) => x.a).length;
-  return `${all.length} entiteter, ${withDevice} med enhet, ${withArea} med rum`;
+// The board reads the registry over the websocket when it is connected, else in parts over REST.
+await check("Register via REST (reserv)", async () => {
+  const viaRest = await readRegistry(conn);
+  return `${viaRest.length} entiteter, ${viaRest.filter((x) => x.d).length} med enhet, ${viaRest.filter((x) => x.a).length} med rum`;
 });
+const quiet = { info() {}, warn() {}, error() {}, debug() {}, trace() {}, fatal() {}, child() { return quiet; } };
+const sock = initHaSocket(quiet);
+sock.start(conn);
+for (let i = 0; i < 40 && !(sock.connected && sock.states.size); i++) await new Promise((r) => setTimeout(r, 250));
+await check("Register via websocket", async () => {
+  if (!sock.connected) throw new Error("websocket ansluter inte – kontrollera att adressen tillåter websocket (wss://…/api/websocket)");
+  all = await readRegistry(conn);
+  return `${all.length} entiteter, ${all.filter((x) => x.d).length} med enhet, ${all.filter((x) => x.a).length} med rum`;
+});
+if (!all.length) all = await readRegistry(conn).catch(() => []);
 
 const found = all.length ? discover(all) : null;
 const byDomain = (d) => states.filter((s) => s.entity_id.startsWith(`${d}.`));
@@ -73,8 +83,9 @@ await check("Kalendrar", async () => {
   const to = new Date(now.getTime() + 7 * 86_400_000);
   const rows = [];
   for (const c of cals.slice(0, 15)) {
-    const evs = await ha.calendarEvents(conn, c.entity_id, now, to).catch(() => null);
-    rows.push(evs ? `${c.attributes.friendly_name ?? c.entity_id}: ${evs.length} händelser (${evs.filter((e) => e.description).length} med anteckningar)` : `${c.entity_id}: kunde inte läsas`);
+    let err = "";
+    const evs = await ha.calendarEvents(conn, c.entity_id, now, to).catch((e) => ((err = e.message), null));
+    rows.push(evs ? `${c.attributes.friendly_name ?? c.entity_id}: ${evs.length} händelser (${evs.filter((e) => e.description).length} med anteckningar)` : `${c.entity_id} (${c.state}): ${err}`);
   }
   return `${cals.length} kalendrar – ${rows.join("; ") || "-"}`;
 });
@@ -111,4 +122,5 @@ const report = [
 ].join("\n");
 writeFileSync(process.env.REPORT ?? "ha-report.md", report + "\n");
 console.log(report);
+sock.stop();
 process.exit(problems.length ? 1 : 0);

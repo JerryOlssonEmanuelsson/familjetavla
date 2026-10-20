@@ -56,3 +56,21 @@ describe("Vklass news page data", () => {
     expect(n[1].text).toBe("Enligt önskemål.");
   });
 });
+
+describe("Vklass ServerHtml model", () => {
+  it("reads the news model passed as a JavaScript string", async () => {
+    const { parseVklassNewsData } = await import("./connectors/vklass.js");
+    const json = JSON.stringify({
+      initialNewsId: null,
+      newsArticles: [{ id: 4828277, title: "Höstlov på biblioteket", publishDate: "2026-10-20", tags: ["Skolan 1-6", "Annan skola"], introText: "Välkommen!", text: "<p>Kom och levla upp lovet – det är 'gratis'!</p>", files: [{ name: "Affisch", nameWithExtension: "Affisch.jpg", url: "/File/x?t=1" }] }],
+    });
+    const js = json.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const page = `<vkau-news-article repeat.for="article of data.newsArticles"></vkau-news-article><script>ServerHtml('TTJQ', 'common/views/shared/display-templates/news-feed-model/news-feed-model', '${js}');</script>`;
+    const n = parseVklassNewsData(page);
+    expect(n).toHaveLength(1);
+    expect(n[0].title).toBe("Höstlov på biblioteket");
+    expect(n[0].text).toBe("Välkommen!\n\nKom och levla upp lovet – det är 'gratis'!");
+    expect(n[0].files[0]).toEqual({ name: "Affisch.jpg", url: "https://custodian.vklass.se/File/x?t=1" });
+    expect(n[0].tags).toEqual(["Skolan 1-6", "Annan skola"]);
+  });
+});

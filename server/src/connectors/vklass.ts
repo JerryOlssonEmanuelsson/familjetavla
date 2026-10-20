@@ -160,6 +160,37 @@ function readArray(text: string, start: number): unknown[] | undefined {
   return undefined;
 }
 
+/** The JSON model passed as the third, quoted argument of Vklass's ServerHtml(…) for a template. */
+export function serverHtmlData(html: string, template: string): unknown {
+  const re = /ServerHtml\(\s*(['"])[^'"]*\1\s*,\s*(['"])([^'"]*)\2\s*,\s*(['"])/g;
+  for (const m of html.matchAll(re)) {
+    if (!m[3].includes(template)) continue;
+    const quote = m[4];
+    let i = m.index! + m[0].length;
+    let raw = "";
+    for (; i < html.length; i++) {
+      const c = html[i];
+      if (c === "\\") {
+        const n = html[i + 1];
+        // JavaScript escapes → JSON-safe: \' is just ', \xHH becomes \u00HH, the rest is valid JSON.
+        if (n === "'") raw += "'";
+        else if (n === "x") raw += `\\u00${html.slice(i + 2, i + 4)}`, (i += 2);
+        else raw += c + n;
+        i++;
+        continue;
+      }
+      if (c === quote) break;
+      raw += c === '"' && quote === "'" ? '\\"' : c;
+    }
+    try {
+      return JSON.parse(JSON.parse(`"${raw}"`));
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 type RawFile = { name?: string; nameWithExtension?: string; fileName?: string; url?: string; extension?: string };
 type RawArticle = { id?: number | string; title?: string; publishDate?: string; introText?: string; text?: string; tags?: unknown; files?: RawFile[]; imagePath?: string };
 
@@ -169,7 +200,11 @@ type RawArticle = { id?: number | string; title?: string; publishDate?: string; 
  * (field names checked against a real account, 2026-10-20 – only the names, never the contents).
  */
 export function parseVklassNewsData(html: string): VklassNews[] {
-  const list = jsonArrayAfter(html, "newsArticles") as RawArticle[] | undefined;
+  // Vklass renders it as ServerHtml('id', '…/news-feed-model', '{"newsArticles":[…]}') – JSON inside a
+  // JavaScript string. Read that string first; fall back to looking for the array in the page as is.
+  const fromString = serverHtmlData(html, "news-feed-model");
+  const list = ((fromString && Array.isArray((fromString as { newsArticles?: unknown }).newsArticles) ? (fromString as { newsArticles: unknown[] }).newsArticles : undefined) ??
+    jsonArrayAfter(html, "newsArticles")) as RawArticle[] | undefined;
   if (!Array.isArray(list)) return [];
   return list
     .filter((a) => a && typeof a === "object" && a.title)
