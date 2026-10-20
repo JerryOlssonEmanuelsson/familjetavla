@@ -168,7 +168,8 @@ export function discover(all: HaEntityInfo[]): Discovery {
   const solar =
     power.find((x) => has(x.n, SOLAR) && has(`${x.m} ${x.n}`, INVERTER_MAKERS)) ?? power.find((x) => has(x.n, SOLAR) || has(x.m, INVERTER_MAKERS));
   const grid = power.find((x) => x !== solar && has(`${x.n} ${x.m ?? ""}`, GRID) && !has(x.n, /produktion|production|export|sälj|max|min|genomsnitt|average/i));
-  const house = power.find((x) => x !== solar && x !== grid && has(x.n, /house|hus|home|hem|load|last|förbrukning|consumption/i));
+  // Only needed without sun or meter: with both, the board counts the house itself.
+  const house = solar && grid ? undefined : power.find((x) => x !== solar && x !== grid && has(x.n, /house|hus|home|hem|load|last|förbrukning|consumption/i));
   // Sold power, when the meter gives it separately (Tibber Pulse "Elproduktion", P1 "Power production").
   const SELL = /produktion|production|export|sälj|utmatning|returned|feed.?in|inmatning/i;
   const gridExport = grid ? power.find((x) => x !== grid && x !== solar && x.d === grid.d && has(x.n, SELL) && !has(x.n, /max|min|genomsnitt|average|medel/i)) : undefined;

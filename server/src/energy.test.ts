@@ -14,6 +14,13 @@ describe("energy now", () => {
     const states = new Map([st("sensor.solar", "5.2", "kW"), st("sensor.pulse", "0", "W"), st("sensor.pulse_prod", "3800", "W")].map((s) => [s.entity_id, s]));
     expect(energyNow({ solar: "sensor.solar", grid: "sensor.pulse", gridExport: "sensor.pulse_prod" }, states)).toEqual({ solarKw: 5.2, gridKw: -3.8, houseKw: 1.4, selfUseKw: 1.4 });
   });
+  it("a home's own consumption sensor that is only the bought power does not hide the sun", () => {
+    // Tibber Effekt is 0 while selling; a template copying it says the house uses nothing.
+    const states = new Map([st("sensor.solar", "4000", "W"), st("sensor.pulse", "0", "W"), st("sensor.pulse_prod", "2500", "W"), st("sensor.tpl", "0", "kW")].map((s) => [s.entity_id, s]));
+    expect(energyNow({ solar: "sensor.solar", grid: "sensor.pulse", gridExport: "sensor.pulse_prod", house: "sensor.tpl" }, states).houseKw).toBe(1.5);
+    // Without a solar sensor the house sensor is used.
+    expect(energyNow({ grid: "sensor.pulse", house: "sensor.tpl" }, states).houseKw).toBe(0);
+  });
   it("live: the flow and the battery, and only power sensors move it (not the kWh meters)", () => {
     const states = new Map([st("sensor.solar", "2000", "W"), st("sensor.pulse", "500", "W"), st("sensor.bat", "64", "%")].map((s) => [s.entity_id, s]));
     const e = { solar: "sensor.solar", grid: "sensor.pulse", battery: "sensor.bat", importEnergy: "sensor.meter" };

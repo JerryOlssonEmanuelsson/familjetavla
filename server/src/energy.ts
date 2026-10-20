@@ -17,15 +17,18 @@ export function kwOf(states: Map<string, HaState>, id?: string): number | undefi
 
 /**
  * Power right now. The grid meter may give one signed value (+ buy, − sell) or two (buy and sell,
- * like Tibber Pulse "Effekt" and "Elproduktion"). The house is its own sensor if there is one, else
- * what the sun makes plus what is bought minus what is sold.
+ * like Tibber Pulse "Effekt" and "Elproduktion"). The house is what the sun makes plus what is
+ * bought minus what is sold; a house sensor is only used when the sun or the meter is missing.
  */
 export function energyNow(e: EnergyEntities, states: Map<string, HaState>): Omit<Energy, "today" | "batteryPct"> {
   const solar = kwOf(states, e.solar);
   const buy = kwOf(states, e.grid);
   const sell = kwOf(states, e.gridExport);
   const grid = buy !== undefined ? round(buy - (sell ?? 0)) : sell !== undefined ? -sell : undefined;
-  const house = kwOf(states, e.house) ?? (solar !== undefined && grid !== undefined ? round(Math.max(0, solar + grid)) : undefined);
+  // With both sun and meter the board counts the house itself: sun + bought − sold. A home's own
+  // "consumption" sensor often is just the bought power (0 while selling), so it is only used when
+  // one of the two is missing.
+  const house = solar !== undefined && grid !== undefined ? round(Math.max(0, solar + grid)) : kwOf(states, e.house);
   const sold = grid !== undefined && grid < 0 ? -grid : 0;
   const selfUse = solar !== undefined ? round(Math.max(0, Math.min(solar - sold, house ?? solar))) : undefined;
   return { solarKw: solar, gridKw: grid, houseKw: house, selfUseKw: selfUse };
