@@ -98,10 +98,128 @@ export async function vklassLogin(username: string, password: string): Promise<V
 }
 
 export async function vklassChildren(s: VklassSession): Promise<VklassChild[]> {
+  return (await vklassWelcome(s)).children;
+}
+
+/** The start page: the children's cards and, below them, the school's news. */
+export async function vklassWelcome(s: VklassSession): Promise<{ children: VklassChild[]; news: VklassNews[] }> {
   const res = await follow(s.jar, `${CUSTODIAN}/Home/Welcome`);
-  const children = parseVklassWelcome(await res.text());
+  const html = await res.text();
+  const children = parseVklassWelcome(html);
   if (children.length === 0) throw new Error("Inloggad i Vklass men hittade inga barn. Sidan kan ha ändrats.");
-  return children;
+  return { children, news: parseVklassNews(html) };
+}
+
+/** Fetch a news attachment with the logged-in session (only Vklass addresses). */
+export async function vklassFile(s: VklassSession, url: string): Promise<Response> {
+  const u = new URL(url, CUSTODIAN);
+  if (!/(^|\.)vklass\.se$/.test(u.hostname) || u.protocol !== "https:") throw new Error("Bara filer från Vklass.");
+  return follow(s.jar, u.toString());
+}
+
+export interface VklassNews {
+  /** Stable id: the news link's id when there is one, else a hash of title + published. */
+  id: string;
+  title: string;
+  /** The text as plain text with line breaks. */
+  text: string;
+  /** "20 oktober 13:50" → ISO, when it could be read. */
+  published?: string;
+  /** The round badge on the news, e.g. "ES": the first letters of the child it concerns. */
+  badge?: string;
+  files: { name: string; url: string }[];
+}
+
+const MONTHS = ["januari", "februari", "mars", "april", "maj", "juni", "juli", "augusti", "september", "oktober", "november", "december"];
+
+/** "Publicerat 20 oktober 13:50 av …" → ISO date (this year, or last year if that would be in the future). */
+export function vklassPublished(text: string, now = new Date()): string | undefined {
+  const m = /(\d{1,2})\s+([a-zåäö]+)(?:\s+(\d{4}))?\s+(\d{1,2})[:.](\d{2})/i.exec(text);
+  if (!m) return undefined;
+  const month = MONTHS.indexOf(m[2].toLowerCase());
+  if (month < 0) return undefined;
+  let year = m[3] ? Number(m[3]) : now.getFullYear();
+  let d = new Date(year, month, Number(m[1]), Number(m[4]), Number(m[5]));
+  if (!m[3] && d.getTime() > now.getTime() + 2 * 86_400_000) d = new Date(--year, month, Number(m[1]), Number(m[4]), Number(m[5]));
+  return d.toISOString();
+}
+
+const META = /^(publicerat|länkat material|personal|elever|vårdnadshavare|visa (mer|mindre)|läs mer)\b/i;
+
+/**
+ * News on the custodian start page. Each news item has a heading, the text, a line
+ * "Publicerat 20 oktober 13:50 av …" and sometimes "Länkat material" with files.
+ * Rather than relying on Vklass's class names, an item is the smallest element that holds
+ * exactly one "Publicerat" line and a heading – so a renamed class does not break it.
+ */
+export function parseVklassNews(html: string, now = new Date()): VklassNews[] {
+  const $ = cheerio.load(html);
+  $("script, style, noscript").remove();
+  const out: VklassNews[] = [];
+  const seen = new Set<any>();
+  const pubs = $("body *")
+    .filter((_, el) => {
+      const own = $(el).clone().children().remove().end().text().trim();
+      return /^Publicerat\b/i.test(own) || (/^Publicerat\b/i.test($(el).text().trim()) && $(el).children().length === 0);
+    })
+    .toArray();
+  for (const pub of pubs) {
+    let item = $(pub).parent();
+    while (item.length && !item.is("body")) {
+      const count = item.find("*").filter((_, e) => /^Publicerat\b/i.test($(e).clone().children().remove().end().text().trim())).length;
+      if (count > 1) break;
+      if (item.find("h1, h2, h3, h4").length) break;
+      item = item.parent();
+    }
+    if (!item.length || item.is("body") || seen.has(item.get(0))) continue;
+    seen.add(item.get(0));
+    const heading = item.find("h1, h2, h3, h4").first();
+    const title = heading.text().replace(/\s+/g, " ").trim();
+    if (!title) continue;
+    const pubText = $(pub).text().replace(/\s+/g, " ").trim();
+    // Files: links under "Länkat material" or that look like downloads.
+    const files: VklassNews["files"] = [];
+    item.find("a[href]").each((_, a) => {
+      const href = $(a).attr("href") ?? "";
+      const name = $(a).text().replace(/\s+/g, " ").trim();
+      if (!href || href.startsWith("#") || href.startsWith("javascript:") || /^mailto:/i.test(href)) return;
+      const looksFile = /download|file|fil|attachment|document|getfile|material/i.test(href) || $(a).is("[download]") || $(a).closest("[class*=attach], [class*=file], [class*=material]").length > 0;
+      if (looksFile && !files.some((f) => f.url === href)) files.push({ name: name || "Bilaga", url: new URL(href, CUSTODIAN).toString() });
+    });
+    // Text: paragraphs and line blocks that are not the heading, meta lines or file names.
+    const skip = new Set([title, pubText, ...files.map((f) => f.name)]);
+    const lines: string[] = [];
+    item.find("p, li, div, span").each((_, el) => {
+      const e = $(el);
+      if (e.find("p, li, div, h1, h2, h3, h4, h5, h6").length) return; // only leaf blocks
+      if (e.closest("h1, h2, h3, h4, h5, h6, a").length) return;
+      const t = e.text().replace(/[ \t]+/g, " ").trim();
+      if (!t || skip.has(t) || META.test(t) || /\boch \d+ till$/i.test(t) || /^[A-ZÅÄÖ]{1,3}$/.test(t)) return;
+      if (!lines.includes(t)) lines.push(t);
+    });
+    const badge = item
+      .find("*")
+      .toArray()
+      .map((e) => $(e).clone().children().remove().end().text().trim())
+      .find((t) => /^[A-ZÅÄÖ]{2}$/.test(t));
+    const link = heading.find("a").attr("href") ?? item.find("a[href*=News], a[href*=news]").attr("href") ?? "";
+    const published = vklassPublished(pubText.replace(/^Publicerat\s*/i, ""), now);
+    out.push({
+      id: /(\d{3,}|[0-9a-f-]{20,})/i.exec(link)?.[1] ?? `n${hash(`${title}|${published ?? pubText}`)}`,
+      title,
+      text: lines.join("\n").slice(0, 4000),
+      published,
+      badge,
+      files: files.slice(0, 10),
+    });
+  }
+  return out;
+}
+
+function hash(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }
 
 const WEEKDAY_NAMES = ["söndag", "måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag"];

@@ -85,13 +85,13 @@ const careSaved: Record<string, TravelChoice> = {};
     { id: "nils", name: "Nils", color: "#ff9f5a", kind: "child", custody: { mode: "always" } },
   ];
   const dd = fx.dashboard;
-  dd.people = [
+  dd.people = ([
     dd.people[0],
     { name: "Anna", color: "#ff8fa3", initial: "A", home: true, kind: "adult" },
     ...dd.people.slice(1),
     { name: "Maja", color: "#34e0a1", initial: "M", home: true, kind: "child" },
     { name: "Nils", color: "#ff9f5a", initial: "N", home: true, kind: "child" },
-  ];
+  ] as Omit<Dashboard["people"][number], "id">[]).map((p) => ({ ...p, id: p.name.toLowerCase() }));
   dd.legend = [dd.legend[0], { name: "Anna", color: "#ff8fa3" }, ...dd.legend.slice(1, 3), { name: "Maja", color: "#34e0a1" }, { name: "Nils", color: "#ff9f5a" }, ...dd.legend.slice(3)];
   const careTravel = careTravelFor("2026-10-19");
   dd.now.items.push({
@@ -240,6 +240,39 @@ fx.cars.forEach((c, i) => {
     ],
   };
 });
+// ---- Från skolan (Vklass news) in the demo, with a poster as attachment ----
+const poster = `data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800"><rect width="600" height="800" fill="#f2dfb8"/><text x="300" y="150" font-family="sans-serif" font-size="72" font-weight="800" text-anchor="middle" fill="#3a2a14">HÖSTLOV</text><text x="300" y="215" font-family="sans-serif" font-size="30" font-weight="700" text-anchor="middle" fill="#2f6b1f">PÅ BIBLIOTEKET</text><g font-family="sans-serif" font-size="26" fill="#3a2a14"><text x="60" y="330" font-weight="700">Mån 26 okt 10–15</text><text x="60" y="370">Pärla figurer</text><text x="60" y="450" font-weight="700">Tis 27 okt 14.30–16.30</text><text x="60" y="490">Workshop, från 9 år. Anmälan!</text><text x="60" y="570" font-weight="700">Ons 28 okt 13–15</text><text x="60" y="610">Bygg figurer i papper</text></g><text x="300" y="740" font-family="sans-serif" font-size="28" font-weight="700" text-anchor="middle" fill="#3a2a14">Fri entré</text></svg>`,
+)}`;
+d.schoolNews = [
+  {
+    id: "n1",
+    personId: "ella",
+    who: "Ella",
+    color: "#5ab8ff",
+    title: "Höstlov på biblioteket",
+    text: "Välkommen till biblioteket på höstlovet! Vi kör pärlcraft, workshop, bygger figurer och tipspromenad med vinster. Kom och levla upp lovet med oss!",
+    published: "2026-10-18T11:50:00.000Z",
+    date: "18 okt",
+    files: [{ name: "Höstlov affisch", url: poster }],
+    seen: false,
+  },
+  {
+    id: "n2",
+    personId: "maja",
+    who: "Maja",
+    color: "#34e0a1",
+    title: "Presentation från vårdnadshavarmötet",
+    text: "Enligt önskemål kommer här presentationen från mötet.\nHör av er om ni har frågor!",
+    published: "2026-10-14T07:05:00.000Z",
+    date: "14 okt",
+    files: [],
+    seen: true,
+  },
+];
+d.reminders.unshift({ icon: "school", title: "Från skolan: Höstlov på biblioteket", sub: "Ella · läs på Skolan", tone: "blue" });
+d.reminders = d.reminders.slice(0, 5);
+
 const demoCal = (title: string) => (title.startsWith("F14") ? { id: "ella-sport", name: "Fotboll F14" } : { id: "leo-sim", name: "Simning" });
 const savedTravel: Record<string, TravelChoice> = {
   "ella-sport@2026-10-19T17:30": { to: { mode: "adult:emil" }, home: { mode: "ride", by: "Saras pappa" } },
@@ -585,6 +618,25 @@ export const demoApi = {
   clearDone: () => {
     d.shopping.items = d.shopping.items.filter((i) => !i.done);
     return wait({});
+  },
+  newsSeen: (ids: string[]) => {
+    for (const n of d.schoolNews) if (ids.includes(n.id)) n.seen = true;
+    d.reminders = d.reminders.filter((r) => !(r.icon === "school" && d.schoolNews.some((n) => n.seen && r.title.endsWith(n.title))));
+    return wait({ ok: true as const }, 100);
+  },
+  addOwnEvent: (e: { date: string; time?: string; end?: string; title: string; personId?: string; note?: string }) => {
+    const id = `own${Date.now().toString(36)}`;
+    const p = d.people.find((x) => x.id === e.personId);
+    const day = d.days.find((x) => x.key === e.date);
+    if (day) {
+      day.events.push({ time: e.time ?? "", end: e.end, title: e.title, color: p?.color ?? "#34e0a1", who: p?.name ?? "", initial: p?.initial, category: "family", icon: "event", description: e.note, ownId: id });
+      day.events.sort((x, y) => (x.time || "00:00").localeCompare(y.time || "00:00"));
+    }
+    return wait({ id }, 200);
+  },
+  removeOwnEvent: (id: string) => {
+    for (const day of d.days) day.events = day.events.filter((x) => x.ownId !== id);
+    return wait({ ok: true as const }, 150);
   },
   travel: (key: string, choice: TravelChoice | null, forCalendar = false) => {
     rememberDriver(choice);

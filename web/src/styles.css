@@ -2779,3 +2779,35 @@ a.btn {
   color: #ffffff;
   border-color: #000000;
 }
+
+/* ---------- Från skolan ---------- */
+.news-row .news-new {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex: none;
+}
+.news-text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  font-size: 17px;
+  line-height: 1.5;
+}
+.news-image {
+  display: block;
+  align-self: center;
+  max-width: 100%;
+}
+.news-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 14px;
+  border: 1px solid var(--glass-edge);
+}
+.news-add {
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--row);
+}

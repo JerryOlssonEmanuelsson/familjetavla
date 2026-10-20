@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Dashboard } from "../../../server/src/types";
+import { api } from "../api";
 import { Icon } from "../Icon";
 import { goBack, goHome } from "../route";
 import type { Actions } from "./Dashboard";
@@ -39,7 +40,7 @@ export function DetailPage({ page, data, actions }: { page: PageId; data: Dashbo
       <PageBar title={PAGE_TITLES[page]} />
       <Fit className="detail-body" deps={[data, page]}>
         {page === "maten" && <MealsPage data={data} actions={actions} />}
-        {page === "skolan" && <SchoolPage data={data} />}
+        {page === "skolan" && <SchoolPage data={data} actions={actions} />}
         {page === "komihag" && <Reminders items={data.reminders} food={data.schoolFood} />}
         {page === "inkop" && <Shopping data={data} actions={actions} />}
         {page === "hososs" && <CustodyPage data={data} />}
@@ -127,18 +128,180 @@ function TaskSheet({ task, child, onClose }: { task: Task; child: string; onClos
   );
 }
 
-function SchoolPage({ data }: { data: Dashboard }) {
+type News = Dashboard["schoolNews"][number];
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/** A news item from the school: all the text, pictures shown right in the sheet, and "Lägg i veckan". */
+function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; actions: Actions; onClose: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const kids = data.people.filter((p) => p.kind === "child");
+  const [form, setForm] = useState({ date: todayKey(), time: "", end: "", title: n.title.slice(0, 80), who: n.who ?? "" });
+  const [broken, setBroken] = useState<string[]>([]);
+  const set = (k: keyof typeof form, v: string) => setForm({ ...form, [k]: v });
+  const save = () =>
+    actions.run("Lägg i veckan", async () => {
+      await api.addOwnEvent({
+        date: form.date,
+        ...(form.time ? { time: form.time } : {}),
+        ...(form.time && form.end ? { end: form.end } : {}),
+        title: form.title.trim() || n.title.slice(0, 80),
+        ...(personIdOf(data, form.who) ? { personId: personIdOf(data, form.who) } : {}),
+        note: `Från skolan: ${n.title}`.slice(0, 500),
+      });
+      setAdding(false);
+    }, { done: `${form.title.trim() || n.title} ligger i veckan`, check: () => true });
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet news-sheet" role="dialog" aria-modal="true" aria-label={n.title} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
+        <div className="row gap" style={{ alignItems: "flex-start" }}>
+          <h2 className="grow" style={{ fontSize: 24 }}>
+            {n.title}
+          </h2>
+          <button className="btn icon" aria-label="Stäng" onClick={onClose}>
+            <Icon name="x" />
+          </button>
+        </div>
+        <div className="row gap wrap muted" style={{ fontSize: 16 }}>
+          {n.who && (
+            <span className="row gap" style={{ gap: 6 }}>
+              <span className="dot" style={{ background: n.color }} /> {n.who}
+            </span>
+          )}
+          {n.date && <span>{n.date}</span>}
+        </div>
+        {n.text ? <div className="news-text">{n.text}</div> : <p className="muted">Ingen text – se bilagan.</p>}
+        {n.files.map((f) =>
+          broken.includes(f.url) ? (
+            <a key={f.url} className="btn" href={f.url} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start" }}>
+              <Icon name="event" size={18} /> Öppna {f.name}
+            </a>
+          ) : (
+            <a key={f.url} href={f.url} target="_blank" rel="noreferrer" className="news-image">
+              <img src={f.url} alt={f.name} loading="lazy" onError={() => setBroken((b) => [...b, f.url])} />
+            </a>
+          ),
+        )}
+        {!adding ? (
+          <button className="btn primary" style={{ alignSelf: "flex-start" }} onClick={() => setAdding(true)}>
+            <Icon name="plus" size={18} /> Lägg i veckan
+          </button>
+        ) : (
+          <div className="news-add stack" style={{ gap: 10 }}>
+            <label className="field">
+              <span>Vad</span>
+              <input value={form.title} maxLength={80} onChange={(e) => set("title", e.target.value)} />
+            </label>
+            <div className="grid-2">
+              <label className="field">
+                <span>Dag</span>
+                <input type="date" value={form.date} onChange={(e) => e.target.value && set("date", e.target.value)} />
+              </label>
+              <label className="field">
+                <span>Vem</span>
+                <select aria-label="Vem" value={form.who} onChange={(e) => set("who", e.target.value)}>
+                  <option value="">Hela familjen</option>
+                  {kids.map((k) => (
+                    <option key={k.name} value={k.name}>
+                      {k.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Från (valfritt)</span>
+                <input type="time" value={form.time} onChange={(e) => set("time", e.target.value)} />
+              </label>
+              <label className="field">
+                <span>Till</span>
+                <input type="time" value={form.end} disabled={!form.time} onChange={(e) => set("end", e.target.value)} />
+              </label>
+            </div>
+            <div className="row gap">
+              <button className="btn primary" onClick={save}>
+                Spara i veckan
+              </button>
+              <button className="btn ghost" onClick={() => setAdding(false)}>
+                Avbryt
+              </button>
+            </div>
+            <small className="faint">Med en tid och ett barn kommer den med i Planera veckan, så ni kan välja vem som skjutsar.</small>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const personIdOf = (data: Dashboard, name: string) => data.people.find((p) => p.name === name)?.id;
+
+/** "Från skolan": the latest three; the rest in a list. */
+function SchoolNewsCard({ data, actions }: { data: Dashboard; actions: Actions }) {
+  const [open, setOpen] = useState<News | null>(null);
+  const [all, setAll] = useState(false);
+  const news = data.schoolNews ?? [];
+  if (!news.length) return null;
+  const show = (n: News) => {
+    setOpen(n);
+    setAll(false);
+    if (!n.seen) api.newsSeen([n.id]).then(() => actions.refresh()).catch(() => {});
+  };
+  const row = (n: News) => (
+    <button className="task-row news-row" key={n.id} onClick={() => show(n)}>
+      {!n.seen && <span className="news-new" aria-label="oläst" />}
+      <span className="grow task-title">{n.title}</span>
+      <small className="muted">{[n.who, n.date].filter(Boolean).join(" · ")}</small>
+      <Icon name="chevronRight" size={18} />
+    </button>
+  );
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Från skolan</h2>
+        {news.length > 3 && (
+          <button className="btn small ghost" onClick={() => setAll(true)}>
+            Alla ({news.length})
+          </button>
+        )}
+      </div>
+      {news.slice(0, 3).map(row)}
+      {all && (
+        <div className="overlay" onClick={() => setAll(false)}>
+          <div className="sheet" role="dialog" aria-modal="true" aria-label="Alla nyheter från skolan" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
+            <div className="row gap">
+              <h2 className="grow" style={{ fontSize: 24 }}>
+                Från skolan
+              </h2>
+              <button className="btn icon" aria-label="Stäng" onClick={() => setAll(false)}>
+                <Icon name="x" />
+              </button>
+            </div>
+            {news.map(row)}
+          </div>
+        </div>
+      )}
+      {open && <NewsSheet n={open} data={data} actions={actions} onClose={() => setOpen(null)} />}
+    </section>
+  );
+}
+
+function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
   const kids = data.school ?? [];
   const [who, setWho] = useState(kids[0]?.personId ?? "");
   const [open, setOpen] = useState<Task | null>(null);
   if (!kids.length) {
     return (
+      <div className="stack">
+      <SchoolNewsCard data={data} actions={actions} />
       <section className="card">
         <p className="muted">
           Inget skolschema hittades. Lägg till skolan under Inställningar → Skola (Vklass, SchoolSoft eller kalenderlänk), så visas dagens schema,
           veckan och läxorna här.
         </p>
       </section>
+      </div>
     );
   }
   const kid = kids.find((k) => k.personId === who) ?? kids[0];
@@ -154,6 +317,7 @@ function SchoolPage({ data }: { data: Dashboard }) {
           ))}
         </div>
       )}
+      <SchoolNewsCard data={data} actions={actions} />
       <div className="school-grid">
         <section className="card">
           <h2>{today ? "Idag" : "Nästa skoldag"}</h2>

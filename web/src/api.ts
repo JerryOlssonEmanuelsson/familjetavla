@@ -129,6 +129,9 @@ const realApi = {
   travel: (key: string, choice: TravelChoice | null, forCalendar = false) => post<{ ok: true }>("travel", { key, choice, forCalendar }),
   dinner: (day: string, text: string, shopping?: string) => post<{ ok: true }>("dinner", { day, text, shopping }),
   shelf: (personId: string, items: string[]) => post<{ ok: true }>("shelf", { personId, items }),
+  newsSeen: (ids: string[]) => post<{ ok: true }>("news/seen", { ids }),
+  addOwnEvent: (e: { date: string; time?: string; end?: string; title: string; personId?: string; note?: string }) => post<{ id: string }>("own-events", e),
+  removeOwnEvent: (id: string) => request<{ ok: true }>(`own-events/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   testProvider: (integration: Integration, secrets: Record<string, string>) => post<TestResult>("providers/test", { integration, secrets }),
   testHa: (url?: string, token?: string) => post<TestResult>("test/ha", { url, token }),
