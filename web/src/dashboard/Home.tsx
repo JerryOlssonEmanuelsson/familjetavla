@@ -286,9 +286,32 @@ function NowZone({ data, actions }: { data: Dashboard; actions: Actions }) {
             </span>
           )}
           {header.sky && <span className="muted">{SKY_LABEL[header.sky]}</span>}
+          {header.sun && <SunArc sun={header.sun} />}
         </div>
       )}
     </section>
+  );
+}
+
+/** Today's sun as a bow from sunrise to sunset, with the sun where it is now. */
+function SunArc({ sun }: { sun: NonNullable<Dashboard["header"]["sun"]> }) {
+  const p = sun.pos;
+  const x = p === undefined ? 0 : 60 - 50 * Math.cos(p * Math.PI);
+  const y = p === undefined ? 0 : 48 - 38 * Math.sin(p * Math.PI);
+  const arc = "M10 48 A50 38 0 0 1 110 48";
+  return (
+    <div className={`sun-arc ${p === undefined ? "night" : ""}`} aria-label={`Solen går upp ${sun.rise} och ner ${sun.set}`}>
+      <svg viewBox="0 0 120 54" aria-hidden="true">
+        <line x1="4" y1="48" x2="116" y2="48" className="sa-horizon" />
+        <path d={arc} className="sa-track" />
+        {p !== undefined && <path d={arc} className="sa-done" pathLength={1} strokeDasharray={`${p} 1`} />}
+        {p !== undefined && <circle cx={x} cy={y} r="6" className="sa-sun" />}
+      </svg>
+      <span className="sa-times">
+        <span>↑ {sun.rise}</span>
+        <span>↓ {sun.set}</span>
+      </span>
+    </div>
   );
 }
 
@@ -489,7 +512,7 @@ function Temps({ temps }: { temps: Dashboard["temps"] }) {
   );
 }
 
-function EnergyMini({ e }: { e: Dashboard["energy"] }) {
+function EnergyMini({ e, price }: { e: Dashboard["energy"]; price?: number }) {
   if (!e) return null;
   const f = (n?: number) => (n === undefined ? "–" : `${n.toFixed(1).replace(".", ",")} kW`);
   return (
@@ -512,6 +535,12 @@ function EnergyMini({ e }: { e: Dashboard["energy"] }) {
           <div>
             <small>Huset</small>
             <b>{f(e.houseKw)}</b>
+          </div>
+        )}
+        {e.gridKw !== undefined && e.gridKw > 0.005 && price !== undefined && (
+          <div>
+            <small>Kostar nu</small>
+            <b>{(e.gridKw * price).toFixed(2).replace(".", ",")} kr/tim</b>
           </div>
         )}
         {e.batteryPct !== undefined && (
@@ -572,7 +601,7 @@ export function renderWidget(id: Dashboard["home"][number]["id"], data: Dashboar
     case "temps":
       return <Temps key={id} temps={data.temps} />;
     case "energy":
-      return <EnergyMini key={id} e={data.energy} />;
+      return <EnergyMini key={id} e={data.energy} price={data.prices?.now} />;
     case "climates":
       return <ClimatesMini key={id} climates={data.climates} />;
     default:

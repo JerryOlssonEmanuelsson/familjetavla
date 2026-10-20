@@ -588,7 +588,7 @@ export function EnergyPage({ data }: { data: Dashboard }) {
   const kw = (n?: number) => `${fmtNum(n ?? 0)} kW`;
   return (
     <main className="page-grid">
-      {e && (e.solarKw !== undefined || e.gridKw !== undefined) && <PowerFlow e={e} />}
+      {e && (e.solarKw !== undefined || e.gridKw !== undefined) && <PowerFlow e={e} price={data.prices?.now} spot={data.prices?.kind === "spot"} />}
       {(e?.houseKw !== undefined || e?.batteryPct !== undefined) && (
         <section className="card">
           <div className="stats" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
@@ -671,7 +671,7 @@ export function EnergyPage({ data }: { data: Dashboard }) {
  * "Just nu": sun, grid and house with the power moving between them. The dots run faster and the
  * lines get thicker the more power flows; it follows Home Assistant live (about once a second).
  */
-function PowerFlow({ e }: { e: NonNullable<Dashboard["energy"]> }) {
+function PowerFlow({ e, price, spot }: { e: NonNullable<Dashboard["energy"]>; price?: number; spot?: boolean }) {
   const kw = (n: number) => `${fmtNum(n, n < 1 ? 2 : 1)} kW`;
   const solar = Math.max(0, e.solarKw ?? 0);
   const grid = e.gridKw ?? 0;
@@ -748,6 +748,19 @@ function PowerFlow({ e }: { e: NonNullable<Dashboard["energy"]> }) {
           </text>
         </g>
       </svg>
+      {buy > 0.005 && price !== undefined ? (
+        <p className="pf-cost">
+          Kostar nu <b>{fmtNum(buy * price, 2)} kr/tim</b>
+          <span className="muted">
+            {" "}
+            · {fmtNum(price, 2)} kr/kWh{spot ? " spot" : ""}
+          </span>
+        </p>
+      ) : hasSun && solar > 0.005 && hasGrid ? (
+        <p className="pf-cost">
+          <b>Gratis just nu</b> <span className="muted">– solen räcker till huset</span>
+        </p>
+      ) : null}
     </section>
   );
 }

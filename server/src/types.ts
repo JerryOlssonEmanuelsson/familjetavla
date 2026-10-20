@@ -442,6 +442,8 @@ export interface Dashboard {
     weather?: string;
     sky?: Sky;
     tempNow?: number;
+    /** Soluppgång och solnedgång idag ("07:35"), pos = hur långt solen kommit (0–1), saknas på natten. */
+    sun?: { rise: string; set: string; pos?: number };
     /** Dygnsfas för den levande bakgrunden. */
     phase: "dawn" | "day" | "dusk" | "night";
   };

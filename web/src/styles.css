@@ -870,6 +870,55 @@ a.btn {
 .weather-now .sky-ico {
   color: var(--amber);
 }
+/* Sunrise to sunset as a bow under the weather. */
+.sun-arc {
+  width: 112px;
+  margin-top: 4px;
+}
+.sun-arc svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.sa-horizon {
+  stroke: var(--faint);
+  stroke-opacity: 0.5;
+  stroke-width: 1.5;
+}
+.sa-track {
+  fill: none;
+  stroke: var(--faint);
+  stroke-opacity: 0.5;
+  stroke-width: 2;
+  stroke-dasharray: 3 4;
+}
+.sa-done {
+  fill: none;
+  stroke: var(--amber);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.sa-sun {
+  fill: var(--amber);
+  filter: drop-shadow(0 0 5px var(--amber));
+}
+.sun-arc.night .sa-track {
+  stroke-opacity: 0.3;
+}
+.sa-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  .sun-arc {
+    margin-top: 0;
+    align-self: center;
+  }
+}
 
 .reminder {
   display: flex;
@@ -1422,6 +1471,10 @@ a.btn {
 .flow .arrows.reverse {
   transform: scaleX(-1);
   color: var(--accent);
+}
+.pf-cost {
+  margin: 4px 0 0;
+  font-size: 17px;
 }
 /* Energy "Just nu": power moving between sun, grid and house. */
 .power-flow svg {
