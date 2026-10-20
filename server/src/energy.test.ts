@@ -28,6 +28,17 @@ describe("energy today", () => {
     expect(increase([{ t: t(0), v: 56079.4 }, { t: t(8), v: 56090 }, { t: t(14), v: 56103.0 }])).toBeCloseTo(23.6, 1);
     expect(increase([{ t: t(0), v: 21.4 }, { t: t(0, 1), v: 0.2 }, { t: t(14), v: 23.6 }])).toBeCloseTo(23.6, 1);
   });
+  it("a short glitch to 0 is not counted twice (real home: 57.5 kWh instead of 31.9)", () => {
+    const pts = [{ t: t(0), v: 0 }, { t: t(12), v: 20 }, { t: t(18, 40), v: 25.6 }, { t: t(18, 41), v: 0 }, { t: t(18, 43), v: 25.7 }, { t: t(21), v: 31.9 }];
+    expect(increase(pts)).toBeCloseTo(31.9, 1);
+  });
+  it("a day that passes yesterday's total still counts from midnight", () => {
+    expect(increase([{ t: t(0), v: 30 }, { t: t(0, 1), v: 0.1 }, { t: t(0, 20), v: 0.5 }, { t: t(21), v: 35 }])).toBeCloseTo(35, 1);
+  });
+  it("hourly counters restart every hour, small corrections count nothing", () => {
+    expect(increase([{ t: t(9, 50), v: 1.8 }, { t: t(10, 0), v: 0 }, { t: t(10, 20), v: 2 }, { t: t(10, 59), v: 3 }, { t: t(11, 1), v: 0.1 }])).toBeCloseTo(3.1, 1);
+    expect(increase([{ t: t(9), v: 10 }, { t: t(10), v: 9.99 }, { t: t(11), v: 11 }])).toBeCloseTo(1, 1);
+  });
   it("gives consumption, own solar use, self-sufficiency and cost", () => {
     const series = {
       "sensor.sol": [{ t: t(0), v: 55982453 }, { t: t(14), v: 55996176 }],

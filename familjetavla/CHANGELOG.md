@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.8.8
+
+- **Rätt "Idag" även när mätaren hackar.** Om en mätare i Home Assistant en kort stund visar 0 och sedan sitt riktiga värde igen räknades dagen dubbelt (t.ex. 57 kWh köpt i stället för 32). Nu skiljs en kort glitch från en riktig nollställning vid midnatt eller timskifte, och små rättningar bakåt räknas inte alls.
+- **Kungälv** fungerar igen i Sök på adress (sophämtning) och går att välja.
+
 ## 0.8.7
 
 - **Elen live med animation.** Energi visar "Just nu": sol, elnät och hus med strömmen som rör sig mellan dem. Prickarna går fortare och linjerna blir tjockare ju mer effekt som flyter, och pilarna visar åt vilket håll (köper eller säljer). Värdena följer Home Assistant ungefär varje sekund, utan att tavlan laddas om. Startsidans energiruta följer också med live.
