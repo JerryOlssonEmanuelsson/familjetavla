@@ -1,0 +1,104 @@
+import { cached } from "./cache.js";
+import type { HourPrice } from "./connectors/elpris.js";
+import { ha, type HaConn, type HaState } from "./connectors/ha.js";
+import type { Dashboard, EnergyEntities } from "./types.js";
+
+type Energy = NonNullable<Dashboard["energy"]>;
+const round = (n: number, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+
+/** A power sensor in kW (W and MW converted), or undefined when it has no number. */
+export function kwOf(states: Map<string, HaState>, id?: string): number | undefined {
+  const st = id ? states.get(id) : undefined;
+  const n = Number(st?.state);
+  if (!st || !Number.isFinite(n)) return undefined;
+  const unit = String(st.attributes.unit_of_measurement ?? "");
+  return round(unit === "W" ? n / 1000 : unit === "MW" ? n * 1000 : n);
+}
+
+/**
+ * Power right now. The grid meter may give one signed value (+ buy, − sell) or two (buy and sell,
+ * like Tibber Pulse "Effekt" and "Elproduktion"). The house is its own sensor if there is one, else
+ * what the sun makes plus what is bought minus what is sold.
+ */
+export function energyNow(e: EnergyEntities, states: Map<string, HaState>): Omit<Energy, "today" | "batteryPct"> {
+  const solar = kwOf(states, e.solar);
+  const buy = kwOf(states, e.grid);
+  const sell = kwOf(states, e.gridExport);
+  const grid = buy !== undefined ? round(buy - (sell ?? 0)) : sell !== undefined ? -sell : undefined;
+  const house = kwOf(states, e.house) ?? (solar !== undefined && grid !== undefined ? round(Math.max(0, solar + grid)) : undefined);
+  const sold = grid !== undefined && grid < 0 ? -grid : 0;
+  const selfUse = solar !== undefined ? round(Math.max(0, Math.min(solar - sold, house ?? solar))) : undefined;
+  return { solarKw: solar, gridKw: grid, houseKw: house, selfUseKw: selfUse };
+}
+
+/**
+ * How much a meter has counted since midnight. Works for lifetime readings (total_increasing) and
+ * for counters that restart at midnight or every hour: a drop is a restart, and counting goes on.
+ */
+export function increase(points: { t: number; v: number }[]): number | undefined {
+  if (!points.length) return undefined;
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const d = points[i].v - points[i - 1].v;
+    total += d >= 0 ? d : points[i].v; // reset → the new value is what has been counted since
+  }
+  return total;
+}
+
+const toKwh = (n: number, unit: string) => (unit === "Wh" ? n / 1000 : unit === "MWh" ? n * 1000 : n);
+
+/** Per hour (ms of the hour start → kWh), to price what was bought. */
+export function hourly(points: { t: number; v: number }[]): Map<number, number> {
+  const out = new Map<number, number>();
+  for (let i = 1; i < points.length; i++) {
+    const d = points[i].v - points[i - 1].v;
+    const inc = d >= 0 ? d : points[i].v;
+    const h = new Date(points[i].t);
+    h.setMinutes(0, 0, 0);
+    out.set(h.getTime(), (out.get(h.getTime()) ?? 0) + inc);
+  }
+  return out;
+}
+
+export function energyToday(
+  e: EnergyEntities,
+  series: Record<string, { t: number; v: number }[]>,
+  units: Record<string, string>,
+  prices: HourPrice[],
+  priceOf: (p: number) => number,
+): Energy["today"] {
+  const kwh = (id?: string) => {
+    if (!id || !series[id]) return undefined;
+    const inc = increase(series[id]);
+    return inc === undefined ? undefined : round(toKwh(inc, units[id] ?? "kWh"));
+  };
+  const solarKwh = kwh(e.solarEnergy);
+  const importKwh = kwh(e.importEnergy);
+  const exportKwh = kwh(e.exportEnergy);
+  if (solarKwh === undefined && importKwh === undefined && exportKwh === undefined) return undefined;
+  const houseKwh = importKwh !== undefined ? round((solarKwh ?? 0) + importKwh - (exportKwh ?? 0)) : undefined;
+  const selfUseKwh = solarKwh !== undefined ? round(Math.max(0, solarKwh - (exportKwh ?? 0))) : undefined;
+  const selfSufficiencyPct = houseKwh && selfUseKwh !== undefined ? Math.round(Math.min(100, (selfUseKwh / houseKwh) * 100)) : undefined;
+  let costKr: number | undefined;
+  if (e.importEnergy && series[e.importEnergy] && prices.length) {
+    const byHour = new Map(prices.map((p) => [p.start.getTime(), priceOf(p.price)]));
+    let sum = 0;
+    let priced = false;
+    for (const [h, v] of hourly(series[e.importEnergy])) {
+      const price = byHour.get(h);
+      if (price === undefined) continue;
+      sum += toKwh(v, units[e.importEnergy] ?? "kWh") * price;
+      priced = true;
+    }
+    if (priced) costKr = round(sum, 0);
+  }
+  return { solarKwh, importKwh, exportKwh, houseKwh, selfUseKwh, selfSufficiencyPct, costKr };
+}
+
+/** Today's meter history from Home Assistant, at most every five minutes. */
+export async function todaySeries(conn: HaConn, e: EnergyEntities, now: Date): Promise<Record<string, { t: number; v: number }[]>> {
+  const ids = [e.solarEnergy, e.importEnergy, e.exportEnergy].filter((x): x is string => Boolean(x));
+  if (!ids.length) return {};
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return cached(`energy-today:${ids.join(",")}:${midnight.toDateString()}`, 5 * 60_000, () => ha.historyRaw(conn, ids, midnight, now));
+}

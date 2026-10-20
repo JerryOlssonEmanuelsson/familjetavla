@@ -240,6 +240,12 @@ export interface EnergyEntities {
   house?: string;
   /** Hembatteri, laddnivå i %. */
   battery?: string;
+  /** Effekt som säljs ut på nätet, när mätaren har den separat (t.ex. Tibber Pulse "Elproduktion"). */
+  gridExport?: string;
+  /** Mätarställningar (kWh/Wh) för dagens summor: solproduktion, köpt och såld el. */
+  solarEnergy?: string;
+  importEnergy?: string;
+  exportEnergy?: string;
 }
 
 export interface Config {
@@ -481,8 +487,23 @@ export interface Dashboard {
     solarKw?: number;
     /** Positiv = köper från nätet, negativ = säljer. */
     gridKw?: number;
+    /** Husets förbrukning: egen sensor, annars sol + köpt − såld. */
     houseKw?: number;
+    /** Solel som används i huset just nu (sol − såld). */
+    selfUseKw?: number;
     batteryPct?: number;
+    /** Sedan midnatt, ur mätarställningarna i Home Assistant. */
+    today?: {
+      solarKwh?: number;
+      importKwh?: number;
+      exportKwh?: number;
+      houseKwh?: number;
+      selfUseKwh?: number;
+      /** Andel av förbrukningen som solen täckt, 0–100. */
+      selfSufficiencyPct?: number;
+      /** Köpt el gånger timpriset (med påslag om sådant är inlagt). */
+      costKr?: number;
+    };
   };
   schoolFood?: { child: string; day: string; dishes: string[] }[];
   /** Nyheter från skolan (Vklass), nyast först. */

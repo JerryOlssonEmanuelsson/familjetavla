@@ -224,7 +224,16 @@ export const configSchema = z
       cars: z
         .array(z.object({ name: label(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional(), climate: entity.optional() }))
         .max(6),
-      energy: z.object({ solar: entity.optional(), grid: entity.optional(), house: entity.optional(), battery: entity.optional() }),
+      energy: z.object({
+        solar: entity.optional(),
+        grid: entity.optional(),
+        gridExport: entity.optional(),
+        house: entity.optional(),
+        battery: entity.optional(),
+        solarEnergy: entity.optional(),
+        importEnergy: entity.optional(),
+        exportEnergy: entity.optional(),
+      }),
       lights: z.array(z.object({ name: label(40), entityId: entity })).max(16),
       temps: z.array(z.object({ name: label(40), entityId: entity })).max(8),
       lightGroups: z.array(z.object({ name: label(40), entities: z.array(entity).max(40) })).max(12),

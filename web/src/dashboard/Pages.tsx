@@ -630,10 +630,65 @@ export function EnergyPage({ data }: { data: Dashboard }) {
                 <b className="big-num">{kw(e.houseKw)}</b>
               </div>
             )}
+            {e?.houseKw && e.selfUseKw !== undefined ? (
+              <div>
+                <small>Solen täcker</small>
+                <b className="big-num">{Math.round(Math.min(100, (e.selfUseKw / e.houseKw) * 100))} %</b>
+              </div>
+            ) : null}
             {e?.batteryPct !== undefined && (
               <div>
                 <small>Hembatteri</small>
                 <b className="big-num">{Math.round(e.batteryPct)} %</b>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+      {e?.today && (
+        <section className="card">
+          <h2>Idag</h2>
+          <div className="stats" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            {e.today.houseKwh !== undefined && (
+              <div>
+                <small>Förbrukat</small>
+                <b>{fmtNum(e.today.houseKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.solarKwh !== undefined && (
+              <div>
+                <small>Solel</small>
+                <b>{fmtNum(e.today.solarKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.importKwh !== undefined && (
+              <div>
+                <small>Köpt</small>
+                <b>{fmtNum(e.today.importKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.exportKwh !== undefined && (
+              <div>
+                <small>Sålt</small>
+                <b>{fmtNum(e.today.exportKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.selfUseKwh !== undefined && (
+              <div>
+                <small>Egen solel</small>
+                <b>{fmtNum(e.today.selfUseKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.selfSufficiencyPct !== undefined && (
+              <div>
+                <small>Självförsörjning</small>
+                <b>{e.today.selfSufficiencyPct} %</b>
+              </div>
+            )}
+            {e.today.costKr !== undefined && (
+              <div>
+                <small>Köpt el kostat</small>
+                <b>{e.today.costKr} kr</b>
               </div>
             )}
           </div>

@@ -1,3 +1,4 @@
+import { energyNow, energyToday, todaySeries } from "./energy.js";
 import { buildSchoolNews, newsReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
@@ -269,6 +270,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
   ]);
   const stateMap = new Map(states.map((s) => [s.entity_id, s]));
   const { people, children, all, withCare, travelCtx } = family;
+  const energySeries = conn ? await todaySeries(conn, cfg.entities.energy ?? {}, now).catch(() => ({})) : {};
   const plan = buildPlan(withCare, people, travelCtx, now, (e) => toDash(e, people, travelCtx));
   const dinners = loadDinners();
   const meals = buildMeals(family.schoolFood, dinners, now);
@@ -358,7 +360,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       return g ? { provider: g.provider.meta.id, name: g.provider.meta.name } : undefined;
     })(),
     prices: buildPrices(cfg, prices, now),
-    energy: buildEnergy(cfg, stateMap),
+    energy: buildEnergy(cfg, stateMap, energySeries, prices),
     schoolFood: todaysFood(family.schoolFood, now),
     schoolDay: buildSchoolDays(all, people, now, (e, day) => visibleOn(e, people, day)),
     school: buildSchoolWeek(all, people, now, (e, day) => visibleOn(e, people, day)),
@@ -601,14 +603,13 @@ function kw(states: Map<string, HaState>, id?: string): number | undefined {
   return Math.round((unit === "W" ? n / 1000 : unit === "MW" ? n * 1000 : n) * 100) / 100;
 }
 
-function buildEnergy(cfg: Config, states: Map<string, HaState>): Dashboard["energy"] {
+function buildEnergy(cfg: Config, states: Map<string, HaState>, series: Record<string, { t: number; v: number }[]>, spot: HourPrice[]): Dashboard["energy"] {
   const e = cfg.entities.energy ?? {};
+  const units = Object.fromEntries([e.solarEnergy, e.importEnergy, e.exportEnergy].filter((x): x is string => Boolean(x)).map((id) => [id, String(states.get(id)?.attributes.unit_of_measurement ?? "kWh")]));
   const out = {
-    solarKw: kw(states, e.solar),
-    gridKw: kw(states, e.grid),
-    // No house meter: what the house uses is the sun's production plus what is bought (negative = sold).
-    houseKw: kw(states, e.house) ?? (e.solar && e.grid && kw(states, e.solar) !== undefined && kw(states, e.grid) !== undefined ? Math.round((kw(states, e.solar)! + kw(states, e.grid)!) * 100) / 100 : undefined),
+    ...energyNow(e, states),
     batteryPct: num(states, e.battery) ?? undefined,
+    today: energyToday(e, series, units, spot, (p) => (hasPriceExtras(cfg) ? totalPrice(cfg, p) : p)),
   };
   return Object.values(out).some((v) => v !== undefined) ? out : undefined;
 }
