@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { energyNow, energyToday, increase } from "./energy.js";
+import { energyLive, energyNow, energyToday, increase, liveEnergyIds } from "./energy.js";
 import type { HaState } from "./connectors/ha.js";
 import { discover, type HaEntityInfo } from "./discovery.js";
 
@@ -13,6 +13,12 @@ describe("energy now", () => {
   it("selling: the grid goes negative and only the rest of the sun is used at home", () => {
     const states = new Map([st("sensor.solar", "5.2", "kW"), st("sensor.pulse", "0", "W"), st("sensor.pulse_prod", "3800", "W")].map((s) => [s.entity_id, s]));
     expect(energyNow({ solar: "sensor.solar", grid: "sensor.pulse", gridExport: "sensor.pulse_prod" }, states)).toEqual({ solarKw: 5.2, gridKw: -3.8, houseKw: 1.4, selfUseKw: 1.4 });
+  });
+  it("live: the flow and the battery, and only power sensors move it (not the kWh meters)", () => {
+    const states = new Map([st("sensor.solar", "2000", "W"), st("sensor.pulse", "500", "W"), st("sensor.bat", "64", "%")].map((s) => [s.entity_id, s]));
+    const e = { solar: "sensor.solar", grid: "sensor.pulse", battery: "sensor.bat", importEnergy: "sensor.meter" };
+    expect(energyLive(e, states)).toEqual({ solarKw: 2, gridKw: 0.5, houseKw: 2.5, selfUseKw: 2, batteryPct: 64 });
+    expect(liveEnergyIds(e)).toEqual(["sensor.solar", "sensor.pulse", "sensor.bat"]);
   });
 });
 

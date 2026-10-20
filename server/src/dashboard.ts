@@ -1,4 +1,4 @@
-import { energyNow, energyToday, todaySeries } from "./energy.js";
+import { energyLive, energyToday, todaySeries } from "./energy.js";
 import { buildSchoolNews, newsReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
@@ -607,8 +607,7 @@ function buildEnergy(cfg: Config, states: Map<string, HaState>, series: Record<s
   const e = cfg.entities.energy ?? {};
   const units = Object.fromEntries([e.solarEnergy, e.importEnergy, e.exportEnergy].filter((x): x is string => Boolean(x)).map((id) => [id, String(states.get(id)?.attributes.unit_of_measurement ?? "kWh")]));
   const out = {
-    ...energyNow(e, states),
-    batteryPct: num(states, e.battery) ?? undefined,
+    ...energyLive(e, states),
     today: energyToday(e, series, units, spot, (p) => (hasPriceExtras(cfg) ? totalPrice(cfg, p) : p)),
   };
   return Object.values(out).some((v) => v !== undefined) ? out : undefined;

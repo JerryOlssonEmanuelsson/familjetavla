@@ -696,17 +696,41 @@ export function Dashboard() {
     let soon = 0;
     try {
       if (!isDemo) es = new EventSource("api/events");
-      if (es)
-      es.onmessage = () => {
-        window.clearTimeout(soon);
-        soon = window.setTimeout(refresh, 150);
-      };
+      if (es) {
+        es.onmessage = () => {
+          window.clearTimeout(soon);
+          soon = window.setTimeout(refresh, 150);
+        };
+        // Live power flow, about once a second: only the numbers change, the board is not reloaded.
+        es.addEventListener("energy", (ev) => {
+          try {
+            const live = JSON.parse((ev as MessageEvent<string>).data) as NonNullable<Dash["energy"]>;
+            setData((d) => (d?.energy ? { ...d, energy: { ...d.energy, ...live } } : d));
+          } catch {
+            /* the next full refresh has it */
+          }
+        });
+      }
     } catch {
       /* polling still works */
     }
+    // The demo has no Home Assistant: let the power wander a little so the live flow can be seen.
+    const demoLive = isDemo
+      ? window.setInterval(() => {
+          setData((d) => {
+            const e = d?.energy;
+            if (!e || e.solarKw === undefined || e.houseKw === undefined) return d;
+            const solar = Math.round(Math.max(0, 1.84 + (Math.random() - 0.5) * 0.3) * 100) / 100;
+            const house = Math.round(Math.max(0.3, 2.44 + (Math.random() - 0.5) * 0.4) * 100) / 100;
+            const grid = Math.round((house - solar) * 100) / 100;
+            return { ...d, energy: { ...e, solarKw: solar, houseKw: house, gridKw: grid, selfUseKw: Math.min(solar, house) } };
+          });
+        }, 2000)
+      : 0;
     return () => {
       clearInterval(poll);
       clearInterval(tick);
+      clearInterval(demoLive);
       es?.close();
       document.removeEventListener("visibilitychange", onVisible);
     };

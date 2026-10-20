@@ -1423,6 +1423,114 @@ a.btn {
   transform: scaleX(-1);
   color: var(--accent);
 }
+/* Energy "Just nu": power moving between sun, grid and house. */
+.power-flow svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.pf-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.pf-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.pf-live i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pf-pulse 1.6s ease-in-out infinite;
+}
+@keyframes pf-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+.pf-track {
+  fill: none;
+  stroke: var(--faint);
+  stroke-opacity: 0.35;
+  stroke-width: 3;
+}
+.power-flow .pf-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 16;
+  animation: pf-move 1s linear infinite;
+}
+@keyframes pf-move {
+  to {
+    stroke-dashoffset: -16.1;
+  }
+}
+.pf-sun {
+  stroke: var(--amber);
+  color: var(--amber);
+  fill: var(--amber);
+}
+.pf-sell {
+  stroke: var(--accent);
+  color: var(--accent);
+  fill: var(--accent);
+}
+.pf-buy {
+  stroke: var(--blue);
+  color: var(--blue);
+  fill: var(--blue);
+}
+.pf-house {
+  color: var(--text);
+}
+.pf-node circle {
+  fill: var(--control);
+  stroke: currentColor;
+  stroke-width: 2.5;
+}
+.pf-node g path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pf-node.idle {
+  opacity: 0.45;
+}
+.pf-label {
+  fill: var(--text);
+  stroke: none;
+  font-size: 19px;
+  font-weight: 700;
+}
+.pf-value {
+  fill: var(--text);
+  stroke: none;
+  font-size: 22px;
+  font-weight: 800;
+}
+marker.pf-sun path,
+marker.pf-sell path,
+marker.pf-buy path {
+  stroke: none;
+}
+/* Without motion (e-ink, reduced motion) the dots stand still; the arrowheads still show the way. */
+[data-theme="eink"] .pf-line {
+  stroke-dasharray: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-line {
+    stroke-dasharray: none;
+  }
+}
 .chart svg {
   width: 100%;
   height: 180px;

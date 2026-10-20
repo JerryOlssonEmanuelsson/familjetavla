@@ -31,6 +31,20 @@ export function energyNow(e: EnergyEntities, states: Map<string, HaState>): Omit
   return { solarKw: solar, gridKw: grid, houseKw: house, selfUseKw: selfUse };
 }
 
+/** Battery level in %, or undefined. */
+function pctOf(states: Map<string, HaState>, id?: string): number | undefined {
+  const n = Number(id ? states.get(id)?.state : undefined);
+  return id && Number.isFinite(n) ? n : undefined;
+}
+
+/** What the board shows "just nu": power flows plus the home battery. Sent live as HA reports. */
+export function energyLive(e: EnergyEntities, states: Map<string, HaState>): Omit<Energy, "today"> {
+  return { ...energyNow(e, states), batteryPct: pctOf(states, e.battery) };
+}
+
+/** Entities whose change moves the live flow (not the kWh meters, which only feed "Idag"). */
+export const liveEnergyIds = (e: EnergyEntities) => [e.solar, e.grid, e.gridExport, e.house, e.battery].filter((x): x is string => Boolean(x));
+
 /**
  * How much a meter has counted since midnight. Works for lifetime readings (total_increasing) and
  * for counters that restart at midnight or every hour: a drop is a restart, and counting goes on.
