@@ -6,6 +6,7 @@
 - **Lägg i veckan.** Från en nyhet: välj dag, tid och barn, t.ex. "Workshop på biblioteket" tis 14:30–16:30. Den hamnar i veckan och i Planera veckan, så ni kan välja vem som skjutsar. Tas bort från händelsen.
 - Källkollen räknar också Vklass-nyheterna, bara antal.
 - **Stora hem:** "Hämta från Home Assistant" fungerar även med många entiteter (provat mot ett hem med 1000). Förut hittades inga bilar, rum eller lampgrupper där.
+- **Energi och elpris väljs smartare:** mätare som visar ett värde går före de som säger "unknown", och Tibber Pulse/P1 går först för elnätet. Som elpris föreslås bara sensorer med kr, SEK eller öre per kWh (inte t.ex. en batterinivå som råkar heta "spot…").
 - Telefoner (Companion-appen) föreslås inte längre som bilar, och otillgängliga kalendrar föreslås inte i guiden. Är en vald kalender otillgänglig säger tavlan det i klartext.
 - **Örebro** fungerar igen i Sök på adress (sophämtning) och går att välja.
 
