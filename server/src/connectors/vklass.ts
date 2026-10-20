@@ -110,6 +110,12 @@ export async function vklassWelcome(s: VklassSession): Promise<{ children: Vklas
   return { children, news: parseVklassNews(html) };
 }
 
+/** A page or script on Vklass with the logged-in session – for the live check's search for the news feed. */
+export async function vklassGet(s: VklassSession, url: string): Promise<{ status: number; type: string; text: string }> {
+  const res = await vklassFile(s, url);
+  return { status: res.status, type: res.headers.get("content-type") ?? "", text: res.status === 200 ? await res.text() : "" };
+}
+
 /** Fetch a news attachment with the logged-in session (only Vklass addresses). */
 export async function vklassFile(s: VklassSession, url: string): Promise<Response> {
   const u = new URL(url, CUSTODIAN);

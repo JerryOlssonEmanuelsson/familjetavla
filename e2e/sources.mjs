@@ -13,7 +13,7 @@ import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
 import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
 import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
-import { vklassLogin, vklassWelcome } from "../server/dist/connectors/vklass.js";
+import { vklassGet, vklassLogin, vklassWelcome } from "../server/dist/connectors/vklass.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
@@ -191,11 +191,50 @@ for (const [name, key] of [["SportAdmin", "SPORTADMIN_ICS"], ["laget.se", "LAGET
   });
 }
 
+/**
+ * No news on the start page: Vklass loads them afterwards. Find from where – printing only
+ * addresses from Vklass's own code and numbers, never text from the account.
+ */
+async function findVklassNewsFeed(session) {
+  const PATH = /["'`](\/[A-Za-z][A-Za-z0-9/_-]{2,80})["'`?]/g;
+  const onlyWords = (p) => p.split("/").filter((w) => /^[A-Za-z][A-Za-z_-]{1,40}$/.test(w)).join("/");
+  const welcome = await vklassGet(session, "https://custodian.vklass.se/Home/Welcome");
+  const count = (t) => (t.match(/Publicerat/g) || []).length;
+  const lines = [`startsidan: ${welcome.text.length} tecken, "Publicerat" ${count(welcome.text)} gånger`];
+  const scripts = [...welcome.text.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map((m) => m[1]).filter((u) => !/^https?:/.test(u) || /vklass\.se/.test(u));
+  const found = new Set();
+  const scan = (t) => {
+    for (const m of t.matchAll(PATH)) if (/news|nyhet|feed|anslag|notice|bulletin/i.test(m[1])) found.add(onlyWords(m[1]));
+  };
+  scan(welcome.text);
+  for (const src of scripts.slice(0, 15)) {
+    const js = await vklassGet(session, new URL(src, "https://custodian.vklass.se").toString()).catch(() => null);
+    if (js) scan(js.text);
+  }
+  lines.push(`skript: ${scripts.length}, adresser som nämner nyheter: ${[...found].filter(Boolean).slice(0, 20).join(" ") || "inga"}`);
+  const candidates = [...new Set([...[...found].filter(Boolean).slice(0, 12), "News", "News/Index", "Home/News", "News/GetNews", "News/List", "Newsfeed", "NewsFeed/Index", "Home/GetNews"])];
+  for (const c of candidates) {
+    const r = await vklassGet(session, `https://custodian.vklass.se/${c.replace(/^\//, "")}`).catch((e) => ({ status: -1, type: "", text: "" }));
+    let items = "";
+    if (/json/.test(r.type)) {
+      try {
+        const j = JSON.parse(r.text);
+        const arr = Array.isArray(j) ? j : Object.values(j).find(Array.isArray);
+        items = `, json ${Array.isArray(arr) ? arr.length + " poster" : "objekt"}, fält: ${Array.isArray(arr) && arr[0] && typeof arr[0] === "object" ? Object.keys(arr[0]).filter((k) => /^[A-Za-z_]{1,30}$/.test(k)).slice(0, 25).join(",") : "-"}`;
+      } catch {}
+    }
+    lines.push(`/${c.replace(/^\//, "")}: ${r.status} ${r.type.split(";")[0]} ${r.text.length} tecken, "Publicerat" ${count(r.text)}${items}`);
+  }
+  ok.push(`Vklass nyhetssökning (bara adresser och antal):\n  ${lines.join("\n  ")}`);
+}
+
 // ---- Vklass with a real account (repository secrets VKLASS_USERNAME / VKLASS_PASSWORD) ----
 // Only counts are reported – never names or other details from the account.
 if (process.env.VKLASS_USERNAME && process.env.VKLASS_PASSWORD) {
   await check("Vklass (riktigt konto)", async () => {
-    const { children: kids, news } = await vklassWelcome(await vklassLogin(process.env.VKLASS_USERNAME, process.env.VKLASS_PASSWORD));
+    const session = await vklassLogin(process.env.VKLASS_USERNAME, process.env.VKLASS_PASSWORD);
+    const { children: kids, news } = await vklassWelcome(session);
+    if (!news.length) await findVklassNewsFeed(session);
     const withFood = kids.filter((k) => k.food.length).length;
     const days = kids.reduce((n, k) => n + k.food.length, 0);
     const care = kids.filter((k) => k.careTime).length;

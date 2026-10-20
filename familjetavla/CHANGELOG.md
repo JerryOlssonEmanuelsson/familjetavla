@@ -5,6 +5,7 @@
 - **Nyheter från skolan (Vklass).** Skolans nyheter syns på Skolan under "Från skolan", och olästa från senaste veckan står i Kom ihåg. Tryck så visas hela texten, och bilagor som affischer visas direkt i rutan. Bilagorna hämtas via tavlan, så inloggningen syns aldrig i webbläsaren.
 - **Lägg i veckan.** Från en nyhet: välj dag, tid och barn, t.ex. "Workshop på biblioteket" tis 14:30–16:30. Den hamnar i veckan och i Planera veckan, så ni kan välja vem som skjutsar. Tas bort från händelsen.
 - Källkollen räknar också Vklass-nyheterna, bara antal.
+- **Örebro** fungerar igen i Sök på adress (sophämtning) och går att välja.
 
 ## 0.8.5
 
