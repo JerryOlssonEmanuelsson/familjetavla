@@ -723,8 +723,8 @@ export function Dashboard() {
       await fn();
       let d = await refresh();
       if (!verify) return;
-      for (let i = 0; i < 4 && d && !verify.check(d); i++) {
-        await new Promise((r) => setTimeout(r, 800));
+      for (let i = 0; i < 6 && d && !verify.check(d); i++) {
+        await new Promise((r) => setTimeout(r, 1000));
         d = await refresh();
       }
       showToast(d && verify.check(d) ? `✓ ${verify.done}` : (verify.slow ?? `⚠ ${label} svarade inte – är den offline eller strömlös?`));
@@ -754,11 +754,12 @@ export function Dashboard() {
 
   // Theme: explicit choice (button) wins, else config: auto follows "dygnsfärger" (light dawn/day, dark dusk/night).
   const phase = data?.header.phase ?? "night";
-  const theme = themeOverride ?? (data?.theme === "auto" || !data ? (phase === "dawn" || phase === "day" ? "light" : "dark") : data.theme);
+  // E-ink is a property of the screen, so it wins over the light/dark button too.
+  const theme = data?.theme === "eink" ? "eink" : (themeOverride ?? (data?.theme === "auto" || !data ? (phase === "dawn" || phase === "day" ? "light" : "dark") : data.theme));
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
-    root.dataset.phase = theme === "light" ? (phase === "dawn" ? "dawn" : "day") : phase === "dusk" ? "dusk" : "night";
+    root.dataset.phase = theme === "light" || theme === "eink" ? (phase === "dawn" ? "dawn" : "day") : phase === "dusk" ? "dusk" : "night";
     root.dataset.sky = data?.header.sky ?? "partly";
   }, [theme, phase, data?.header.sky]);
 
@@ -855,7 +856,7 @@ export function Dashboard() {
   const order = (id: Tab) => (id === "home" ? -1 : data.tabs.findIndex((t) => t.id === id));
   const tabs = TABS.filter((t) => t.show(data) && tabOn(t.id)).sort((a, b) => order(a.id) - order(b.id));
   const clock = now.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-  const sleeping = data.night && Date.now() > awakeUntil;
+  const sleeping = data.night && data.theme !== "eink" && Date.now() > awakeUntil;
 
   const tabIds = tabs.map((t) => t.id);
 

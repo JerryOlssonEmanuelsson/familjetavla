@@ -1759,6 +1759,7 @@ export function DisplayStep({ cfg, set }: StepProps) {
             { value: "auto", label: "Dygnsfärger (ljust dag, mörkt kväll)" },
             { value: "dark", label: "Alltid mörkt" },
             { value: "light", label: "Alltid ljust" },
+            { value: "eink", label: "E-ink (svart på vitt, inga animationer)" },
           ]}
         />
         <div className="grid-2">

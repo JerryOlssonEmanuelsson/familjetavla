@@ -37,6 +37,9 @@ if (firstRun) {
 
 const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), ms));
 const d = fx.dashboard;
+// "?tema=eink" shows the demo as on an e-ink screen.
+const forcedTheme = typeof location !== "undefined" ? new URLSearchParams(location.search).get("tema") : null;
+if (forcedTheme === "eink" || forcedTheme === "light" || forcedTheme === "dark") d.theme = forcedTheme;
 
 // ---- Förskola days for Maja in the demo: Emil drops off, Anna picks up – except Thursday, where
 // no one has said they pick up yet (shows the amber "saknar ansvarig" in Planera veckan). ----

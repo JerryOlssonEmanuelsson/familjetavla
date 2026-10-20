@@ -2675,3 +2675,107 @@ a.btn {
   text-underline-offset: 3px;
   overflow-wrap: anywhere;
 }
+
+/* ---------- E-ink: black on white, lines instead of fills, nothing that moves ---------- */
+[data-theme="eink"] {
+  --bg-solid: #ffffff;
+  --text: #000000;
+  --muted: #222222;
+  --faint: #444444;
+  --glass: #ffffff;
+  --glass-strong: #ffffff;
+  --glass-edge: #000000;
+  --glass-hi: transparent;
+  --glass-shine: transparent;
+  --shadow: transparent;
+  --blur: 0px;
+  --control: #ffffff;
+  --control-border: #000000;
+  --row: #ffffff;
+  --chip: #ffffff;
+  --bar: #000000;
+  --accent: #000000;
+  --on-accent: #ffffff;
+  --accent-soft: #ffffff;
+  --blue: #000000;
+  --blue-soft: #ffffff;
+  --amber: #000000;
+  --amber-soft: #ffffff;
+  --danger: #000000;
+  --card-border: #000000;
+  --sky-0: #ffffff;
+  --sky-1: #ffffff;
+  --sky-2: #ffffff;
+  --sky-3: #ffffff;
+  color-scheme: light;
+  /* Calendar and person colours become greys that e-ink can show. */
+  filter: grayscale(1) contrast(1.15);
+}
+[data-theme="eink"] body {
+  background: #ffffff;
+}
+[data-theme="eink"] *,
+[data-theme="eink"] *::before,
+[data-theme="eink"] *::after {
+  animation: none !important;
+  transition: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+[data-theme="eink"] .sky {
+  display: none;
+}
+[data-theme="eink"] .card,
+[data-theme="eink"] .tabbar,
+[data-theme="eink"] .sheet {
+  background: #ffffff;
+  border-color: transparent;
+  outline: 2px solid #000000;
+  outline-offset: -2px;
+}
+[data-theme="eink"] .day,
+[data-theme="eink"] .event,
+[data-theme="eink"] .chip,
+[data-theme="eink"] .btn,
+[data-theme="eink"] .big-btn,
+[data-theme="eink"] .seg-btn,
+[data-theme="eink"] .chip-btn,
+[data-theme="eink"] .travel-badge,
+[data-theme="eink"] .event-text,
+[data-theme="eink"] .light-btn {
+  background: #ffffff;
+  color: #000000;
+  /* A line drawn inside the element: same size as in the other themes, so nothing gets pushed out. */
+  border-color: transparent;
+  outline: 1.5px solid #000000;
+  outline-offset: -1.5px;
+}
+/* People and event icons: white with a black ring and black letters (pale colours vanish in grey). */
+[data-theme="eink"] .avatar,
+[data-theme="eink"] .evt-ico {
+  background: #ffffff !important;
+  color: #000000 !important;
+  outline: 1.5px solid #000000;
+  outline-offset: -1.5px;
+}
+[data-theme="eink"] .avatar *,
+[data-theme="eink"] .evt-ico * {
+  color: #000000 !important;
+}
+[data-theme="eink"] .day.today {
+  outline-width: 3px;
+  outline-offset: -3px;
+}
+[data-theme="eink"] .seg-btn.on,
+[data-theme="eink"] .chip-btn.on,
+[data-theme="eink"] .btn.primary,
+[data-theme="eink"] .btn.selected,
+[data-theme="eink"] .light-btn.on,
+[data-theme="eink"] .big-btn.amber,
+[data-theme="eink"] .big-btn.accent {
+  background: #000000;
+  color: #ffffff;
+  border-color: #000000;
+}
