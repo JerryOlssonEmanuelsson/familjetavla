@@ -370,6 +370,8 @@ export interface DashEvent {
   /** Finns på barnens aktiviteter: valt sätt dit och hem. */
   travel?: DashTravel;
   /** Beskrivningen från kalendern (samlingstid, vad som behövs …). */
+  /** Egen händelse (tillagd på tavlan) – id för att kunna ta bort den. */
+  ownId?: string;
   description?: string;
 }
 
@@ -446,7 +448,7 @@ export interface Dashboard {
     headline: string;
     items: (DashEvent & { inMinutes: number; dayLabel: string })[];
   };
-  people: { name: string; color: string; initial: string; home: boolean; kind: "adult" | "child" }[];
+  people: { id: string; name: string; color: string; initial: string; home: boolean; kind: "adult" | "child" }[];
   /** Fotoram i viloläge. */
   idle: { minutes: number; photos: string[] };
   reminders: Reminder[];
@@ -483,6 +485,8 @@ export interface Dashboard {
     batteryPct?: number;
   };
   schoolFood?: { child: string; day: string; dishes: string[] }[];
+  /** Nyheter från skolan (Vklass), nyast först. */
+  schoolNews: SchoolNews[];
   /** Sidan Skolan: veckans schema, läxor och uppgifter per barn. */
   school?: SchoolChild[];
   /** En nyare version finns publicerad. */
@@ -572,4 +576,21 @@ export interface Lamp {
   offline: boolean;
   dimmable: boolean;
   brightness?: number;
+}
+
+export interface SchoolNews {
+  id: string;
+  personId?: string;
+  /** Barnets namn och färg när nyheten gäller ett barn. */
+  who?: string;
+  color?: string;
+  title: string;
+  text: string;
+  /** ISO */
+  published?: string;
+  /** "20 okt" */
+  date?: string;
+  /** Bilagor hämtas via tavlan: `url` är en adress på tavlan, inte i Vklass. */
+  files: { name: string; url: string }[];
+  seen: boolean;
 }

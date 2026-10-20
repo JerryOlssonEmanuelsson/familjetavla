@@ -56,7 +56,13 @@ export const ha = {
   async calendarEvents(c: HaConn, entityId: string, from: Date, to: Date): Promise<CalEvent[]> {
     type HaEv = { start: { dateTime?: string; date?: string }; end: { dateTime?: string; date?: string }; summary: string; location?: string; description?: string; uid?: string };
     const q = `?start=${encodeURIComponent(from.toISOString())}&end=${encodeURIComponent(to.toISOString())}`;
-    const list = await call<HaEv[]>(c, `/calendars/${encodeURIComponent(entityId)}${q}`);
+    const list = await call<HaEv[]>(c, `/calendars/${encodeURIComponent(entityId)}${q}`).catch(async (e: Error) => {
+      // An unavailable calendar answers 400 – say that instead of the bare status.
+      const st = await call<HaState>(c, `/states/${encodeURIComponent(entityId)}`).catch(() => null);
+      if (!st) throw new Error(`Kalendern ${entityId} finns inte i Home Assistant längre.`);
+      if (st.state === "unavailable") throw new Error(`Kalendern ${st.attributes.friendly_name ?? entityId} är otillgänglig i Home Assistant – kontrollera integrationen.`);
+      throw e;
+    });
     return list.map((e) => {
       const allDay = !e.start.dateTime;
       const parse = (v: { dateTime?: string; date?: string }) => {

@@ -1,3 +1,4 @@
+import { buildSchoolNews, newsReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
 import { cached } from "./cache.js";
@@ -163,6 +164,7 @@ function toDash(ev: SourcedEvent, people: Map<string, Person>, travel?: TravelCt
     icon: ev.gym ? "gym" : activityIcon(`${ev.title} ${ev.sourceName ?? ""}`, ev.category),
     location: ev.location,
     description: cleanDescription(ev.description, ev.title),
+    ...(ev.sourceId === "own" && ev.uid ? { ownId: ev.uid } : {}),
   };
 }
 
@@ -226,17 +228,17 @@ export interface Family {
   travelCtx: TravelCtx;
 }
 
-export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]): Promise<Family & { schoolFood: SchoolData["food"] }> {
+export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]): Promise<Family & { schoolFood: SchoolData["food"]; schoolNews: SchoolData["news"] }> {
   const today = startOfDay(now);
   const horizon = addDays(today, 7);
   const [calEvents, school] = await Promise.all([collectCalendars(cfg, today, horizon, errors), collectSchool(cfg, today, horizon, errors)]);
   const swapCal = cfg.household.custodyCalendarId;
   const people = new Map(withSwapCalendar(cfg.people, calEvents.filter((e) => e.sourceId === swapCal)).map((p) => [p.id, p]));
   const children = [...people.values()].filter((p) => p.kind === "child");
-  const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events];
+  const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events, ...ownCalendarEvents()];
   const careEvents = buildCareEvents([...people.values()], school.care, all, today, 7);
   const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map([...cfg.calendars.map((c) => [c.id, c] as const), ...careCalendars([...people.values()])]) };
-  return { people, children, all, withCare: [...all, ...careEvents], travelCtx, schoolFood: school.food };
+  return { people, children, all, withCare: [...all, ...careEvents], travelCtx, schoolFood: school.food, schoolNews: school.news };
 }
 
 export async function buildDashboard(now = new Date()): Promise<Dashboard> {
@@ -270,6 +272,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
   const plan = buildPlan(withCare, people, travelCtx, now, (e) => toDash(e, people, travelCtx));
   const dinners = loadDinners();
   const meals = buildMeals(family.schoolFood, dinners, now);
+  const schoolNews = buildSchoolNews(family.schoolNews, people);
 
   // ---- Days ----
   const days: DashDay[] = [];
@@ -326,6 +329,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
     travelOptions: travelOptions(people),
     knownDrivers: knownDrivers(),
     people: cfg.people.map((p) => ({
+      id: p.id,
       name: p.name,
       color: p.color,
       initial: initialsOf(p, new Map(cfg.people.map((x) => [x.id, x]))),
@@ -333,7 +337,8 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: [...planReminder(plan, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, 5),
+    reminders: [...planReminder(plan, now), ...newsReminders(schoolNews, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, 5),
+    schoolNews,
     plan,
     meals,
     mealFavorites: mealFavorites(now),
@@ -601,7 +606,8 @@ function buildEnergy(cfg: Config, states: Map<string, HaState>): Dashboard["ener
   const out = {
     solarKw: kw(states, e.solar),
     gridKw: kw(states, e.grid),
-    houseKw: kw(states, e.house),
+    // No house meter: what the house uses is the sun's production plus what is bought (negative = sold).
+    houseKw: kw(states, e.house) ?? (e.solar && e.grid && kw(states, e.solar) !== undefined && kw(states, e.grid) !== undefined ? Math.round((kw(states, e.solar)! + kw(states, e.grid)!) * 100) / 100 : undefined),
     batteryPct: num(states, e.battery) ?? undefined,
   };
   return Object.values(out).some((v) => v !== undefined) ? out : undefined;

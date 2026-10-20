@@ -2,7 +2,7 @@ import { fetchIcs } from "../connectors/ics.js";
 import { ha, haConnection } from "../connectors/ha.js";
 import { getJson } from "../http.js";
 import { schoolsoftCalendar, schoolsoftLogin, schoolsoftLunch } from "../connectors/schoolsoft.js";
-import { isGymLesson, vklassChildren, vklassEvents, vklassLogin } from "../connectors/vklass.js";
+import { isGymLesson, vklassEvents, vklassLogin, vklassWelcome } from "../connectors/vklass.js";
 import { hhmm, shortDate, shortWeekday } from "../time.js";
 import type { ProviderCtx, SchoolEvent, SchoolProvider } from "./types.js";
 
@@ -38,10 +38,10 @@ export const vklass: SchoolProvider = {
   async test(ctx) {
     need(ctx, "username", "password");
     const s = await vklassLogin(ctx.str("username"), ctx.secret("password")!);
-    const kids = await vklassChildren(s);
+    const { children: kids, news } = await vklassWelcome(s);
     return {
       ok: true,
-      message: `Inloggad. Hittade ${kids.length} barn.`,
+      message: `Inloggad. Hittade ${kids.length} barn och ${news.length} nyheter.`,
       discovered: kids.map((k) => k.name),
       preview: kids.flatMap((k) => (k.food[0] ? [`${k.name} · ${k.food[0].day}: ${k.food[0].dishes.join(", ")}`] : [])),
     };
@@ -49,7 +49,7 @@ export const vklass: SchoolProvider = {
   async fetch(ctx, from, to) {
     need(ctx, "username", "password");
     const s = await vklassLogin(ctx.str("username"), ctx.secret("password")!);
-    const kids = await vklassChildren(s);
+    const { children: kids, news } = await vklassWelcome(s);
     const events: SchoolEvent[] = [];
     for (const k of kids) {
       if (!k.id) continue; // preschool child without lessons: menu and care time only
@@ -57,7 +57,17 @@ export const vklass: SchoolProvider = {
     }
     const food = kids.flatMap((k) => k.food.map((f) => ({ child: k.name, ...f })));
     const care = kids.flatMap((k) => (k.careTime ? [{ child: k.name, text: k.careTime }] : []));
-    return { events, food, care };
+    // The round badge on a news item holds the first letters of the child's name ("ES").
+    const byBadge = (b?: string) => (b ? kids.filter((k) => k.name.slice(0, 2).toUpperCase() === b) : []);
+    return {
+      events,
+      food,
+      care,
+      news: news.map(({ badge, ...n }) => {
+        const m = byBadge(badge);
+        return { ...n, child: m.length === 1 ? m[0].name : undefined };
+      }),
+    };
   },
 };
 

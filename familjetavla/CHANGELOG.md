@@ -1,5 +1,16 @@
 # Ändringar
 
+## 0.8.6
+
+- **Nyheter från skolan (Vklass).** Skolans nyheter syns på Skolan under "Från skolan", och olästa från senaste veckan står i Kom ihåg. Tryck så visas hela texten, och bilagor som affischer visas direkt i rutan. Bilagorna hämtas via tavlan, så inloggningen syns aldrig i webbläsaren.
+- **Lägg i veckan.** Från en nyhet: välj dag, tid och barn, t.ex. "Workshop på biblioteket" tis 14:30–16:30. Den hamnar i veckan och i Planera veckan, så ni kan välja vem som skjutsar. Tas bort från händelsen.
+- Källkollen räknar också Vklass-nyheterna, bara antal.
+- **Stora hem:** "Hämta från Home Assistant" fungerar även med många entiteter (provat mot ett hem med 1000). Förut hittades inga bilar, rum eller lampgrupper där.
+- **Energi och elpris väljs smartare:** mätare som visar ett värde går före de som säger "unknown", och Tibber Pulse/P1 går först för elnätet. Som elpris föreslås bara sensorer med kr, SEK eller öre per kWh (inte t.ex. en batterinivå som råkar heta "spot…").
+- **Välj själv växelriktare och elmätare** under Huset → Energi, t.ex. SolarEdge för solel och Tibber Pulse för elnätet. Listorna visar bara effektsensorer (W/kW) med aktuellt värde, fungerande först, och går att söka i. Saknas en sensor för huset räknar tavlan sol + köpt el.
+- Telefoner (Companion-appen) föreslås inte längre som bilar, och otillgängliga kalendrar föreslås inte i guiden. Är en vald kalender otillgänglig säger tavlan det i klartext.
+- **Örebro** fungerar igen i Sök på adress (sophämtning) och går att välja.
+
 ## 0.8.5
 
 - **E-ink-läge** för e-ink-skärmar (t.ex. Boox eller Kindle): svart på vitt, linjer i stället för färgade fält, inga animationer och ingen nattsläckning. Välj Tema → E-ink under Startskärm i inställningarna.

@@ -559,6 +559,19 @@ function EventSheet({
             </div>
           )}
           {e.description && <EventText text={e.description} />}
+          {e.ownId && (
+            <button
+              className="btn small ghost"
+              style={{ alignSelf: "flex-start" }}
+              onClick={async () => {
+                await api.removeOwnEvent(e.ownId!);
+                await onChanged();
+                onClose();
+              }}
+            >
+              <Icon name="trashSmall" size={18} /> Ta bort från veckan
+            </button>
+          )}
         </div>
         {care && t?.calendarId && <ShelfPicker data={data} personId={t.calendarId.slice(5)} onChanged={onChanged} />}
         {t && (

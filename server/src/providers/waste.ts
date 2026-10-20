@@ -26,7 +26,7 @@ export const wasteEdp: WasteProvider = {
     id: "edp",
     category: "waste",
     name: "Sök på adress",
-    description: "18 kommuner och renhållare som använder EDP Future – provade mot riktiga adresser varje vecka.",
+    description: "19 kommuner och renhållare som använder EDP Future – provade mot riktiga adresser varje vecka.",
     status: "stable",
     fields: [
       {

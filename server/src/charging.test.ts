@@ -27,3 +27,38 @@ describe("car charging", () => {
     expect(c.stop?.entityId).toBe("button.leaf_stop_charging");
   });
 });
+
+describe("car discovery", () => {
+  it("does not take a phone with battery, location and charging for a car", async () => {
+    const { discover } = await import("./discovery.js");
+    const ent = (e: string, n: string, extra: Partial<HaEntityInfo> = {}): HaEntityInfo => ({ e, n, a: null, d: "p1", dn: "Emil-S24", m: "samsung", mo: "SM-S921B", dc: null, u: null, st: "1", lu: "", ...extra });
+    const phone = [
+      ent("sensor.s24_battery_level", "Emil-S24 Battery level", { u: "%", dc: "battery", st: "82" }),
+      ent("device_tracker.s24", "Emil-S24"),
+      ent("sensor.s24_charger_type", "Emil-S24 Charger type"),
+    ];
+    const car = ["sensor.tesla_battery|Tesla Battery|%|battery|97", "device_tracker.tesla|Tesla Location||", "sensor.tesla_range|Tesla Range|km||410"].map((r) => {
+      const [e, n, u, dc, st] = r.split("|");
+      return { e, n, a: null, d: "c1", dn: "Tesla MY", m: "Tesla", mo: "Model Y", dc: dc || null, u: u || null, st: st ?? "1", lu: "" };
+    });
+    expect(discover([...phone, ...car]).cars.map((c) => c.name)).toEqual(["Tesla MY"]);
+  });
+});
+
+describe("energy discovery", () => {
+  it("picks a meter with a value over one that says unknown, and only real prices", async () => {
+    const { discover } = await import("./discovery.js");
+    const e = (id: string, n: string, m: string, dc: string | null, u: string | null, st: string): HaEntityInfo => ({ e: id, n, a: null, d: id, dn: n, m, mo: null, dc, u, st, lu: "" });
+    const d = discover([
+      e("sensor.se_grid", "solaredge Elnätets effekt", "SolarEdge", "power", "kW", "unknown"),
+      e("sensor.pulse_power", "Tibber Pulse Effekt", "Tibber", "power", "W", "2150"),
+      e("sensor.se_ac", "Solaredge-modbus AC Power", "SolarEdge", "power", "W", "313"),
+      e("sensor.brytare_alicia_spottar_batteri", "Brytare Alicia spottar Batteri", "Shelly", "battery", "%", "80"),
+      e("sensor.tibber_acc", "Tibber Pulse Ackumulerad förbrukning", "Tibber", "energy", "kWh", "23.2"),
+      e("sensor.nordpool_kwh_se3_sek", "nordpool", "nordpool", null, "SEK/kWh", "2.23"),
+    ]);
+    expect(d.energy.grid).toBe("sensor.pulse_power");
+    expect(d.energy.solar).toBe("sensor.se_ac");
+    expect(d.priceSensors.map((p) => p.entityId)).toEqual(["sensor.nordpool_kwh_se3_sek"]);
+  });
+});

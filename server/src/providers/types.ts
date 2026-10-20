@@ -28,6 +28,15 @@ export interface SchoolEvent extends CalEvent {
   url?: string;
 }
 
+export interface SchoolNewsItem {
+  id: string;
+  child?: string;
+  title: string;
+  text: string;
+  published?: string;
+  files: { name: string; url: string }[];
+}
+
 export interface SchoolProvider {
   meta: ProviderMeta;
   test(ctx: ProviderCtx): Promise<TestResult>;
@@ -40,6 +49,8 @@ export interface SchoolProvider {
     food?: { child: string; day: string; dishes: string[] }[];
     /** Förskola/fritids: today's care time per child, e.g. "07:30 - 16:00". */
     care?: { child: string; text: string }[];
+    /** News from the school (Vklass start page). `child` when the news names one child. */
+    news?: SchoolNewsItem[];
   }>;
 }
 

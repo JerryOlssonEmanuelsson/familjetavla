@@ -13,7 +13,7 @@ import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
 import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
 import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
-import { vklassChildren, vklassLogin } from "../server/dist/connectors/vklass.js";
+import { vklassLogin, vklassWelcome } from "../server/dist/connectors/vklass.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
@@ -176,7 +176,7 @@ for (const site of Object.values(AXFOOD_SITES)) {
 for (const [name, key] of [["SportAdmin", "SPORTADMIN_ICS"], ["laget.se", "LAGET_ICS"]]) {
   const url = process.env[key];
   if (!url) {
-    ok.push(`${name}: hoppas över (ingen ${key} i repots hemliga nycklar)`);
+    ok.push(`${name}: provas i det privata test-repot (riktig kalender)`);
     continue;
   }
   await check(`${name} (riktig kalender)`, async () => {
@@ -195,7 +195,8 @@ for (const [name, key] of [["SportAdmin", "SPORTADMIN_ICS"], ["laget.se", "LAGET
 // Only counts are reported – never names or other details from the account.
 if (process.env.VKLASS_USERNAME && process.env.VKLASS_PASSWORD) {
   await check("Vklass (riktigt konto)", async () => {
-    const kids = await vklassChildren(await vklassLogin(process.env.VKLASS_USERNAME, process.env.VKLASS_PASSWORD));
+    const session = await vklassLogin(process.env.VKLASS_USERNAME, process.env.VKLASS_PASSWORD);
+    const { children: kids, news } = await vklassWelcome(session);
     const withFood = kids.filter((k) => k.food.length).length;
     const days = kids.reduce((n, k) => n + k.food.length, 0);
     const care = kids.filter((k) => k.careTime).length;
@@ -208,10 +209,23 @@ if (process.env.VKLASS_USERNAME && process.env.VKLASS_PASSWORD) {
     const now = new Date();
     const r = await vklass.fetch(ctx, now, new Date(now.getTime() + 14 * 86_400_000));
     if (withId && !r.events.length) throw new Error(`${withId} barn med schema men inga lektioner två veckor framåt`);
-    return `${kids.length} barn (${withId} med schema), mat för ${withFood} barn (${days} dagar), omsorgstid för ${care}, ${r.events.filter((e) => !e.task).length} lektioner (${r.events.filter((e) => e.gym).length} med idrott), ${r.events.filter((e) => e.task).length} läxor/prov/uppgifter två veckor framåt`;
+    // News: counts only. Every news item needs a title and a date or text, or the page has changed.
+    const broken = news.filter((n) => !n.title || (!n.text && !n.files.length)).length;
+    if (broken) throw new Error(`${broken} av ${news.length} nyheter saknar rubrik eller innehåll – Vklass nyhetssida kan ha ändrats`);
+    const newsNote = `${news.length} nyheter (${news.filter((n) => n.published).length} med datum, ${news.filter((n) => n.files.length).length} med bilagor, ${news.filter((n) => n.badge || n.tags?.length).length} med mottagare)`;
+    if (!news.length) {
+      // Only in the private test repo (DETAILS=1): show the page code around the news data.
+      if (process.env.DETAILS === "1") {
+        const page = await fetch("https://custodian.vklass.se/Home/News", { headers: { cookie: session.jar.header(), "user-agent": "Mozilla/5.0" } }).then((r) => r.text());
+        const spots = [...page.matchAll(/newsArticles/g)].map((m) => page.slice(Math.max(0, m.index - 120), m.index + 220).replace(/\s+/g, " "));
+        ok.push(`Vklass nyhetsdata (privat detalj): ${spots.length} ställen\n${spots.map((x) => "    " + x).join("\n")}`);
+      }
+      throw new Error("inga nyheter hittades i Vklass – nyhetssidan kan ha ändrats");
+    }
+    return `${kids.length} barn (${withId} med schema), mat för ${withFood} barn (${days} dagar), omsorgstid för ${care}, ${r.events.filter((e) => !e.task).length} lektioner (${r.events.filter((e) => e.gym).length} med idrott), ${r.events.filter((e) => e.task).length} läxor/prov/uppgifter två veckor framåt, ${newsNote}`;
   });
 } else {
-  ok.push("Vklass: hoppas över (inga VKLASS_USERNAME/VKLASS_PASSWORD i repots hemliga nycklar)");
+  ok.push("Vklass: provas i det privata test-repot (riktigt konto)");
 }
 
 const report = [

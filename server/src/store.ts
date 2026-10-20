@@ -228,6 +228,23 @@ export interface LocalFile {
   travel?: Record<string, import("./types.js").TravelChoice>;
   /** Andra som skjutsar ("Marina", "Ola"), senast använd först – snabbval i Planera veckan. */
   drivers?: string[];
+  /** Skolnyheter som någon har läst (id). */
+  newsSeen?: string[];
+  /** Egna händelser, t.ex. från en skolnyhet: "Workshop på biblioteket" tis 26/10 14:30. */
+  ownEvents?: OwnEvent[];
+}
+
+export interface OwnEvent {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  /** "14:30", saknas = heldag. */
+  time?: string;
+  /** "16:30" */
+  end?: string;
+  title: string;
+  personId?: string;
+  note?: string;
 }
 
 export function loadLocal(): LocalFile {

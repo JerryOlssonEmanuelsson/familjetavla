@@ -68,9 +68,27 @@ async function readRegistryWs(): Promise<HaEntityInfo[] | null> {
 export async function readRegistry(conn: HaConn): Promise<HaEntityInfo[]> {
   const viaWs = await readRegistryWs().catch(() => null);
   if (viaWs) return viaWs;
-  const res = (await ha.template(conn, TEMPLATE)) as string;
-  const parsed = typeof res === "string" ? JSON.parse(res) : res;
-  return parsed as HaEntityInfo[];
+  try {
+    return parseTemplate(await ha.template(conn, TEMPLATE));
+  } catch {
+    // Large homes: Home Assistant refuses a template answer that is too big (400). Read it in parts.
+    // A part that still fails (one odd entity) is read in smaller pieces and the odd one skipped.
+    const total = (await ha.states(conn)).length;
+    const part = (from: number, to: number) => ha.template(conn, TEMPLATE.replace("{% for s in states %}", `{% for s in (states | list)[${from}:${to}] %}`)).then(parseTemplate);
+    const out: HaEntityInfo[] = [];
+    for (let i = 0; i < total; i += 150) {
+      try {
+        out.push(...(await part(i, i + 150)));
+      } catch {
+        for (let j = i; j < Math.min(i + 150, total); j += 10) out.push(...(await part(j, j + 10).catch(() => [])));
+      }
+    }
+    return out;
+  }
+}
+
+function parseTemplate(res: unknown): HaEntityInfo[] {
+  return (typeof res === "string" ? JSON.parse(res) : res) as HaEntityInfo[];
 }
 
 export async function deviceEntities(conn: HaConn, anyEntityOfDevice: string): Promise<HaEntityInfo[]> {
@@ -84,6 +102,7 @@ const has = (s: string | null | undefined, re: RegExp) => Boolean(s && re.test(s
 const domain = (e: string) => e.split(".")[0];
 
 const CAR_MAKERS = /tesla|nissan|volvo|polestar|kia|hyundai|volkswagen|vw|skoda|audi|bmw|mini|mercedes|renault|peugeot|citro|opel|toyota|lexus|ford|mg |mg$|byd|porsche|cupra|seat|fiat|jaguar|zeekr|xpeng|nio|honda|mazda|subaru|smart/i;
+const PHONE_MAKERS = /^(samsung|apple|google|oneplus|xiaomi|huawei|oppo|motorola|sony|nokia|nothing|fairphone|realme|vivo|honor)\b/i;
 const SOLAR = /solar|sol(el|ar)?\b|pv\b|photovolt|inverter|växelriktare|produktion|production|yield/i;
 const INVERTER_MAKERS = /solaredge|huawei|fronius|sma\b|growatt|enphase|goodwe|solis|sungrow|deye|victron|ferroamp|solax|kostal|apsystems/i;
 const HEATPUMP = /husdata|h60|h66|nibe|thermia|ivt|ctc|bosch|daikin|mitsubishi|panasonic|vaillant|viessmann|heat ?pump|värmepump|bergvärme|luft.?vatten|ecoforest|qvantum|nordic/i;
@@ -115,7 +134,9 @@ export function discover(all: HaEntityInfo[]): Discovery {
     if (!battery) continue;
     const tracker = ents.find((x) => domain(x.e) === "device_tracker");
     const maker = ents[0].m ?? "";
-    const isCar = (tracker && ents.some((x) => has(x.n, /range|räckvidd|odometer|mätarställ|charg|laddning/i))) || has(maker, CAR_MAKERS) || has(ents[0].mo, CAR_MAKERS);
+    // Phones (Companion app) also have a battery, a location and "charging" – never a car.
+    const phone = has(maker, PHONE_MAKERS) || has(ents[0].mo, /^(SM-|iPhone|iPad|Pixel|CPH|M\d{4})/i) || ents.some((x) => has(x.n, /app version|sim \d|wifi bssid|mobile data|android auto|carplay/i));
+    const isCar = !phone && ((tracker && ents.some((x) => has(x.n, /range|räckvidd|odometer|mätarställ|charg|laddning/i))) || has(maker, CAR_MAKERS) || has(ents[0].mo, CAR_MAKERS));
     if (!isCar) continue;
     const range = ents.find((x) => domain(x.e) === "sensor" && has(x.u, /^(km|mi)$/) && has(x.n, /range|räckvidd/i) && !has(x.n, /ac on/i));
     const charging =
@@ -139,13 +160,17 @@ export function discover(all: HaEntityInfo[]): Discovery {
   const carDevices = new Set(cars.map((c) => all.find((x) => x.e === c.battery)?.d));
 
   // ---- Energy
-  const power = all.filter((x) => domain(x.e) === "sensor" && x.dc === "power" && !carDevices.has(x.d));
+  // Sensors with a real value first: a meter that says "unknown" is no use on the board.
+  const working = (x: HaEntityInfo) => Number.isFinite(Number(x.st));
+  const power = all
+    .filter((x) => domain(x.e) === "sensor" && x.dc === "power" && !carDevices.has(x.d))
+    .sort((a, b) => Number(working(b)) - Number(working(a)) || Number(has(`${b.n} ${b.m ?? ""}`, /tibber pulse|p1|han\b/i)) - Number(has(`${a.n} ${a.m ?? ""}`, /tibber pulse|p1|han\b/i)));
   const solar =
     power.find((x) => has(x.n, SOLAR) && has(`${x.m} ${x.n}`, INVERTER_MAKERS)) ?? power.find((x) => has(x.n, SOLAR) || has(x.m, INVERTER_MAKERS));
   const grid = power.find((x) => x !== solar && has(`${x.n} ${x.m ?? ""}`, GRID));
   const house = power.find((x) => x !== solar && x !== grid && has(x.n, /house|hus|home|hem|load|last|förbrukning|consumption/i));
   const homeBattery = all.find(
-    (x) => domain(x.e) === "sensor" && x.dc === "battery" && x.u === "%" && !carDevices.has(x.d) && has(`${x.n} ${x.m ?? ""}`, /storage|hembatteri|home battery|powerwall|battery soc|ferroamp|huawei|solaredge|sonnen|pixii|victron/i),
+    (x) => domain(x.e) === "sensor" && x.dc === "battery" && x.u === "%" && working(x) && !carDevices.has(x.d) && has(`${x.n} ${x.m ?? ""}`, /storage|hembatteri|home battery|powerwall|battery soc|ferroamp|huawei|solaredge|sonnen|pixii|victron/i),
   );
 
   // ---- Climate devices (heat pump, thermostats, hot water, spa) with the device's pumps/lights/blowers
@@ -195,12 +220,16 @@ export function discover(all: HaEntityInfo[]): Discovery {
     .slice(0, 12)
     .map((x) => ({ name: x.n, entityId: x.e }));
 
+  const live = (c: Discovery["cars"][number]) => (Number.isFinite(Number(all.find((x) => x.e === c.battery)?.st)) ? 0 : 1);
+  cars.sort((a, b) => live(a) - live(b));
   const todo = all.filter((x) => domain(x.e) === "todo").map((x) => ({ name: x.n, entityId: x.e }));
   const calendars = all
-    .filter((x) => domain(x.e) === "calendar")
+    .filter((x) => domain(x.e) === "calendar" && x.st !== "unavailable")
     .map((x) => ({ name: x.n, entityId: x.e, waste: has(`${x.n} ${x.e} ${x.m ?? ""}`, /waste|sop|avfall|renhåll|tömning|hämtning/i) }));
   const priceSensors = all
-    .filter((x) => domain(x.e) === "sensor" && (has(x.e, /nordpool|tibber|electricity_price|elpris|spot/i) || has(x.u, /(SEK|öre|kr)\/kWh/i)))
+    // A price has a currency per kWh as its unit; the name alone ("spottar", Tibber's consumption) is not enough.
+    .filter((x) => domain(x.e) === "sensor" && has(x.u, /^(SEK|öre|kr|EUR|NOK|DKK|€)\/kWh$/i))
+    .sort((a, b) => Number(working(b)) - Number(working(a)) || Number(has(`${b.e} ${b.n}`, /nordpool|tibber|elpris|spot|price/i)) - Number(has(`${a.e} ${a.n}`, /nordpool|tibber|elpris|spot|price/i)))
     .map((x) => ({ name: x.n, entityId: x.e }));
   const buttons = all.filter((x) => domain(x.e) === "scene" || domain(x.e) === "script").map((x) => ({ name: x.n, entityId: x.e }));
 

@@ -2779,3 +2779,86 @@ a.btn {
   color: #ffffff;
   border-color: #000000;
 }
+
+/* ---------- Från skolan ---------- */
+.news-row .news-new {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex: none;
+}
+.news-text {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  font-size: 17px;
+  line-height: 1.5;
+}
+.news-image {
+  display: block;
+  align-self: center;
+  max-width: 100%;
+}
+.news-image img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 14px;
+  border: 1px solid var(--glass-edge);
+}
+.news-add {
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--row);
+}
+.news-card {
+  padding: 6px 10px;
+}
+.news-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  min-width: 0;
+}
+.news-strip .news-label {
+  flex: none;
+  font-weight: 750;
+}
+.news-strip .news-new {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex: none;
+}
+.news-strip .task-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.news-row {
+  flex-wrap: wrap;
+}
+.news-row .news-meta {
+  white-space: nowrap;
+}
+/* Child tabs and "Från skolan" share one row when there is room. */
+.school-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.school-top > .seg {
+  flex: none;
+}
+.school-top > .news-card {
+  flex: 1 1 280px;
+  min-width: 0;
+}

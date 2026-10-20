@@ -1,3 +1,4 @@
+import type { SchoolNewsItem } from "./providers/types.js";
 import { cached } from "./cache.js";
 import { fetchIcs, filterEvents, type CalEvent } from "./connectors/ics.js";
 import { ha, haConnection } from "./connectors/ha.js";
@@ -70,10 +71,15 @@ export interface SchoolData {
   food: { child: string; day: string; dishes: string[] }[];
   /** Care time (förskola/fritids) per person id. */
   care: { personId: string; text: string }[];
+  /** News from the school, with the integration it came from (for fetching files). */
+  news: (SchoolNewsItem & { personId?: string; integrationId: string })[];
 }
 
+/** Attachment addresses seen in the latest news – the only files the board will fetch for a viewer. */
+export const newsFiles = new Map<string, string>();
+
 export async function collectSchool(cfg: Config, from: Date, to: Date, errors: SourceError[]): Promise<SchoolData> {
-  const out: SchoolData = { events: [], food: [], care: [] };
+  const out: SchoolData = { events: [], food: [], care: [], news: [] };
   const names = new Map(cfg.people.map((p) => [p.id, p.name]));
   await Promise.all(
     cfg.integrations
@@ -90,6 +96,11 @@ export async function collectSchool(cfg: Config, from: Date, to: Date, errors: S
           for (const c of data.care ?? []) {
             const pid = c.child ? integ.personMap?.[c.child] : integ.personId;
             if (pid) out.care.push({ personId: pid, text: c.text });
+          }
+          for (const n of data.news ?? []) {
+            const personId = n.child ? integ.personMap?.[n.child] : integ.personId;
+            out.news.push({ ...n, personId, integrationId: integ.id });
+            for (const f of n.files) newsFiles.set(f.url, integ.id);
           }
           for (const f of data.food ?? []) {
             const pid = f.child ? integ.personMap?.[f.child] : integ.personId;
