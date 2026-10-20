@@ -74,4 +74,17 @@ describe("energy discovery", () => {
     ]);
     expect(d.energy).toMatchObject({ solar: "sensor.ac_power", grid: "sensor.pulse_effekt", gridExport: "sensor.elproduktion", solarEnergy: "sensor.ac_energy", importEnergy: "sensor.pulse_meter_in", exportEnergy: "sensor.pulse_meter_out" });
   });
+  it("never suggests the home's own templates and helpers, only real meters", () => {
+    const e = (id: string, n: string, d: string | null, dc: string | null, u: string, st: string, o = false): HaEntityInfo => ({ e: id, n, a: null, d, dn: null, m: d ? "Tibber" : null, mo: null, dc, u, st, lu: "", o });
+    const d = discover([
+      e("sensor.husets_forbrukning", "Husets förbrukning", null, "power", "kW", "0.42", true),
+      e("sensor.elnetto", "Elnetto grid", null, "power", "W", "417", true),
+      e("sensor.smartbox_elpris", "Smartbox Elpris", null, null, "kr/kWh", "0.72", true),
+      e("sensor.pulse_effekt", "Tibber Pulse Effekt", "pulse", "power", "W", "417"),
+      e("sensor.nordpool", "nordpool", null, null, "SEK/kWh", "0.90"),
+    ]);
+    expect(d.energy.grid).toBe("sensor.pulse_effekt");
+    expect(d.energy.house).toBeUndefined();
+    expect(d.priceSensors.map((p) => p.entityId)).toEqual(["sensor.nordpool"]);
+  });
 });
