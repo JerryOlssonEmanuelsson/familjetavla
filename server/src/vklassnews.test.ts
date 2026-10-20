@@ -38,3 +38,21 @@ describe("Vklass news", () => {
     expect(new Date(vklassPublished("28 december 10:00", new Date(2027, 0, 3))!).getFullYear()).toBe(2026);
   });
 });
+
+describe("Vklass news page data", () => {
+  it("reads newsArticles from the page script, with files and plain text", async () => {
+    const { parseVklassNewsData } = await import("./connectors/vklass.js");
+    const page = `<html><script>var vm = new Vue({ data: { initialNewsId: 0, newsArticles: [
+      {"id": 4711, "title": "Höstlov på biblioteket", "publishDate": "2026-10-20T13:50:00", "publishEndDate": null, "tags": [{"name": "Skolan 1-6"}],
+       "authorName": "X", "imagePath": null, "introText": "Välkommen till biblioteket!", "text": "<p>Välkommen till biblioteket!</p><p>Vi kör \\"pärlcraft\\" [och] {workshop}.</p>",
+       "files": [{"iconName": "pdf", "name": "Affisch", "nameWithExtension": "Affisch.pdf", "fileName": "2F07.pdf", "extension": ".pdf", "accessToken": "t", "url": "/File/Download/2F07?token=t", "uploadedDate": "2026-10-20"}]},
+      {"id": 4712, "title": "Presentation", "publishDate": "2026-10-14T09:05:00", "introText": "", "text": "Enligt önskemål.", "files": []}
+    ] } });</script></html>`;
+    const n = parseVklassNewsData(page);
+    expect(n.map((x) => x.id)).toEqual(["4711", "4712"]);
+    expect(n[0].text).toBe('Välkommen till biblioteket!\nVi kör "pärlcraft" [och] {workshop}.');
+    expect(n[0].files).toEqual([{ name: "Affisch.pdf", url: "https://custodian.vklass.se/File/Download/2F07?token=t" }]);
+    expect(n[0].tags).toEqual(["Skolan 1-6"]);
+    expect(n[1].text).toBe("Enligt önskemål.");
+  });
+});

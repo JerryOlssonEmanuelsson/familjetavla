@@ -107,13 +107,96 @@ export async function vklassWelcome(s: VklassSession): Promise<{ children: Vklas
   const html = await res.text();
   const children = parseVklassWelcome(html);
   if (children.length === 0) throw new Error("Inloggad i Vklass men hittade inga barn. Sidan kan ha ändrats.");
-  return { children, news: parseVklassNews(html) };
+  // The news page carries all news as data (newsArticles); the start page is the fallback.
+  let news: VklassNews[] = [];
+  try {
+    const page = await follow(s.jar, `${CUSTODIAN}/Home/News`);
+    if (page.ok) news = parseVklassNewsData(await page.text());
+  } catch {
+    // keep the start page's news below
+  }
+  if (!news.length) news = parseVklassNews(html);
+  return { children, news };
 }
 
-/** A page or script on Vklass with the logged-in session – for the live check's search for the news feed. */
-export async function vklassGet(s: VklassSession, url: string): Promise<{ status: number; type: string; text: string }> {
-  const res = await vklassFile(s, url);
-  return { status: res.status, type: res.headers.get("content-type") ?? "", text: res.status === 200 ? await res.text() : "" };
+/** The JSON array that follows `key` in a page's script, read with bracket matching. */
+export function jsonArrayAfter(text: string, key: string): unknown[] | undefined {
+  const at = text.search(new RegExp(`["']?${key}["']?\\s*[:=]\\s*\\[`));
+  if (at < 0) return undefined;
+  const start = text.indexOf("[", at);
+  let depth = 0;
+  let inStr: string | null = null;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) {
+      if (c === "\\") i++;
+      else if (c === inStr) inStr = null;
+      continue;
+    }
+    if (c === '"' || c === "'") inStr = c;
+    else if (c === "[" || c === "{") depth++;
+    else if (c === "]" || c === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(text.slice(start, i + 1)) as unknown[];
+        } catch {
+          return undefined;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+type RawFile = { name?: string; nameWithExtension?: string; fileName?: string; url?: string; extension?: string };
+type RawArticle = { id?: number | string; title?: string; publishDate?: string; introText?: string; text?: string; tags?: unknown; files?: RawFile[]; imagePath?: string };
+
+/**
+ * The news page (custodian /Home/News) has the news as data in a script:
+ * newsArticles: [{ id, title, publishDate, introText, text (HTML), tags, imagePath, files: [{ name, nameWithExtension, url, … }] }]
+ * (field names checked against a real account, 2026-10-20 – only the names, never the contents).
+ */
+export function parseVklassNewsData(html: string): VklassNews[] {
+  const list = jsonArrayAfter(html, "newsArticles") as RawArticle[] | undefined;
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((a) => a && typeof a === "object" && a.title)
+    .map((a) => {
+      const files = [
+        ...(a.imagePath ? [{ name: "Bild", url: a.imagePath }] : []),
+        ...(a.files ?? []).filter((f) => f?.url).map((f) => ({ name: f.nameWithExtension || f.name || f.fileName || "Bilaga", url: f.url! })),
+      ].map((f) => ({ name: f.name, url: new URL(f.url, CUSTODIAN).toString() }));
+      const text = [a.introText, a.text].map((t) => htmlText(t ?? "")).filter(Boolean);
+      const published = a.publishDate && !Number.isNaN(Date.parse(a.publishDate)) ? new Date(a.publishDate).toISOString() : undefined;
+      return {
+        id: String(a.id ?? `n${hash(`${a.title}|${a.publishDate}`)}`),
+        title: String(a.title).replace(/\s+/g, " ").trim(),
+        // The intro is often the start of the text: keep it only when it adds something.
+        text: (text.length === 2 && text[1].startsWith(text[0].replace(/…$/, "").slice(0, 40)) ? text[1] : text.join("\n\n")).slice(0, 4000),
+        published,
+        tags: tagNames(a.tags),
+        files: files.slice(0, 10),
+      };
+    });
+}
+
+function tagNames(tags: unknown): string[] {
+  if (!Array.isArray(tags)) return [];
+  return tags
+    .map((t) => (typeof t === "string" ? t : t && typeof t === "object" ? String((t as Record<string, unknown>).name ?? (t as Record<string, unknown>).title ?? "") : ""))
+    .filter(Boolean);
+}
+
+/** HTML from Vklass's editor → plain text with line breaks. */
+function htmlText(h: string): string {
+  return cheerio
+    .load(h.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|li|h\d)>/gi, "\n"))
+    .text()
+    .replace(/[ \t\u00a0]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 /** Fetch a news attachment with the logged-in session (only Vklass addresses). */
@@ -133,6 +216,8 @@ export interface VklassNews {
   published?: string;
   /** The round badge on the news, e.g. "ES": the first letters of the child it concerns. */
   badge?: string;
+  /** Groups the news was sent to ("Fröarpsskolan 1-6", "Björnen 3-5") – used to find the child. */
+  tags?: string[];
   files: { name: string; url: string }[];
 }
 
