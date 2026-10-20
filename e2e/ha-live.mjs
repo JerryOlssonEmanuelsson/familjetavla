@@ -1,6 +1,8 @@
 // The board against a real Home Assistant (HA_URL + HA_TOKEN). Run only from the PRIVATE test repo:
 // it lists what the board finds in that home. It only reads – nothing is switched or started.
 // Writes a Markdown report to $REPORT (default ha-report.md); exit 1 if something the board needs fails.
+// Same time zone as the app (server/src/index.ts), so "today" starts at Swedish midnight.
+process.env.TZ ??= "Europe/Stockholm";
 import { writeFileSync } from "node:fs";
 import { ha, haConnection } from "../server/dist/connectors/ha.js";
 import { carCharging, discover, readRegistry } from "../server/dist/discovery.js";
