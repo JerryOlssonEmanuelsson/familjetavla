@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.8.5
+
+- **E-ink-läge** för e-ink-skärmar (t.ex. Boox eller Kindle): svart på vitt, linjer i stället för färgade fält, inga animationer och ingen nattsläckning. Välj Tema → E-ink under Startskärm i inställningarna.
+- Svaret efter tänd/släck väntar nu upp till 6 sekunder, så att molnstyrda lampor inte felaktigt får "svarade inte".
+
 ## 0.8.4
 
 - **Skriv in vem som skjutsar.** Välj "Annan skjutsar" och skriv namnet – t.ex. Marina, Ola eller Therese. Namnen sparas och kommer upp som knappar nästa gång, både i händelsen och i Planera veckan.
