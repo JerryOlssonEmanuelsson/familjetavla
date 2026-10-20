@@ -1,0 +1,43 @@
+name: Saknas något hos er? · Missing something?
+description: Renhållare, butik, elmätare, växelriktare, bil eller förening som tavlan inte stöder än. · A service or device the board doesn't support yet.
+title: "Koppling: "
+labels: ["koppling"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tack! Berätta vad ni har, så vet vi vad som ska byggas härnäst.
+        **Skriv aldrig lösenord, tokens eller kalenderlänkar här – ärenden är offentliga.**
+
+        Thanks! Tell us what you have. **Never post passwords, tokens or calendar links here – issues are public.**
+  - type: dropdown
+    id: typ
+    attributes:
+      label: Vad gäller det? · What is it?
+      options:
+        - Renhållare / sophämtning · Waste collection
+        - Butik / inköpslista · Grocery store
+        - Elmätare, växelriktare eller hembatteri · Meter, inverter or home battery
+        - Bil eller laddbox · Car or charger
+        - Förening eller sport · Club or sport
+        - Annat · Other
+    validations:
+      required: true
+  - type: input
+    id: namn
+    attributes:
+      label: Namn på tjänsten eller prylen · Name of the service or device
+      placeholder: t.ex. "Huawei SUN2000", "Tekniska verken Linköping", "ICA"
+    validations:
+      required: true
+  - type: textarea
+    id: hur
+    attributes:
+      label: Hur ser det ut i dag? · What happens today?
+      description: Hittade guiden något? Finns det en integration i Home Assistant? · Did the setup guide find anything? Is there a Home Assistant integration?
+  - type: checkboxes
+    id: testa
+    attributes:
+      label: Kan du testa? · Can you test?
+      options:
+        - label: Ja, jag kan prova en testversion hemma (vi tar inloggning eller token privat). · Yes, I can try a test version at home (credentials are handled privately).

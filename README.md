@@ -6,6 +6,10 @@
 
 Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem** (vem skjutsar, buss eller skjuts), **skola** (schema, gympapåse, skolmat), **sophämtning**, **inköpslista** (som kan skickas till Willys), **elpris** med billigaste timmarna – och från Home Assistant: **bilar, ljus, värmepump, spabad, solel och grafer**. Allt sätts upp i en **visuell guide**, utan YAML.
 
+**[Prova demon i webbläsaren](https://murre87.github.io/familjetavla/demo/familjetavla-demo.html)**, ingen installation behövs.
+
+> **In English:** a free family wall board for Home Assistant – the family's calendars, school, meals, waste pickup, electricity price and a live energy flow on a tablet. The interface is Swedish; calendars, lights, cars and energy work anywhere. [Try the demo](https://murre87.github.io/familjetavla/demo/familjetavla-demo.html) · [Contributing](CONTRIBUTING.md) · [Forum thread](https://community.home-assistant.io/t/familjetavla-a-family-wall-board-for-home-assistant-calendar-school-meals-waste-energy-flow/1029621)
+
 ![Familjetavlan på en iPad Pro](docs/screenshots/home-dark.png)
 
 <table>
@@ -149,13 +153,15 @@ npm test                 # vitest
 - `web/` – React + Vite. `dashboard/` är tavlan, `setup/` installationsguiden.
 - `familjetavla/` – Home Assistant-tillägget. `docs/PROJEKT.md` – projektbeskrivning och designbeslut, `docs/DESIGN.md` – designsystemet. Lägg till `#ipad` i adressen för att se tavlan som på en iPad (t.ex. på en Android-telefon i liggande läge).
 
-### Lägg till en leverantör
+### Bidra med en koppling eller ruta
 
-1. Skriv en modul i `server/src/providers/` som uppfyller gränssnittet i `providers/types.ts` (`meta`, `test`, `fetch` …).
-2. Beskriv fälten i `meta.fields` (text, lösenord, val, entitet …) – guiden ritar formuläret och **Testa**-knappen själv. Fält med `secret: true` krypteras.
-3. Registrera den i `providers/registry.ts` och lägg till ett test.
+Allt är moduler: en **datakälla** (skolplattform, renhållare, butik, elpris) är en fil i
+`server/src/providers/`, en **ruta** på startsidan en fil i `web/src/widgets/`. Det finns en mall
+för båda. Hur du gör, och hur du testar på alla skärmar, står i **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
-Önskas: ICA, Coop, Mathem, SchoolSoft/Unikum inbyggt, Trafiklab (nästa buss), veckomeny.
+Har du ingen kod men en plattform eller pryl som saknas? [Berätta här](../../issues/new/choose).
+
+Önskas: ICA, Coop, Mathem, Unikum, InfoMentor, Trafiklab (nästa buss), hembatterier.
 
 ## Tack
 
