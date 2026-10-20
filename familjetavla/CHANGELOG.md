@@ -3,6 +3,7 @@
 ## 0.9.0
 
 - **Lägg till från mobilen.** En enkel sida för telefonen: skriv "Tandläkare", välj dag, tid och vem, så hamnar det i veckan på tavlan direkt. Under Handla lägger man till på inköpslistan och ser vad som redan står där. Länken finns i guidens sista steg och under "Lägg tavlan på hemskärmen". Lägg den på telefonens hemskärm så är det ett tryck bort.
+- **Rutorna är nu moduler.** Varje ruta på startsidan (Maten, Bil, Energi …) är en egen fil med namn, storlek och vad den öppnar, så det blir lätt för fler att bidra med nya rutor. Inget ändras i hur tavlan ser ut.
 
 ## 0.8.9
 

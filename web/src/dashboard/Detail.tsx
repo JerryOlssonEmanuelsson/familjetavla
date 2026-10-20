@@ -5,7 +5,10 @@ import { api } from "../api";
 import { Icon } from "../Icon";
 import { goBack, goHome } from "../route";
 import type { Actions } from "./Dashboard";
-import { Custody, Reminders, Shopping, Week, renderWidget } from "./Home";
+import { Week, renderWidget } from "./Home";
+import { Custody } from "../widgets/custody";
+import { Reminders } from "../widgets/reminders";
+import { Shopping } from "../widgets/shopping";
 import { Fit } from "./Fit";
 
 export type PageId = "maten" | "skolan" | "komihag" | "inkop" | "hososs" | "veckan" | "kort";

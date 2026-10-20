@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { InstallHelp, quickAddUrl } from "../InstallHelp";
+import { WIDGET_LABELS } from "../widgets";
 import { CUSTODY_PRESETS, isHome } from "../../../server/src/custody";
 import type {
   CalendarCategory,
@@ -1668,21 +1669,6 @@ function PhotoFrame({ cfg, set }: { cfg: Config; set: (c: Config) => void }) {
 
 // ======================= Startskärm =======================
 
-const WIDGET_LABELS: Record<string, string> = {
-  now: "Nu – det närmaste, stort",
-  reminders: "Kom ihåg",
-  meals: "Maten – skollunch och kvällens middag",
-  schoolday: "Skolan idag – när barnen börjar och slutar",
-  custody: "Hos oss (växelvis boende)",
-  week: "Kommande 7 dagar",
-  shopping: "Inköpslista",
-  prices: "Elpris",
-  cars: "Bilar",
-  lights: "Ljus",
-  temps: "Temperaturer",
-  energy: "Energi",
-  climates: "Värme",
-};
 const TAB_LABELS: Record<string, string> = { cars: "Bil", lights: "Ljus", house: "Hus", energy: "Energi", graphs: "Grafer" };
 
 const SIZE_OPTIONS = [
