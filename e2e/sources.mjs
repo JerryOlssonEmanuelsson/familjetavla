@@ -213,7 +213,15 @@ if (process.env.VKLASS_USERNAME && process.env.VKLASS_PASSWORD) {
     const broken = news.filter((n) => !n.title || (!n.text && !n.files.length)).length;
     if (broken) throw new Error(`${broken} av ${news.length} nyheter saknar rubrik eller innehåll – Vklass nyhetssida kan ha ändrats`);
     const newsNote = `${news.length} nyheter (${news.filter((n) => n.published).length} med datum, ${news.filter((n) => n.files.length).length} med bilagor, ${news.filter((n) => n.badge || n.tags?.length).length} med mottagare)`;
-    if (!news.length) throw new Error("inga nyheter hittades i Vklass – nyhetssidan kan ha ändrats");
+    if (!news.length) {
+      // Only in the private test repo (DETAILS=1): show the page code around the news data.
+      if (process.env.DETAILS === "1") {
+        const page = await fetch("https://custodian.vklass.se/Home/News", { headers: { cookie: session.jar.header(), "user-agent": "Mozilla/5.0" } }).then((r) => r.text());
+        const spots = [...page.matchAll(/newsArticles/g)].map((m) => page.slice(Math.max(0, m.index - 120), m.index + 220).replace(/\s+/g, " "));
+        ok.push(`Vklass nyhetsdata (privat detalj): ${spots.length} ställen\n${spots.map((x) => "    " + x).join("\n")}`);
+      }
+      throw new Error("inga nyheter hittades i Vklass – nyhetssidan kan ha ändrats");
+    }
     return `${kids.length} barn (${withId} med schema), mat för ${withFood} barn (${days} dagar), omsorgstid för ${care}, ${r.events.filter((e) => !e.task).length} lektioner (${r.events.filter((e) => e.gym).length} med idrott), ${r.events.filter((e) => e.task).length} läxor/prov/uppgifter två veckor framåt, ${newsNote}`;
   });
 } else {

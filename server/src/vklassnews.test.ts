@@ -42,7 +42,7 @@ describe("Vklass news", () => {
 describe("Vklass news page data", () => {
   it("reads newsArticles from the page script, with files and plain text", async () => {
     const { parseVklassNewsData } = await import("./connectors/vklass.js");
-    const page = `<html><script>var vm = new Vue({ data: { initialNewsId: 0, newsArticles: [
+    const page = `<html><script>Vue.component("news", { data: () => ({ newsArticles: [] }) });</script><script>var vm = new Vue({ data: { initialNewsId: 0, newsArticles: [
       {"id": 4711, "title": "Höstlov på biblioteket", "publishDate": "2026-10-20T13:50:00", "publishEndDate": null, "tags": [{"name": "Skolan 1-6"}],
        "authorName": "X", "imagePath": null, "introText": "Välkommen till biblioteket!", "text": "<p>Välkommen till biblioteket!</p><p>Vi kör \\"pärlcraft\\" [och] {workshop}.</p>",
        "files": [{"iconName": "pdf", "name": "Affisch", "nameWithExtension": "Affisch.pdf", "fileName": "2F07.pdf", "extension": ".pdf", "accessToken": "t", "url": "/File/Download/2F07?token=t", "uploadedDate": "2026-10-20"}]},

@@ -119,11 +119,21 @@ export async function vklassWelcome(s: VklassSession): Promise<{ children: Vklas
   return { children, news };
 }
 
-/** The JSON array that follows `key` in a page's script, read with bracket matching. */
+/**
+ * The JSON array that follows `key` in a page's script, read with bracket matching. The key can
+ * appear several times (an empty `newsArticles: []` in the component, then the data): the longest wins.
+ */
 export function jsonArrayAfter(text: string, key: string): unknown[] | undefined {
-  const at = text.search(new RegExp(`["']?${key}["']?\\s*[:=]\\s*\\[`));
-  if (at < 0) return undefined;
-  const start = text.indexOf("[", at);
+  const re = new RegExp(`["']?${key}["']?\\s*[:=]\\s*\\[`, "g");
+  let best: unknown[] | undefined;
+  for (const m of text.matchAll(re)) {
+    const arr = readArray(text, text.indexOf("[", m.index!));
+    if (arr && (!best || arr.length > best.length)) best = arr;
+  }
+  return best;
+}
+
+function readArray(text: string, start: number): unknown[] | undefined {
   let depth = 0;
   let inStr: string | null = null;
   for (let i = start; i < text.length; i++) {
@@ -139,7 +149,8 @@ export function jsonArrayAfter(text: string, key: string): unknown[] | undefined
       depth--;
       if (depth === 0) {
         try {
-          return JSON.parse(text.slice(start, i + 1)) as unknown[];
+          const v = JSON.parse(text.slice(start, i + 1));
+          return Array.isArray(v) ? v : undefined;
         } catch {
           return undefined;
         }
