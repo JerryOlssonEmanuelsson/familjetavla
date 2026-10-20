@@ -78,6 +78,21 @@ export const ha = {
   template: (c: HaConn, template: string) =>
     call<string>(c, "/template", { method: "POST", body: JSON.stringify({ template }) }),
 
+  /** Raw numeric history points (the first one is the state at `from`). */
+  async historyRaw(c: HaConn, entityIds: string[], from: Date, to: Date): Promise<Record<string, { t: number; v: number }[]>> {
+    const q =
+      `/history/period/${encodeURIComponent(from.toISOString())}` +
+      `?filter_entity_id=${entityIds.map(encodeURIComponent).join(",")}` +
+      `&end_time=${encodeURIComponent(to.toISOString())}&minimal_response&no_attributes`;
+    const raw = await call<{ entity_id?: string; state: string; last_changed: string }[][]>(c, q);
+    const out: Record<string, { t: number; v: number }[]> = {};
+    raw.forEach((series, i) => {
+      const id = series[0]?.entity_id ?? entityIds[i];
+      out[id] = series.map((p) => ({ t: new Date(p.last_changed).getTime(), v: Number(p.state) })).filter((p) => Number.isFinite(p.v));
+    });
+    return out;
+  },
+
   /** Numeric history, averaged into `bucketMin` buckets. */
   async history(c: HaConn, entityIds: string[], from: Date, to: Date, bucketMin = 30): Promise<Record<string, (number | null)[]>> {
     const q =

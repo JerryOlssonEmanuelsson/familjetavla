@@ -1,10 +1,13 @@
 // The board against a real Home Assistant (HA_URL + HA_TOKEN). Run only from the PRIVATE test repo:
 // it lists what the board finds in that home. It only reads – nothing is switched or started.
 // Writes a Markdown report to $REPORT (default ha-report.md); exit 1 if something the board needs fails.
+// Same time zone as the app (server/src/index.ts), so "today" starts at Swedish midnight.
+process.env.TZ ??= "Europe/Stockholm";
 import { writeFileSync } from "node:fs";
 import { ha, haConnection } from "../server/dist/connectors/ha.js";
 import { carCharging, discover, readRegistry } from "../server/dist/discovery.js";
 import { initHaSocket } from "../server/dist/connectors/haws.js";
+import { energyNow, energyToday, todaySeries } from "../server/dist/energy.js";
 
 const url = process.env.HA_URL;
 const token = process.env.HA_TOKEN;
@@ -108,6 +111,23 @@ await check("Energi (det tavlan väljer)", async () => {
   const e = found?.energy ?? {};
   const rows = Object.entries(e).filter(([, id]) => typeof id === "string").map(([k, id]) => `${k}: ${val(id)}`);
   return rows.join("; ") || "inget hittat";
+});
+// The board's own calculation next to the home's own "today" sensors (Tibber, inverter …) as a check.
+await check("Tavlans energiberäkning", async () => {
+  const e = found?.energy ?? {};
+  const map = new Map(states.map((x) => [x.entity_id, x]));
+  const now = energyNow(e, map);
+  const series = await todaySeries(conn, e, new Date());
+  const units = Object.fromEntries(Object.keys(series).map((id) => [id, String(map.get(id)?.attributes.unit_of_measurement ?? "kWh")]));
+  const t = energyToday(e, series, units, [], (p) => p) ?? {};
+  const facit = states
+    .filter((x) => /^(k?Wh)$/.test(String(x.attributes.unit_of_measurement ?? "")) && /idag|i dag|today|ackumulerad (förbrukning|produktion)$|köpt el idag/i.test(String(x.attributes.friendly_name ?? "")))
+    .map((x) => val(x.entity_id));
+  return [
+    `nu: sol ${now.solarKw ?? "?"} kW, nät ${now.gridKw ?? "?"} kW, huset ${now.houseKw ?? "?"} kW, egen solel ${now.selfUseKw ?? "?"} kW`,
+    `idag: förbrukat ${t.houseKwh ?? "?"} kWh, sol ${t.solarKwh ?? "?"}, köpt ${t.importKwh ?? "?"}, sålt ${t.exportKwh ?? "?"}, egen solel ${t.selfUseKwh ?? "?"}, självförsörjning ${t.selfSufficiencyPct ?? "?"} %`,
+    `hemmets egna dagsvärden att jämföra med: ${facit.join("; ") || "-"}`,
+  ].join(" | ");
 });
 await check("Elpris (förslag)", async () => {
   const p = found?.priceSensors ?? [];

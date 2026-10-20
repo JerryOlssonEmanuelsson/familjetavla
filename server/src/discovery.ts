@@ -167,8 +167,20 @@ export function discover(all: HaEntityInfo[]): Discovery {
     .sort((a, b) => Number(working(b)) - Number(working(a)) || Number(has(`${b.n} ${b.m ?? ""}`, /tibber pulse|p1|han\b/i)) - Number(has(`${a.n} ${a.m ?? ""}`, /tibber pulse|p1|han\b/i)));
   const solar =
     power.find((x) => has(x.n, SOLAR) && has(`${x.m} ${x.n}`, INVERTER_MAKERS)) ?? power.find((x) => has(x.n, SOLAR) || has(x.m, INVERTER_MAKERS));
-  const grid = power.find((x) => x !== solar && has(`${x.n} ${x.m ?? ""}`, GRID));
+  const grid = power.find((x) => x !== solar && has(`${x.n} ${x.m ?? ""}`, GRID) && !has(x.n, /produktion|production|export|sälj|max|min|genomsnitt|average/i));
   const house = power.find((x) => x !== solar && x !== grid && has(x.n, /house|hus|home|hem|load|last|förbrukning|consumption/i));
+  // Sold power, when the meter gives it separately (Tibber Pulse "Elproduktion", P1 "Power production").
+  const SELL = /produktion|production|export|sälj|utmatning|returned|feed.?in|inmatning/i;
+  const gridExport = grid ? power.find((x) => x !== grid && x !== solar && x.d === grid.d && has(x.n, SELL) && !has(x.n, /max|min|genomsnitt|average|medel/i)) : undefined;
+  // Meter readings for today's kWh: on the grid meter (bought, sold) and on the inverter (made).
+  const counters = all.filter((x) => domain(x.e) === "sensor" && has(x.u, /^(k|M)?Wh$/) && working(x));
+  const lifetime = /mätar|meter|total|livstid|lifetime|ackumulerad|accumulated|senaste/i;
+  const pick = (list: HaEntityInfo[]) => list.sort((a, b) => Number(has(b.n, lifetime)) - Number(has(a.n, lifetime)) || Number(has(a.n, /timme|hour/i)) - Number(has(b.n, /timme|hour/i)))[0];
+  const meterDev = grid?.d;
+  const importEnergy = meterDev ? pick(counters.filter((x) => x.d === meterDev && !has(x.n, SELL) && has(x.n, /förbruk|consumption|import|köpt|consumed|mätarställning/i) && !has(x.n, /beräknad|estimated|timme|hour/i))) : undefined;
+  const exportEnergy = meterDev ? pick(counters.filter((x) => x.d === meterDev && has(x.n, SELL) && !has(x.n, /timme|hour/i))) : undefined;
+  const solarEnergy = solar?.d ? pick(counters.filter((x) => x.d === solar.d && has(x.n, /energy|energi|producerad|produced|production|yield|lifetime|livstid|ac energy/i) && !has(x.n, /import|export|förbruk|consum|månad|month|år\b|year/i))) : undefined;
+
   const homeBattery = all.find(
     (x) => domain(x.e) === "sensor" && x.dc === "battery" && x.u === "%" && working(x) && !carDevices.has(x.d) && has(`${x.n} ${x.m ?? ""}`, /storage|hembatteri|home battery|powerwall|battery soc|ferroamp|huawei|solaredge|sonnen|pixii|victron/i),
   );
@@ -247,7 +259,7 @@ export function discover(all: HaEntityInfo[]): Discovery {
 
   return {
     cars,
-    energy: { solar: solar?.e, grid: grid?.e, house: house?.e, battery: homeBattery?.e },
+    energy: { solar: solar?.e, grid: grid?.e, gridExport: gridExport?.e, house: house?.e, battery: homeBattery?.e, solarEnergy: solarEnergy?.e, importEnergy: importEnergy?.e, exportEnergy: exportEnergy?.e },
     climates,
     lightGroups,
     deviceCards,

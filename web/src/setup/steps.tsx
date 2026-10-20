@@ -169,6 +169,7 @@ function PatternEditor({ custody, name, setC }: { custody: Custody; name: string
 
 const CARE_DAYS = ["1", "2", "3", "4", "5"];
 const POWER = /^(W|kW|MW)$/;
+const ENERGY = /^(Wh|kWh|MWh)$/;
 
 /** This week's Monday as YYYY-MM-DD. */
 function mondayKey(d = new Date()): string {
@@ -539,7 +540,8 @@ export function DiscoverStep({ cfg, set }: StepProps) {
       setD(r);
       const p: Record<string, boolean> = {};
       r.cars.forEach((_, i) => (p[`car${i}`] = true));
-      (["solar", "grid", "house", "battery"] as const).forEach((k) => (p[`en.${k}`] = Boolean(r.energy[k])));
+      (["solar", "grid", "house", "battery", "gridExport"] as const).forEach((k) => (p[`en.${k}`] = Boolean(r.energy[k])));
+      p["en.counters"] = Boolean(r.energy.solarEnergy || r.energy.importEnergy || r.energy.exportEnergy);
       r.climates.forEach((_, i) => (p[`cl${i}`] = true));
       r.deviceCards.forEach((_, i) => (p[`dc${i}`] = true));
       r.lightGroups.forEach((_, i) => (p[`lg${i}`] = true));
@@ -561,7 +563,10 @@ export function DiscoverStep({ cfg, set }: StepProps) {
     const next: Config = structuredClone(cfg);
     // Same limits as the server, so a big Home Assistant never makes saving fail.
     next.entities.cars = d.cars.filter((_, i) => on(`car${i}`)).map(({ deviceName: _d, maker: _m, ...c }) => c).slice(0, 6);
-    next.entities.energy = Object.fromEntries((["solar", "grid", "house", "battery"] as const).filter((k) => on(`en.${k}`)).map((k) => [k, d.energy[k]]));
+    next.entities.energy = {
+      ...Object.fromEntries((["solar", "grid", "house", "battery", "gridExport"] as const).filter((k) => on(`en.${k}`)).map((k) => [k, d.energy[k]])),
+      ...(on("en.counters") ? { solarEnergy: d.energy.solarEnergy, importEnergy: d.energy.importEnergy, exportEnergy: d.energy.exportEnergy } : {}),
+    };
     next.entities.climates = d.climates.filter((_, i) => on(`cl${i}`)).slice(0, 8);
     next.entities.deviceCards = d.deviceCards.filter((_, i) => on(`dc${i}`)).slice(0, 8);
     next.entities.lightGroups = d.lightGroups.filter((_, i) => on(`lg${i}`)).slice(0, 12).map((g) => ({ ...g, entities: g.entities.slice(0, 40) }));
@@ -646,6 +651,8 @@ export function DiscoverStep({ cfg, set }: StepProps) {
               {d.energy.grid && <Box k="en.grid" label="Elnät (köp/sälj)" sub={d.energy.grid} />}
               {d.energy.house && <Box k="en.house" label="Husets effekt" sub={d.energy.house} />}
               {d.energy.battery && <Box k="en.battery" label="Hembatteri" sub={d.energy.battery} />}
+              {d.energy.gridExport && <Box k="en.gridExport" label="Elnät – sålt" sub={d.energy.gridExport} />}
+              {(d.energy.solarEnergy || d.energy.importEnergy) && <Box k="en.counters" label="Dagens kWh (mätarställningar)" sub={[d.energy.solarEnergy, d.energy.importEnergy, d.energy.exportEnergy].filter(Boolean).join(", ")} />}
             </section>
           )}
           {(d.climates.length > 0 || d.deviceCards.length > 0) && (
@@ -1425,7 +1432,15 @@ export function HouseStep({ cfg, set }: StepProps) {
           <EntityPicker label="Solproduktion (växelriktare)" domains={["sensor"]} units={POWER} value={en.energy.solar} onChange={(v) => setEn({ energy: { ...en.energy, solar: v } })} />
           <EntityPicker label="Elnät – köp positivt (elmätare)" domains={["sensor"]} units={POWER} value={en.energy.grid} onChange={(v) => setEn({ energy: { ...en.energy, grid: v } })} help="T.ex. Tibber Pulse, P1/HAN-mätare eller Shelly EM." />
           <EntityPicker label="Husets förbrukning" domains={["sensor"]} units={POWER} value={en.energy.house} onChange={(v) => setEn({ energy: { ...en.energy, house: v } })} help="Saknas den räknar tavlan sol + nät." />
+          <EntityPicker label="Elnät – sålt (om mätaren har det separat)" domains={["sensor"]} units={POWER} value={en.energy.gridExport} onChange={(v) => setEn({ energy: { ...en.energy, gridExport: v } })} help="T.ex. Tibber Pulse Elproduktion. Visar mätaren köp som plus och sälj som minus behövs den inte." />
           <EntityPicker label="Hembatteri (%)" domains={["sensor"]} units={/^%$/} value={en.energy.battery} onChange={(v) => setEn({ energy: { ...en.energy, battery: v } })} />
+        </div>
+        <h3 style={{ marginTop: 8 }}>Dagens kWh</h3>
+        <p className="muted">Mätarställningar (kWh) – tavlan räknar själv hur mycket som gått sedan midnatt: förbrukning, egen solel, självförsörjning och vad den köpta elen kostat.</p>
+        <div className="grid-2">
+          <EntityPicker label="Solproduktion totalt (kWh)" domains={["sensor"]} units={ENERGY} value={en.energy.solarEnergy} onChange={(v) => setEn({ energy: { ...en.energy, solarEnergy: v } })} />
+          <EntityPicker label="Köpt el, mätarställning (kWh)" domains={["sensor"]} units={ENERGY} value={en.energy.importEnergy} onChange={(v) => setEn({ energy: { ...en.energy, importEnergy: v } })} />
+          <EntityPicker label="Såld el, mätarställning (kWh)" domains={["sensor"]} units={ENERGY} value={en.energy.exportEnergy} onChange={(v) => setEn({ energy: { ...en.energy, exportEnergy: v } })} />
         </div>
       </section>
       <section className="card">

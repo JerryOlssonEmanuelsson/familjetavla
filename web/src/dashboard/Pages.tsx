@@ -588,39 +588,7 @@ export function EnergyPage({ data }: { data: Dashboard }) {
   const kw = (n?: number) => `${fmtNum(n ?? 0)} kW`;
   return (
     <main className="page-grid">
-      {e?.solarKw !== undefined && (
-        <section className="card strong">
-          <span className="muted" style={{ fontWeight: 600 }}>
-            Solel
-          </span>
-          <div style={{ alignSelf: "center", color: "var(--amber)", opacity: e.solarKw > 0.05 ? 1 : 0.5 }}>
-            <Icon name="sun" size={72} strokeWidth={1.5} />
-          </div>
-          <span className="big-num" style={{ fontSize: 40 }}>
-            {fmtNum(e.solarKw)}
-            <small>kW</small>
-          </span>
-        </section>
-      )}
-      {e?.gridKw !== undefined && (
-        <section className="card strong">
-          <span className="muted" style={{ fontWeight: 600 }}>
-            Elnät
-          </span>
-          <div className="flow" aria-hidden="true">
-            <Icon name="bolt" size={56} strokeWidth={1.5} />
-            <span className={`arrows ${e.gridKw < 0 ? "reverse" : ""}`}>
-              <Icon name="chevronRight" size={32} strokeWidth={3} />
-              <Icon name="chevronRight" size={32} strokeWidth={3} />
-              <Icon name="chevronRight" size={32} strokeWidth={3} />
-            </span>
-            <Icon name="home" size={56} strokeWidth={1.5} />
-          </div>
-          <span className="big-num" style={{ fontSize: 34 }}>
-            {e.gridKw >= 0 ? "Köper" : "Säljer"} {kw(Math.abs(e.gridKw))}
-          </span>
-        </section>
-      )}
+      {e && (e.solarKw !== undefined || e.gridKw !== undefined) && <PowerFlow e={e} />}
       {(e?.houseKw !== undefined || e?.batteryPct !== undefined) && (
         <section className="card">
           <div className="stats" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
@@ -630,6 +598,12 @@ export function EnergyPage({ data }: { data: Dashboard }) {
                 <b className="big-num">{kw(e.houseKw)}</b>
               </div>
             )}
+            {e?.houseKw && e.selfUseKw !== undefined ? (
+              <div>
+                <small>Solen täcker</small>
+                <b className="big-num">{Math.round(Math.min(100, (e.selfUseKw / e.houseKw) * 100))} %</b>
+              </div>
+            ) : null}
             {e?.batteryPct !== undefined && (
               <div>
                 <small>Hembatteri</small>
@@ -639,8 +613,142 @@ export function EnergyPage({ data }: { data: Dashboard }) {
           </div>
         </section>
       )}
+      {e?.today && (
+        <section className="card">
+          <h2>Idag</h2>
+          <div className="stats" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+            {e.today.houseKwh !== undefined && (
+              <div>
+                <small>Förbrukat</small>
+                <b>{fmtNum(e.today.houseKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.solarKwh !== undefined && (
+              <div>
+                <small>Solel</small>
+                <b>{fmtNum(e.today.solarKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.importKwh !== undefined && (
+              <div>
+                <small>Köpt</small>
+                <b>{fmtNum(e.today.importKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.exportKwh !== undefined && (
+              <div>
+                <small>Sålt</small>
+                <b>{fmtNum(e.today.exportKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.selfUseKwh !== undefined && (
+              <div>
+                <small>Egen solel</small>
+                <b>{fmtNum(e.today.selfUseKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.selfSufficiencyPct !== undefined && (
+              <div>
+                <small>Självförsörjning</small>
+                <b>{e.today.selfSufficiencyPct} %</b>
+              </div>
+            )}
+            {e.today.costKr !== undefined && (
+              <div>
+                <small>Köpt el kostat</small>
+                <b>{e.today.costKr} kr</b>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
       {data.prices && <PriceCard prices={data.prices} />}
     </main>
+  );
+}
+
+/**
+ * "Just nu": sun, grid and house with the power moving between them. The dots run faster and the
+ * lines get thicker the more power flows; it follows Home Assistant live (about once a second).
+ */
+function PowerFlow({ e }: { e: NonNullable<Dashboard["energy"]> }) {
+  const kw = (n: number) => `${fmtNum(n, n < 1 ? 2 : 1)} kW`;
+  const solar = Math.max(0, e.solarKw ?? 0);
+  const grid = e.gridKw ?? 0;
+  const buy = Math.max(0, grid);
+  const sell = Math.max(0, -grid);
+  const toHouse = e.selfUseKw ?? Math.max(0, solar - sell);
+  const house = e.houseKw ?? toHouse + buy;
+  const hasSun = e.solarKw !== undefined;
+  const hasGrid = e.gridKw !== undefined;
+  const flows = [
+    { id: "sun-house", on: hasSun && toHouse > 0.005, kw: toHouse, d: "M200 74 C200 130 270 150 318 176", cls: "sun" },
+    { id: "sun-grid", on: hasSun && sell > 0.005, kw: sell, d: "M200 74 C200 130 130 150 82 176", cls: "sell" },
+    { id: "grid-house", on: hasGrid && buy > 0.005, kw: buy, d: "M100 200 L300 200", cls: "buy" },
+  ];
+  // Faster and thicker with more power, within what still reads well.
+  const style = (k: number) =>
+    ({ strokeWidth: Math.min(11, 5 + k * 1.2), animationDuration: `${Math.max(0.35, 1.6 / (0.4 + k)).toFixed(2)}s` }) as React.CSSProperties;
+  return (
+    <section className="card strong power-flow">
+      <div className="pf-head">
+        <span className="muted" style={{ fontWeight: 600 }}>
+          Just nu
+        </span>
+        <span className="pf-live">
+          <i /> Live
+        </span>
+      </div>
+      <svg viewBox="0 0 400 262" role="img" aria-label={`Sol ${kw(solar)}, ${grid >= 0 ? "köper" : "säljer"} ${kw(Math.abs(grid))}, huset ${kw(house)}`}>
+        <defs>
+          {["sun", "sell", "buy"].map((c) => (
+            <marker key={c} id={`pf-arrow-${c}`} className={`pf-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" />
+            </marker>
+          ))}
+        </defs>
+        {hasSun && <path className="pf-track" d="M200 74 C200 130 270 150 318 176" />}
+        {hasSun && hasGrid && <path className="pf-track" d="M200 74 C200 130 130 150 82 176" />}
+        {hasGrid && <path className="pf-track" d="M100 200 L300 200" />}
+        {flows
+          .filter((f) => f.on)
+          .map((f) => (
+            <path key={f.id} className={`pf-line pf-${f.cls}`} d={f.d} style={style(f.kw)} markerEnd={`url(#pf-arrow-${f.cls})`} />
+          ))}
+        {hasSun && (
+          <g className={`pf-node pf-sun ${solar > 0.005 ? "" : "idle"}`}>
+            <circle cx="200" cy="44" r="30" />
+            <g transform="translate(182 26) scale(1.5)">
+              <path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" />
+              <path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
+            </g>
+            <text x="250" y="40" className="pf-label">Sol</text>
+            <text x="250" y="62" className="pf-value">{kw(solar)}</text>
+          </g>
+        )}
+        {hasGrid && (
+          <g className={`pf-node ${grid >= 0 ? "pf-buy" : "pf-sell"}`}>
+            <circle cx="60" cy="200" r="30" />
+            <g transform="translate(42 182) scale(1.5)">
+              <path d="M13 2 3 14h9l-1 8 10-12h-9z" />
+            </g>
+            <text x="60" y="250" textAnchor="middle" className="pf-label">
+              {grid >= 0 ? "Köper" : "Säljer"} {kw(Math.abs(grid))}
+            </text>
+          </g>
+        )}
+        <g className="pf-node pf-house">
+          <circle cx="340" cy="200" r="30" />
+          <g transform="translate(322 182) scale(1.5)">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <path d="M9 22V12h6v10" />
+          </g>
+          <text x="340" y="250" textAnchor="middle" className="pf-label">
+            Huset {kw(house)}
+          </text>
+        </g>
+      </svg>
+    </section>
   );
 }
 

@@ -240,6 +240,12 @@ fx.cars.forEach((c, i) => {
     ],
   };
 });
+// ---- Energy today in the demo (a sunny October day with solar and a grid meter) ----
+if (d.energy) {
+  d.energy.selfUseKw = Math.min(d.energy.solarKw ?? 0, d.energy.houseKw ?? 0);
+  d.energy.today = { solarKwh: 13.7, importKwh: 23.6, exportKwh: 4.7, houseKwh: 32.6, selfUseKwh: 9, selfSufficiencyPct: 28, costKr: 41 };
+}
+
 // ---- Från skolan (Vklass news) in the demo, with a poster as attachment ----
 const poster = `data:image/svg+xml;utf8,${encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800"><rect width="600" height="800" fill="#f2dfb8"/><text x="300" y="150" font-family="sans-serif" font-size="72" font-weight="800" text-anchor="middle" fill="#3a2a14">HÖSTLOV</text><text x="300" y="215" font-family="sans-serif" font-size="30" font-weight="700" text-anchor="middle" fill="#2f6b1f">PÅ BIBLIOTEKET</text><g font-family="sans-serif" font-size="26" fill="#3a2a14"><text x="60" y="330" font-weight="700">Mån 26 okt 10–15</text><text x="60" y="370">Pärla figurer</text><text x="60" y="450" font-weight="700">Tis 27 okt 14.30–16.30</text><text x="60" y="490">Workshop, från 9 år. Anmälan!</text><text x="60" y="570" font-weight="700">Ons 28 okt 13–15</text><text x="60" y="610">Bygg figurer i papper</text></g><text x="300" y="740" font-family="sans-serif" font-size="28" font-weight="700" text-anchor="middle" fill="#3a2a14">Fri entré</text></svg>`,

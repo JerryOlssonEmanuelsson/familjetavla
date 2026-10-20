@@ -1,5 +1,12 @@
 # Ändringar
 
+## 0.8.7
+
+- **Elen live med animation.** Energi visar "Just nu": sol, elnät och hus med strömmen som rör sig mellan dem. Prickarna går fortare och linjerna blir tjockare ju mer effekt som flyter, och pilarna visar åt vilket håll (köper eller säljer). Värdena följer Home Assistant ungefär varje sekund, utan att tavlan laddas om. Startsidans energiruta följer också med live.
+- **Tavlan räknar ut elen själv.** Välj växelriktare (solel) och elmätare (köpt och såld el) under Huset → Energi, så räknar tavlan ut husets förbrukning, hur mycket av solelen ni använder själva och hur stor del av förbrukningen solen täcker. Det fungerar med alla märken – SolarEdge, Huawei, Fronius, Tibber Pulse, P1-mätare m.fl. – och kräver inga egna mallsensorer i Home Assistant.
+- **Idag på Energi:** solel, köpt, såld och förbrukad el sedan midnatt, egenanvändning, "Solen täcker %" och vad den köpta elen kostat timme för timme med elpriset. Välj mätarställningarna (kWh) i guiden; både livstidsmätare och mätare som nollställs varje dag eller timme fungerar.
+- Mätare med en sensor för köpt och en för såld el (som Tibber Pulse "Effekt" och "Elproduktion") hittas automatiskt.
+
 ## 0.8.6
 
 - **Nyheter från skolan (Vklass).** Skolans nyheter syns på Skolan under "Från skolan", och olästa från senaste veckan står i Kom ihåg. Tryck så visas hela texten, och bilagor som affischer visas direkt i rutan. Bilagorna hämtas via tavlan, så inloggningen syns aldrig i webbläsaren.
