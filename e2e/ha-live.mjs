@@ -100,6 +100,24 @@ await check("Inköpslistor", async () => {
   return rows.join("; ") || "inga listor";
 });
 
+const val = (id) => {
+  const st = states.find((x) => x.entity_id === id);
+  return st ? `${st.attributes.friendly_name ?? id} = ${st.state}${st.attributes.unit_of_measurement ? ` ${st.attributes.unit_of_measurement}` : ""}` : `${id} (saknas)`;
+};
+await check("Energi (det tavlan väljer)", async () => {
+  const e = found?.energy ?? {};
+  const rows = Object.entries(e).filter(([, id]) => typeof id === "string").map(([k, id]) => `${k}: ${val(id)}`);
+  return rows.join("; ") || "inget hittat";
+});
+await check("Elpris (förslag)", async () => {
+  const p = found?.priceSensors ?? [];
+  return `${p.length} st – de första: ${p.slice(0, 8).map((x) => val(x.entityId)).join("; ") || "-"}`;
+});
+await check("Energi-integrationer i hemmet", async () => {
+  const makers = new Map();
+  for (const x of all) if (x.m && /tibber|solaredge|huawei|fronius|growatt|easee|zaptec|nordpool|sma\b|enphase|goodwe|solis|sungrow|victron|ferroamp|shelly|p1|han/i.test(x.m)) makers.set(x.m, (makers.get(x.m) ?? 0) + 1);
+  return [...makers].map(([m, n]) => `${m} (${n} entiteter)`).join(", ") || "inga kända";
+});
 const services = await ha.services(conn).catch(() => []);
 const phones = Object.keys(services.find((s) => s.domain === "notify")?.services ?? {}).filter((n) => n.startsWith("mobile_app")).length;
 await check("Övrigt tavlan hittar", async () =>
