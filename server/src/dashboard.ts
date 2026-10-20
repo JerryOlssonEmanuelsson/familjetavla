@@ -6,7 +6,7 @@ import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
 import { haSocket } from "./connectors/haws.js";
-import { forecast, rainBetween, skyNow, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
+import { forecast, rainBetween, skyNow, sunToday, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
 import { careTimesFor, custodyStatus, isHome } from "./custody.js";
 import {
   collectCalendars,
@@ -325,6 +325,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       weather: weather ? weatherSummary(weather, now) : undefined,
       sky: weather ? skyNow(weather, now) : undefined,
       tempNow: weather ? tempNow(weather, now) : undefined,
+      sun: weather ? sunToday(weather, now) : undefined,
       phase: phaseOf(now),
     },
     now: buildNow(withCare, people, now, travelCtx),

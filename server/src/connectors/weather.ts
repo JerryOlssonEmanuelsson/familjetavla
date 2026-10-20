@@ -23,7 +23,7 @@ export async function geocode(query: string): Promise<Place[]> {
 
 export interface Forecast {
   hourly: { time: Date; precip: number; temp: number; cloud: number }[];
-  daily: { date: string; tmax: number; tmin: number; precip: number; wind: number }[];
+  daily: { date: string; tmax: number; tmin: number; precip: number; wind: number; sunrise?: string; sunset?: string }[];
 }
 
 export async function forecast(lat: number, lon: number): Promise<Forecast> {
@@ -35,12 +35,14 @@ export async function forecast(lat: number, lon: number): Promise<Forecast> {
       temperature_2m_min: number[];
       precipitation_sum: number[];
       wind_speed_10m_max: number[];
+      sunrise?: string[];
+      sunset?: string[];
     };
   };
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     `&hourly=precipitation,temperature_2m,cloud_cover` +
-    `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max` +
+    `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,sunrise,sunset` +
     `&wind_speed_unit=ms&timezone=Europe%2FStockholm&forecast_days=3`;
   const d = await getJson<R>(url);
   return {
@@ -57,6 +59,9 @@ export async function forecast(lat: number, lon: number): Promise<Forecast> {
       tmin: d.daily.temperature_2m_min[i],
       precip: d.daily.precipitation_sum[i],
       wind: d.daily.wind_speed_10m_max[i],
+      // "2026-10-20T07:35" (local time) → "07:35"
+      sunrise: d.daily.sunrise?.[i]?.slice(11, 16),
+      sunset: d.daily.sunset?.[i]?.slice(11, 16),
     })),
   };
 }
@@ -75,6 +80,17 @@ export function weatherSummary(f: Forecast, now = new Date()): string {
   ];
   if (today.precip >= 0.5) parts.push(`regn ${fmt1(today.precip)} mm`);
   return parts.join(" · ");
+}
+
+/** Today's sunrise and sunset, and how far the sun has come (0–1 between them, undefined at night). */
+export function sunToday(f: Forecast, now = new Date()): { rise: string; set: string; pos?: number } | undefined {
+  const t = f.daily[0];
+  if (!t?.sunrise || !t.sunset) return undefined;
+  const min = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+  const r = min(t.sunrise);
+  const st = min(t.sunset);
+  const n = now.getHours() * 60 + now.getMinutes();
+  return { rise: t.sunrise, set: t.sunset, pos: n >= r && n <= st && st > r ? Math.round(((n - r) / (st - r)) * 100) / 100 : undefined };
 }
 
 /** mm of rain from `fromHour` to end of the given day offset (0 = today). */

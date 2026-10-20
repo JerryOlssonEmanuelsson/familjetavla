@@ -394,6 +394,10 @@ function syncDayParts() {
   const h = new Date().getHours() + new Date().getMinutes() / 60;
   d.daypart = h >= 7 && h < 19 ? "day" : "night";
   d.header.phase = h >= 5 && h < 8 ? "dawn" : h >= 8 && h < 17.5 ? "day" : h >= 17.5 && h < 21 ? "dusk" : "night";
+  // October in mid-Sweden: up 07:35, down 17:40.
+  const rise = 7 + 35 / 60;
+  const set = 17 + 40 / 60;
+  d.header.sun = { rise: "07:35", set: "17:40", pos: h >= rise && h <= set ? Math.round(((h - rise) / (set - rise)) * 100) / 100 : undefined };
   d.night = false;
   syncNow();
 }

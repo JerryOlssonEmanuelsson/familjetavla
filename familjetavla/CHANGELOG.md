@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.8.9
+
+- **Vad elen kostar just nu.** Energi visar "Kostar nu 4,10 kr/tim" utifrån det ni köper och elpriset den här timmen, eller "Gratis just nu" när solen räcker till huset. Startsidans energiruta visar det också.
+- **Solbåge i vädret.** Under temperaturen på startsidan syns dagens soluppgång och solnedgång som en båge, med solen där den är just nu.
+
 ## 0.8.8
 
 - **Bara riktiga mätare föreslås.** Guiden föreslår aldrig egna mallsensorer eller hjälpare (template, utility meter, statistik m.m.) för energi och elpris, bara integrationer som Tibber, SolarEdge, Huawei, P1-mätare och Nord Pool. Tavlan räknar resten själv, så det fungerar likadant i alla hem. Vill du ändå använda en egen sensor kan du välja den själv i listan.
