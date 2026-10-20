@@ -74,7 +74,9 @@ for (const [name0, dev, tablet] of DEVICES) {
       await p.locator(".care-box").first().scrollIntoViewIfNeeded();
     }
     if (open === "news" || open === "newsadd") {
-      await p.locator(".news-row").first().click();
+      await p.locator(".news-strip").first().click();
+      await p.waitForTimeout(300);
+      if (await p.locator(".news-row").count()) await p.locator(".news-row").first().click();
       await p.waitForTimeout(400);
       if (open === "newsadd") {
         await p.getByRole("button", { name: /Lägg i veckan/ }).click();

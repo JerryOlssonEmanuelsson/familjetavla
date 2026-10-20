@@ -196,36 +196,47 @@ for (const [name, key] of [["SportAdmin", "SPORTADMIN_ICS"], ["laget.se", "LAGET
  * addresses from Vklass's own code and numbers, never text from the account.
  */
 async function findVklassNewsFeed(session) {
-  const PATH = /["'`](\/[A-Za-z][A-Za-z0-9/_-]{2,80})["'`?]/g;
-  const onlyWords = (p) => p.split("/").filter((w) => /^[A-Za-z][A-Za-z_-]{1,40}$/.test(w)).join("/");
-  const welcome = await vklassGet(session, "https://custodian.vklass.se/Home/Welcome");
-  const count = (t) => (t.match(/Publicerat/g) || []).length;
-  const lines = [`startsidan: ${welcome.text.length} tecken, "Publicerat" ${count(welcome.text)} gånger`];
-  const scripts = [...welcome.text.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map((m) => m[1]).filter((u) => !/^https?:/.test(u) || /vklass\.se/.test(u));
-  const found = new Set();
-  const scan = (t) => {
-    for (const m of t.matchAll(PATH)) if (/news|nyhet|feed|anslag|notice|bulletin/i.test(m[1])) found.add(onlyWords(m[1]));
-  };
-  scan(welcome.text);
-  for (const src of scripts.slice(0, 15)) {
-    const js = await vklassGet(session, new URL(src, "https://custodian.vklass.se").toString()).catch(() => null);
-    if (js) scan(js.text);
-  }
-  lines.push(`skript: ${scripts.length}, adresser som nämner nyheter: ${[...found].filter(Boolean).slice(0, 20).join(" ") || "inga"}`);
-  const candidates = [...new Set([...[...found].filter(Boolean).slice(0, 12), "News", "News/Index", "Home/News", "News/GetNews", "News/List", "Newsfeed", "NewsFeed/Index", "Home/GetNews"])];
-  for (const c of candidates) {
-    const r = await vklassGet(session, `https://custodian.vklass.se/${c.replace(/^\//, "")}`).catch((e) => ({ status: -1, type: "", text: "" }));
-    let items = "";
-    if (/json/.test(r.type)) {
-      try {
-        const j = JSON.parse(r.text);
-        const arr = Array.isArray(j) ? j : Object.values(j).find(Array.isArray);
-        items = `, json ${Array.isArray(arr) ? arr.length + " poster" : "objekt"}, fält: ${Array.isArray(arr) && arr[0] && typeof arr[0] === "object" ? Object.keys(arr[0]).filter((k) => /^[A-Za-z_]{1,30}$/.test(k)).slice(0, 25).join(",") : "-"}`;
-      } catch {}
+  const words = (p) => p.split("/").filter((w) => /^[A-Za-z][A-Za-z_-]{1,40}$/.test(w)).join("/");
+  const MARK = /minecraft/gi; // a word in one of the account's current news items – only counted
+  const lines = [];
+  const scriptHosts = new Set();
+  const apiPaths = new Set();
+  const scanJs = (t) => {
+    for (const m of t.matchAll(/["'`]((?:https?:\/\/[a-z0-9.-]*vklass\.se)?\/[A-Za-z][A-Za-z0-9/_-]{2,80})["'`?]/g)) {
+      const path = m[1].replace(/^https?:\/\/[^/]+/, "");
+      if (/api|get|news|nyhet|feed|post|message|notice|board|anslag|start|welcome/i.test(path)) apiPaths.add(words(path));
     }
-    lines.push(`/${c.replace(/^\//, "")}: ${r.status} ${r.type.split(";")[0]} ${r.text.length} tecken, "Publicerat" ${count(r.text)}${items}`);
+  };
+  for (const page of ["/Home/Welcome", "/Home/News"]) {
+    const r = await vklassGet(session, `https://custodian.vklass.se${page}`);
+    const t = r.text;
+    const marks = [...t.matchAll(MARK)];
+    // Where does the marker sit: in a <script> (data) or in the page itself? Only key names around it.
+    const keys = new Set();
+    let inScript = 0;
+    for (const m of marks) {
+      const before = t.lastIndexOf("<script", m.index);
+      if (before > t.lastIndexOf("</script>", m.index)) inScript++;
+      const around = t.slice(Math.max(0, m.index - 400), m.index + 400);
+      for (const k of around.matchAll(/"([A-Za-z_]{2,30})"\s*:/g)) keys.add(k[1]); // JSON keys only, never free text
+      for (const k of around.matchAll(/data-([a-z-]{2,30})=/g)) keys.add(`data-${k[1]}`);
+      for (const k of around.matchAll(/class=["']([a-zA-Z0-9_ -]{2,80})["']/g)) for (const c of k[1].split(/\s+/)) if (/^[a-z][a-z0-9_-]{1,40}$/.test(c) && !/\d{3,}/.test(c)) keys.add(`.${c}`);
+    }
+    lines.push(`${page}: ${r.status}, ${t.length} tecken, markörord ${marks.length} gånger (${inScript} i skript), ord runt omkring: ${[...keys].slice(0, 40).join(" ") || "-"}`);
+    for (const m of t.matchAll(/<script[^>]+src=["']([^"']+)["']/g)) {
+      const u = new URL(m[1], "https://custodian.vklass.se");
+      scriptHosts.add(u.hostname);
+      if (/vklass\.se$/.test(u.hostname)) {
+        const js = await vklassGet(session, u.toString()).catch(() => null);
+        if (js) scanJs(js.text);
+      }
+    }
+    for (const m of t.matchAll(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/g)) scanJs(m[1]);
+    for (const m of t.matchAll(/(?:href|action|data-[a-z-]*url|data-src)=["'](\/[A-Za-z][^"'#]{2,80})["']/g)) if (/news|nyhet|get|api|feed/i.test(m[1])) apiPaths.add(words(m[1].split("?")[0]));
   }
-  ok.push(`Vklass nyhetssökning (bara adresser och antal):\n  ${lines.join("\n  ")}`);
+  lines.push(`skriptvärdar: ${[...scriptHosts].filter((h) => /^[a-z0-9.-]+$/.test(h)).join(" ")}`);
+  lines.push(`adresser i koden: ${[...apiPaths].filter(Boolean).slice(0, 40).join(" ") || "inga"}`);
+  ok.push(`Vklass nyhetssökning (bara adresser, ordnamn och antal):\n  ${lines.join("\n  ")}`);
 }
 
 // ---- Vklass with a real account (repository secrets VKLASS_USERNAME / VKLASS_PASSWORD) ----

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { Dashboard } from "../../../server/src/types";
 import { api } from "../api";
 import { Icon } from "../Icon";
@@ -99,6 +100,7 @@ type Task = NonNullable<Dashboard["school"]>[number]["tasks"][number];
 /** Everything about one homework/test: when, the teacher's text, and a link to the school platform. */
 function TaskSheet({ task, child, onClose }: { task: Task; child: string; onClose: () => void }) {
   return (
+    <OnTop>
     <div className="overlay" onClick={onClose}>
       <div className="sheet task-sheet" role="dialog" aria-modal="true" aria-label={task.title} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 680 }}>
         <div className="row gap">
@@ -125,10 +127,14 @@ function TaskSheet({ task, child, onClose }: { task: Task; child: string; onClos
         )}
       </div>
     </div>
+    </OnTop>
   );
 }
 
 type News = Dashboard["schoolNews"][number];
+
+/** Sheets open on top of everything – not inside the page, which may be scaled to fit. */
+const OnTop = ({ children }: { children: ReactNode }) => createPortal(children, document.body);
 const todayKey = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -154,6 +160,7 @@ function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; ac
       setAdding(false);
     }, { done: `${form.title.trim() || n.title} ligger i veckan`, check: () => true });
   return (
+    <OnTop>
     <div className="overlay" onClick={onClose}>
       <div className="sheet news-sheet" role="dialog" aria-modal="true" aria-label={n.title} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
         <div className="row gap" style={{ alignItems: "flex-start" }}>
@@ -232,55 +239,58 @@ function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; ac
         )}
       </div>
     </div>
+    </OnTop>
   );
 }
 
 const personIdOf = (data: Dashboard, name: string) => data.people.find((p) => p.name === name)?.id;
 
-/** "Från skolan": the latest three; the rest in a list. */
+/** "Från skolan": one compact row (the newest, unread first); tap for the list and each news item. */
 function SchoolNewsCard({ data, actions }: { data: Dashboard; actions: Actions }) {
   const [open, setOpen] = useState<News | null>(null);
-  const [all, setAll] = useState(false);
+  const [list, setList] = useState(false);
   const news = data.schoolNews ?? [];
   if (!news.length) return null;
+  const unread = news.filter((n) => !n.seen);
+  const top = unread[0] ?? news[0];
   const show = (n: News) => {
     setOpen(n);
-    setAll(false);
+    setList(false);
     if (!n.seen) api.newsSeen([n.id]).then(() => actions.refresh()).catch(() => {});
   };
   const row = (n: News) => (
     <button className="task-row news-row" key={n.id} onClick={() => show(n)}>
       {!n.seen && <span className="news-new" aria-label="oläst" />}
       <span className="grow task-title">{n.title}</span>
-      <small className="muted">{[n.who, n.date].filter(Boolean).join(" · ")}</small>
+      <small className="muted news-meta">{[n.who, n.date].filter(Boolean).join(" · ")}</small>
       <Icon name="chevronRight" size={18} />
     </button>
   );
   return (
-    <section className="card">
-      <div className="card-head">
-        <h2>Från skolan</h2>
-        {news.length > 3 && (
-          <button className="btn small ghost" onClick={() => setAll(true)}>
-            Alla ({news.length})
-          </button>
-        )}
-      </div>
-      {news.slice(0, 3).map(row)}
-      {all && (
-        <div className="overlay" onClick={() => setAll(false)}>
-          <div className="sheet" role="dialog" aria-modal="true" aria-label="Alla nyheter från skolan" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
-            <div className="row gap">
-              <h2 className="grow" style={{ fontSize: 24 }}>
-                Från skolan
-              </h2>
-              <button className="btn icon" aria-label="Stäng" onClick={() => setAll(false)}>
-                <Icon name="x" />
-              </button>
+    <section className="card news-card">
+      <button className="news-strip" onClick={() => (news.length > 1 ? setList(true) : show(top))} aria-label={`Från skolan: ${news.length} nyheter, ${unread.length} olästa`}>
+        <b className="news-label">Från skolan</b>
+        {!top.seen && <span className="news-new" aria-hidden="true" />}
+        <span className="grow task-title">{top.title}</span>
+        {news.length > 1 && <span className="plan-count">{unread.length || news.length}</span>}
+        <Icon name="chevronRight" size={18} />
+      </button>
+      {list && (
+        <OnTop>
+          <div className="overlay" onClick={() => setList(false)}>
+            <div className="sheet" role="dialog" aria-modal="true" aria-label="Nyheter från skolan" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 720 }}>
+              <div className="row gap">
+                <h2 className="grow" style={{ fontSize: 24 }}>
+                  Från skolan
+                </h2>
+                <button className="btn icon" aria-label="Stäng" onClick={() => setList(false)}>
+                  <Icon name="x" />
+                </button>
+              </div>
+              {news.map(row)}
             </div>
-            {news.map(row)}
           </div>
-        </div>
+        </OnTop>
       )}
       {open && <NewsSheet n={open} data={data} actions={actions} onClose={() => setOpen(null)} />}
     </section>
@@ -308,6 +318,7 @@ function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
   const today = kid.days.find((d) => d.today);
   return (
     <div className="stack">
+      <div className="school-top">
       {kids.length > 1 && (
         <div className="seg" role="tablist" aria-label="Barn">
           {kids.map((k) => (
@@ -318,6 +329,7 @@ function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
         </div>
       )}
       <SchoolNewsCard data={data} actions={actions} />
+      </div>
       <div className="school-grid">
         <section className="card">
           <h2>{today ? "Idag" : "Nästa skoldag"}</h2>
