@@ -160,13 +160,17 @@ export function discover(all: HaEntityInfo[]): Discovery {
   const carDevices = new Set(cars.map((c) => all.find((x) => x.e === c.battery)?.d));
 
   // ---- Energy
-  const power = all.filter((x) => domain(x.e) === "sensor" && x.dc === "power" && !carDevices.has(x.d));
+  // Sensors with a real value first: a meter that says "unknown" is no use on the board.
+  const working = (x: HaEntityInfo) => Number.isFinite(Number(x.st));
+  const power = all
+    .filter((x) => domain(x.e) === "sensor" && x.dc === "power" && !carDevices.has(x.d))
+    .sort((a, b) => Number(working(b)) - Number(working(a)) || Number(has(`${b.n} ${b.m ?? ""}`, /tibber pulse|p1|han\b/i)) - Number(has(`${a.n} ${a.m ?? ""}`, /tibber pulse|p1|han\b/i)));
   const solar =
     power.find((x) => has(x.n, SOLAR) && has(`${x.m} ${x.n}`, INVERTER_MAKERS)) ?? power.find((x) => has(x.n, SOLAR) || has(x.m, INVERTER_MAKERS));
   const grid = power.find((x) => x !== solar && has(`${x.n} ${x.m ?? ""}`, GRID));
   const house = power.find((x) => x !== solar && x !== grid && has(x.n, /house|hus|home|hem|load|last|förbrukning|consumption/i));
   const homeBattery = all.find(
-    (x) => domain(x.e) === "sensor" && x.dc === "battery" && x.u === "%" && !carDevices.has(x.d) && has(`${x.n} ${x.m ?? ""}`, /storage|hembatteri|home battery|powerwall|battery soc|ferroamp|huawei|solaredge|sonnen|pixii|victron/i),
+    (x) => domain(x.e) === "sensor" && x.dc === "battery" && x.u === "%" && working(x) && !carDevices.has(x.d) && has(`${x.n} ${x.m ?? ""}`, /storage|hembatteri|home battery|powerwall|battery soc|ferroamp|huawei|solaredge|sonnen|pixii|victron/i),
   );
 
   // ---- Climate devices (heat pump, thermostats, hot water, spa) with the device's pumps/lights/blowers
@@ -223,7 +227,9 @@ export function discover(all: HaEntityInfo[]): Discovery {
     .filter((x) => domain(x.e) === "calendar" && x.st !== "unavailable")
     .map((x) => ({ name: x.n, entityId: x.e, waste: has(`${x.n} ${x.e} ${x.m ?? ""}`, /waste|sop|avfall|renhåll|tömning|hämtning/i) }));
   const priceSensors = all
-    .filter((x) => domain(x.e) === "sensor" && (has(x.e, /nordpool|tibber|electricity_price|elpris|spot/i) || has(x.u, /(SEK|öre|kr)\/kWh/i)))
+    // A price has a currency per kWh as its unit; the name alone ("spottar", Tibber's consumption) is not enough.
+    .filter((x) => domain(x.e) === "sensor" && has(x.u, /^(SEK|öre|kr|EUR|NOK|DKK|€)\/kWh$/i))
+    .sort((a, b) => Number(working(b)) - Number(working(a)) || Number(has(`${b.e} ${b.n}`, /nordpool|tibber|elpris|spot|price/i)) - Number(has(`${a.e} ${a.n}`, /nordpool|tibber|elpris|spot|price/i)))
     .map((x) => ({ name: x.n, entityId: x.e }));
   const buttons = all.filter((x) => domain(x.e) === "scene" || domain(x.e) === "script").map((x) => ({ name: x.n, entityId: x.e }));
 
