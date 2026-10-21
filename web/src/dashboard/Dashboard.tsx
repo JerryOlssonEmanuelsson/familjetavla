@@ -559,6 +559,19 @@ function EventSheet({
             </div>
           )}
           {e.description && <EventText text={e.description} />}
+          {e.sick && (
+            <button
+              className={`btn small ${e.sick.on ? "" : "ghost"}`}
+              style={{ alignSelf: "flex-start" }}
+              onClick={async () => {
+                await api.setSick(e.sick!.personId, e.sick!.date, !e.sick!.on);
+                await onChanged();
+                onClose();
+              }}
+            >
+              <Icon name={e.sick.on ? "check" : "health"} size={18} /> {e.sick.on ? `${e.who} är frisk igen` : `${e.who} är sjuk ${e.dayLabel ?? "den dagen"} – stryk allt`}
+            </button>
+          )}
           {e.ownId && (
             <button
               className="btn small ghost"

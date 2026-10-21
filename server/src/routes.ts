@@ -35,7 +35,8 @@ import {
   setSecret,
 } from "./store.js";
 import { readFileSync } from "node:fs";
-import { addDays, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
+import { addDays, dayKey, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
+import { setSick } from "./sick.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export { VERSION } from "./version.js";
@@ -949,6 +950,27 @@ export async function registerRoutes(app: FastifyInstance) {
     const body = z.object({ personId: z.string().regex(ID), items: z.array(z.string().max(30)).max(10) }).safeParse(req.body);
     if (!body.success || !loadConfig().people.some((p) => p.id === body.data.personId && p.care)) return fail(reply, new Error("Okänt barn"));
     saveShelf(body.data.personId, body.data.items);
+    return { ok: true };
+  });
+
+  // Sjuk/VAB: strike a child's förskola, school and activities that day, and tell the grown-ups.
+  app.post("/api/sick", async (req, reply) => {
+    const body = z.object({ personId: z.string().regex(ID), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), sick: z.boolean() }).safeParse(req.body);
+    const cfg = loadConfig();
+    const child = body.success ? cfg.people.find((p) => p.id === body.data.personId && p.kind === "child") : undefined;
+    if (!body.success || !child) return fail(reply, new Error("Okänt barn"));
+    setSick(child.id, body.data.date, body.data.sick);
+    const today = dayKey(new Date());
+    const tomorrow = dayKey(addDays(new Date(), 1));
+    const conn = haConnection();
+    if (body.data.sick && conn && (body.data.date === today || body.data.date === tomorrow)) {
+      const when = body.data.date === today ? "idag" : "imorgon";
+      for (const a of cfg.people.filter((p) => p.kind === "adult" && p.notify?.service)) {
+        await ha
+          .service(conn, "notify", a.notify!.service!, { title: "Sjuk", message: `${child.name} är sjuk ${when} – förskola, skola och aktiviteter är strukna på tavlan.` })
+          .catch(() => {});
+      }
+    }
     return { ok: true };
   });
 

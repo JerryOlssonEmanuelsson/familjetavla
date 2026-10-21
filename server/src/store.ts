@@ -232,6 +232,8 @@ export interface LocalFile {
   newsSeen?: string[];
   /** Egna händelser, t.ex. från en skolnyhet: "Workshop på biblioteket" tis 26/10 14:30. */
   ownEvents?: OwnEvent[];
+  /** Sjuk/VAB per barn: dagar (YYYY-MM-DD) då förskola, skola och aktiviteter stryks. */
+  sick?: Record<string, string[]>;
 }
 
 export interface OwnEvent {

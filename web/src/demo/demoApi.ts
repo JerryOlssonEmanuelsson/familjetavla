@@ -479,6 +479,16 @@ export const demoApi = {
   },
   checkPin: () => wait({ ok: true }),
   authStatus: () => wait({ paired: true, pinRequired: false, supervisor: false }),
+  setSick: (personId: string, date: string, sick: boolean) => {
+    const name = d.people.find((p) => p.id === personId)?.name ?? "Barnet";
+    d.sick = (d.sick ?? []).filter((x) => !(x.personId === personId && x.date === date));
+    d.reminders = d.reminders.filter((r) => r.title !== `${name} är sjuk idag`);
+    if (sick) {
+      d.sick.push({ personId, name, date });
+      d.reminders.unshift({ icon: "kids", title: `${name} är sjuk idag`, sub: "Förskola, skola och aktiviteter är strukna", tone: "amber" });
+    }
+    return wait({ ok: true as const }, 150);
+  },
   shelf: (personId: string, items: string[]) => {
     d.shelf = items.length ? [{ personId, name: "Maja", items }] : [];
     d.reminders = d.reminders.filter((r) => !r.title.startsWith("Maja · ta med"));

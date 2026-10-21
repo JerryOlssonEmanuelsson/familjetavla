@@ -149,7 +149,8 @@ export function startNotifier(log: FastifyBaseLogger) {
       const fam = await gatherFamily(cfg, now, errors);
       const list = duties(fam.withCare, fam.people, fam.travelCtx, now, addDays(startOfDay(now), 3), loadShelf());
       // Trainings that moved or were cancelled since the last look: tell the one who drives.
-      const eventKeys = new Set(fam.withCare.map((e) => travelKey(e)));
+      // A sick child's training is struck on purpose – not "inställd".
+      const eventKeys = new Set([...fam.withCare, ...fam.hiddenSick].map((e) => travelKey(e)));
       const changes = lastDuties ? dutyChanges(lastDuties, list, now, errors.length === 0, eventKeys) : [];
       lastDuties = list;
       for (const c of changes) {

@@ -2,6 +2,7 @@
 
 ## 0.9.1
 
+- **Sjuk / VAB.** Markera ett barn som sjukt idag eller imorgon, på mobilsidan (fliken Sjuk) eller genom att trycka på barnets händelse på tavlan. Förskola, skola och aktiviteter stryks den dagen, ingen behöver lämna, hämta eller skjutsa (och får ingen påminnelse), Kom ihåg säger "Maja är sjuk idag" och de vuxna får en notis. "Frisk igen" tar tillbaka allt.
 - **Morgonnotis till telefonen.** Kl 06:45 (eller när du vill) kommer dagens kom ihåg till telefonen: vad du själv ska lämna och hämta, gympapåse, det som saknas på hyllan, regnkläder, soporna, skolans nyheter. Allt som står på tavlan når er även när ingen tittar på den. Ställs in per vuxen under Påminnelser.
 - **Träning som flyttas eller ställs in.** Ändrar föreningen tiden i kalendern (SportAdmin, laget.se …) får den som skjutsar en notis: "Ny tid: Skjutsa Ella till F14 – Träning tis 21 okt: nu 18:00 (var 17:30)". Försvinner den helt kommer "Inställt?". Byter ni bara skjuts (buss, någon annan) kommer ingen notis, och om en kalender inte gick att läsa sägs aldrig något vara inställt.
 - **Kallt på morgonen:** under 5° visar Kom ihåg (och morgonnotisen) "Mössa och vantar", vid minusgrader "Mössa, vantar och varma kläder" – kvällen innan och på morgonen.

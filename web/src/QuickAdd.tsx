@@ -9,7 +9,8 @@ import { navigate } from "./route";
  * to buy, and it is on the board at once. Save it to the home screen for a one-tap shortcut.
  */
 export function QuickAdd({ people }: { people: Person[] }) {
-  const [tab, setTab] = useState<"event" | "shop">("event");
+  const [tab, setTab] = useState<"event" | "shop" | "sick">("event");
+  const kids = people.filter((p) => p.kind === "child");
   // The phone's own light/dark, unless the board's theme button was used on this device.
   useEffect(() => {
     let saved: string | null = null;
@@ -39,8 +40,13 @@ export function QuickAdd({ people }: { people: Person[] }) {
         <button className={`seg-btn ${tab === "shop" ? "on" : ""}`} role="tab" aria-selected={tab === "shop"} onClick={() => setTab("shop")}>
           <Icon name="cart" size={20} /> Handla
         </button>
+        {kids.length > 0 && (
+          <button className={`seg-btn ${tab === "sick" ? "on" : ""}`} role="tab" aria-selected={tab === "sick"} onClick={() => setTab("sick")}>
+            <Icon name="health" size={20} /> Sjuk
+          </button>
+        )}
       </div>
-      {tab === "event" ? <EventForm people={people} onAdded={added} /> : <ShopForm onAdded={added} />}
+      {tab === "event" ? <EventForm people={people} onAdded={added} /> : tab === "shop" ? <ShopForm onAdded={added} /> : <SickForm kids={kids} onAdded={added} />}
       {done.length > 0 && (
         <section className="card qa-done" aria-live="polite">
           {done.map((t, i) => (
@@ -193,5 +199,79 @@ function ShopForm({ onAdded }: { onAdded: (t: string) => void }) {
         </p>
       )}
     </form>
+  );
+}
+
+/** Sjuk/VAB: strikes the child's förskola, school and activities that day and tells the grown-ups. */
+function SickForm({ kids, onAdded }: { kids: Person[]; onAdded: (t: string) => void }) {
+  const t = new Date();
+  const days = [iso(t), iso(new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1))];
+  const [who, setWho] = useState(kids[0]?.id ?? "");
+  const [date, setDate] = useState(days[0]);
+  const [sick, setSickList] = useState<{ personId: string; name: string; date: string }[]>([]);
+  const [error, setError] = useState("");
+  const load = () =>
+    api
+      .dashboard()
+      .then((d) => setSickList(d.sick ?? []))
+      .catch(() => {});
+  useEffect(() => {
+    void load();
+  }, []);
+  const mark = async (personId: string, day: string, on: boolean) => {
+    setError("");
+    try {
+      await api.setSick(personId, day, on);
+      const name = kids.find((k) => k.id === personId)?.name ?? "";
+      onAdded(on ? `${name} är sjuk ${dayLabel(day)} – allt är struket` : `${name} är frisk igen ${dayLabel(day)}`);
+      void load();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+  return (
+    <div className="card stack">
+      <div className="field">
+        <span>Vem är sjuk?</span>
+        <div className="seg">
+          {kids.map((k) => (
+            <button type="button" key={k.id} className={`seg-btn ${who === k.id ? "on" : ""}`} onClick={() => setWho(k.id)}>
+              {k.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="field">
+        <span>När?</span>
+        <div className="seg">
+          {days.map((d) => (
+            <button type="button" key={d} className={`seg-btn ${date === d ? "on" : ""}`} onClick={() => setDate(d)}>
+              {dayLabel(d)}
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="muted" style={{ margin: 0 }}>
+        Förskola, skola och aktiviteter stryks den dagen, ingen behöver lämna eller hämta, och de vuxna får en notis.
+      </p>
+      {error && <p className="error-text">{error}</p>}
+      <button className="btn primary big" disabled={!who} onClick={() => void mark(who, date, true)}>
+        Sjuk {dayLabel(date)}
+      </button>
+      {sick.length > 0 && (
+        <div className="stack" style={{ gap: 8 }}>
+          {sick.map((x) => (
+            <div key={`${x.personId}${x.date}`} className="row gap" style={{ alignItems: "center" }}>
+              <span className="grow">
+                {x.name} sjuk {dayLabel(x.date)}
+              </span>
+              <button className="btn small" onClick={() => void mark(x.personId, x.date, false)}>
+                Frisk igen
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

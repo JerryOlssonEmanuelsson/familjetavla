@@ -6,6 +6,7 @@ import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
 import { haSocket } from "./connectors/haws.js";
+import { applySick, loadSick } from "./sick.js";
 import { coldestBetween, forecast, rainBetween, skyNow, sunToday, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
 import { careTimesFor, custodyStatus, isHome } from "./custody.js";
 import {
@@ -166,6 +167,7 @@ function toDash(ev: SourcedEvent, people: Map<string, Person>, travel?: TravelCt
     location: ev.location,
     description: cleanDescription(ev.description, ev.title),
     ...(ev.sourceId === "own" && ev.uid ? { ownId: ev.uid } : {}),
+    ...(p?.kind === "child" ? { sick: { personId: p.id, date: dayKey(ev.start), on: ev.sourceId === "sick" } } : {}),
   };
 }
 
@@ -229,7 +231,7 @@ export interface Family {
   travelCtx: TravelCtx;
 }
 
-export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]): Promise<Family & { schoolFood: SchoolData["food"]; schoolNews: SchoolData["news"] }> {
+export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]): Promise<Family & { schoolFood: SchoolData["food"]; schoolNews: SchoolData["news"]; hiddenSick: SourcedEvent[] }> {
   const today = startOfDay(now);
   const horizon = addDays(today, 7);
   const [calEvents, school] = await Promise.all([collectCalendars(cfg, today, horizon, errors), collectSchool(cfg, today, horizon, errors)]);
@@ -239,7 +241,10 @@ export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]
   const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events, ...ownCalendarEvents()];
   const careEvents = buildCareEvents([...people.values()], school.care, all, today, 7);
   const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map([...cfg.calendars.map((c) => [c.id, c] as const), ...careCalendars([...people.values()])]) };
-  return { people, children, all, withCare: [...all, ...careEvents], travelCtx, schoolFood: school.food, schoolNews: school.news };
+  // A sick child's förskola, lessons and training are struck that day (one "Sjuk" marker instead).
+  const sick = loadSick();
+  const withCare = applySick([...all, ...careEvents], sick);
+  return { people, children, all: applySick(all, sick).kept, withCare: withCare.kept, hiddenSick: withCare.hidden, travelCtx, schoolFood: school.food, schoolNews: school.news };
 }
 
 /** `allReminders`: the morning notification wants every reminder, the board shows the first five. */
@@ -346,6 +351,9 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     plan,
     meals,
     mealFavorites: mealFavorites(now),
+    sick: Object.entries(loadSick()).flatMap(([id, days]) =>
+      days.filter((d) => d >= dayKey(today) && people.get(id)).map((d) => ({ personId: id, name: people.get(id)!.name, date: d })),
+    ),
     shelf: Object.entries(loadShelf())
       .filter(([id]) => people.get(id)?.care)
       .map(([id, items]) => ({ personId: id, name: people.get(id)!.name, items })),
@@ -663,6 +671,12 @@ export function buildReminders(
         tone: "blue",
       });
     }
+  }
+
+  // Sick children (Sjuk/VAB): first, so nobody drives off to förskola.
+  for (const e of events.filter((x) => x.sourceId === "sick" && daysBetween(focusDay, x.start) === 0)) {
+    const p = e.personId ? people.get(e.personId) : undefined;
+    if (p) out.push({ icon: "kids", title: `${p.name} är sjuk ${focusLabel}`, sub: "Förskola, skola och aktiviteter är strukna", tone: "amber" });
   }
 
   // Cold morning for the children on their way: mössa och vantar (also in the morning notification).
