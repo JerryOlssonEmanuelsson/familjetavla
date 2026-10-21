@@ -1347,9 +1347,10 @@ a.btn {
 }
 .station-name {
   min-width: 0;
+  text-overflow: ellipsis;
   text-align: left;
   line-height: 1.15;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -3147,4 +3148,76 @@ marker.pf-buy path {
   max-height: 340px;
   overflow-y: auto;
   padding-right: 4px;
+}
+/* ---------- Musik-fliken ---------- */
+.music-tab {
+  display: grid;
+  gap: 14px;
+}
+.music-favs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
+  gap: 10px;
+}
+.music-search {
+  width: 100%;
+  min-height: 48px;
+  margin-bottom: 10px;
+}
+.station-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  gap: 10px;
+  /* The long list scrolls inside its box, so the rest of the page stays put on a tablet. */
+  max-height: max(200px, calc(100vh - 820px));
+  overflow-y: auto;
+  padding: 2px 4px 2px 2px;
+}
+.station-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.station-row .station-btn {
+  flex: 1;
+  min-height: 52px;
+}
+.star {
+  font-size: 22px;
+  min-width: 44px;
+  color: var(--muted);
+}
+.star.on {
+  color: var(--amber);
+}
+.music-hint {
+  margin: 8px 0 0;
+  font-size: 14px;
+}
+/* Wide screens: speakers, favourites and Spotify on the left, every station on the right. */
+@media (min-width: 1000px) {
+  .music-tab {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+    align-items: start;
+  }
+  .music-tab > .music-all {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+  .music-tab .station-list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+    max-height: max(220px, calc(100vh - 440px));
+  }
+}
+.spotify-box .guide {
+  margin: 0;
+}
+/* In the long list a name stays on one line, with … when it is too long. */
+.station-list .station-name {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
 }

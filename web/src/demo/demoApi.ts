@@ -468,6 +468,19 @@ const CANDIDATES: Record<string, GroceryLine["candidates"]> = {
   ost: [{ code: "101178452_ST", name: "Hushållsost 26%", brand: "Garant", volume: "1.1kg", price: "89,90 kr" }],
 };
 
+const SR_LOCAL = ["Blekinge", "Dalarna", "Gotland", "Gävleborg", "Göteborg", "Halland", "Jämtland", "Jönköping", "Kalmar", "Kristianstad", "Kronoberg", "Malmöhus", "Norrbotten", "Sjuhärad", "Skaraborg", "Stockholm", "Sörmland", "Uppland", "Värmland", "Väst", "Västerbotten", "Västernorrland", "Västmanland", "Örebro", "Östergötland"];
+/** The Musik tab's list in the demo: what the radio directory gives for Sweden (no playing). */
+const DEMO_STATIONS: { id: string; name: string; url: string; group: "sr" | "other"; logo?: string }[] = [
+  ...["P1", "P2", "P3", "P3 Din gata"].map((n, i) => ({ id: `sr${i}`, name: n, url: `https://sverigesradio.se/topsy/direkt/srapi/${130 + i}.mp3`, group: "sr" as const })),
+  ...SR_LOCAL.map((n, i) => ({ id: `p4${i}`, name: `P4 ${n}`, url: n === "Jönköping" ? "https://sverigesradio.se/topsy/direkt/srapi/203.mp3" : `https://sverigesradio.se/topsy/direkt/srapi/${300 + i}.mp3`, group: "sr" as const })),
+  ...["RIX FM", "Mix Megapol", "Lugna Favoriter", "NRJ Sweden", "Bandit Rock", "Star FM", "Vinyl 107", "Power Hit Radio", "Radio Norrbotten", "Gamla Favoriter", "Retro FM", "Svensk Pop"].map((n, i) => ({
+    id: `o${i}`,
+    name: n,
+    url: n === "RIX FM" ? "https://fm01-ice.stream.khz.se/fm01_mp3" : n === "Mix Megapol" ? "https://live-bauerse-fm.sharp-stream.com/mixmegapol_instream_se_mp3" : n === "Lugna Favoriter" ? "https://fm03-ice.stream.khz.se/fm03_mp3" : `https://example-stream.se/${i}.mp3`,
+    group: "other" as const,
+  })),
+];
+
 export const demoApi = {
   config: () => wait(fx.config),
   saveConfig: (config: Config, _secrets: Record<string, string | null> = {}) => {
@@ -636,6 +649,24 @@ export const demoApi = {
     return wait({});
   },
   tryStation: (_name: string, _url: string, _speaker: string) => wait({}),
+  musicStations: () => wait({ stations: DEMO_STATIONS }),
+  spotify: (_op: "playpause" | "next") => wait({}),
+  playStationId: (id: string, speaker: string) => {
+    const sp = d.music?.speakers.find((x) => x.entityId === speaker);
+    const st = DEMO_STATIONS.find((x) => x.id === id);
+    const fav = d.music?.stations.findIndex((x) => x.url === st?.url) ?? -1;
+    if (sp && st) Object.assign(sp, { playing: true, station: fav >= 0 ? fav : undefined, title: st.name, playingUrl: st.url });
+    return wait({});
+  },
+  favoriteStation: (b: { id?: string; url?: string; on: boolean }) => {
+    if (!d.music) return wait({});
+    const st = DEMO_STATIONS.find((x) => x.id === b.id);
+    const list = d.music.stations.map((x) => ({ name: x.name, url: x.url, logo: x.logo }));
+    const next = b.on && st ? [...list, { name: st.name, url: st.url, logo: st.logo }] : list.filter((x) => x.url !== b.url);
+    d.music.stations = next.map((x, index) => ({ index, ...x }));
+    return wait({});
+  },
+
   stopMusic: (speaker: string) => {
     const sp = d.music?.speakers.find((x) => x.entityId === speaker);
     if (sp) Object.assign(sp, { playing: false, station: undefined, title: undefined });

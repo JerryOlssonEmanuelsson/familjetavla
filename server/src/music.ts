@@ -28,9 +28,30 @@ export function buildMusic(cfg: Config, states: Map<string, HaState>): Music | u
         title: title || undefined,
         station: station >= 0 ? station : undefined,
         volume: typeof a.volume_level === "number" ? Math.round(a.volume_level * 100) : undefined,
+        playingUrl: playing && a.media_content_id && /^https?:\/\//.test(a.media_content_id) ? a.media_content_id : undefined,
       };
     }),
-    stations: stations.map((s, index) => ({ index, name: s.name, logo: s.logo })),
+    stations: stations.map((s, index) => ({ index, name: s.name, logo: s.logo, url: s.url })),
+    spotify: spotifyInfo(states),
+  };
+}
+
+/** The player Home Assistant's Spotify integration makes (media_player.spotify_<account>). */
+export function spotifyPlayer(states: Map<string, HaState>): HaState | undefined {
+  return [...states.values()].find((s) => s.entity_id.startsWith("media_player.spotify"));
+}
+
+function spotifyInfo(states: Map<string, HaState>): Music["spotify"] {
+  const s = spotifyPlayer(states);
+  if (!s) return null;
+  const a = s.attributes as { media_title?: string; media_artist?: string; source?: string };
+  const playing = s.state === "playing";
+  return {
+    entityId: s.entity_id,
+    playing,
+    title: [a.media_artist, a.media_title].filter(Boolean).join(" – ") || undefined,
+    device: a.source || undefined,
+    offline: s.state === "unavailable",
   };
 }
 
@@ -60,6 +81,7 @@ export function playCall(speaker: string, station: RadioStation) {
 // ---------- Finding stations ----------
 
 interface RbStation {
+  stationuuid?: string;
   name: string;
   url_resolved: string;
   favicon?: string;
@@ -116,4 +138,80 @@ export function pickStations(list: RbStation[]): StationHit[] {
     if (out.length >= 12) break;
   }
   return out;
+}
+
+// ---------- All Swedish stations (the Musik tab) ----------
+
+export interface DirStation extends RadioStation {
+  /** The directory's id: the board plays by id, so only stations from the directory can be started. */
+  id: string;
+  group: "sr" | "other";
+  quality?: string;
+}
+
+const SR = /^(sr|sveriges radio)\b[\s:–-]*/i;
+/** "SR P4 Jönköping" and "Sveriges Radio - P3" read as "P4 Jönköping" and "P3". */
+export function cleanName(name: string): { name: string; sr: boolean } {
+  const n = name.trim().replace(/\s+/g, " ");
+  if (SR.test(n)) {
+    const rest = n.replace(SR, "").trim();
+    if (rest) return { name: rest.slice(0, 40), sr: true };
+  }
+  return { name: n.slice(0, 40), sr: /^p[1-4]\b/i.test(n) };
+}
+
+/** Sveriges Radio first in P1, P2, P3, P4 … order, then the rest by popularity. One entry per name. */
+export function directory(list: RbStation[]): DirStation[] {
+  const ok = list.filter((s) => s.stationuuid && s.lastcheckok !== 0 && /^https?:\/\//.test(s.url_resolved ?? "") && s.name?.trim());
+  const sorted = [...ok].sort((a, b) => Number(b.url_resolved.startsWith("https://")) - Number(a.url_resolved.startsWith("https://")) || (b.clickcount ?? 0) - (a.clickcount ?? 0));
+  const seen = new Set<string>();
+  const out: (DirStation & { clicks: number })[] = [];
+  for (const s of sorted) {
+    const { name, sr } = cleanName(s.name);
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      id: s.stationuuid!,
+      name,
+      url: s.url_resolved,
+      logo: s.favicon && /^https:\/\//.test(s.favicon) ? s.favicon : undefined,
+      group: sr ? "sr" : "other",
+      quality: [s.codec, s.bitrate ? `${s.bitrate} kbit/s` : ""].filter(Boolean).join(" ") || undefined,
+      clicks: s.clickcount ?? 0,
+    });
+  }
+  const srRank = (n: string) => (/^p1\b/i.test(n) ? 1 : /^p2\b/i.test(n) ? 2 : /^p3\b/i.test(n) ? 3 : /^p4\b/i.test(n) ? 4 : 5);
+  out.sort((a, b) =>
+    a.group !== b.group ? (a.group === "sr" ? -1 : 1) : a.group === "sr" ? srRank(a.name) - srRank(b.name) || a.name.localeCompare(b.name, "sv") : b.clicks - a.clicks,
+  );
+  return out.map(({ clicks: _c, ...s }) => s);
+}
+
+let dirCache: { at: number; list: DirStation[] } | null = null;
+const DAY = 24 * 3600_000;
+
+/** Swedish stations from radio-browser.info, fetched once a day; the last good list is kept if it is down. */
+export async function swedishStations(fetchJson: typeof getJson = getJson, now = Date.now()): Promise<DirStation[]> {
+  if (dirCache && now - dirCache.at < DAY) return dirCache.list;
+  const path = "/json/stations/search?countrycode=SE&hidebroken=true&order=clickcount&reverse=true&limit=500";
+  let last: Error | undefined;
+  for (const m of MIRRORS) {
+    try {
+      const list = directory(await fetchJson<RbStation[]>(m + path, { timeoutMs: 10_000 }));
+      if (list.length) {
+        dirCache = { at: now, list };
+        return list;
+      }
+    } catch (e) {
+      last = e as Error;
+    }
+  }
+  if (dirCache) return dirCache.list;
+  throw new Error(`Radiokatalogen svarar inte just nu. ${last?.message ?? ""}`.trim());
+}
+
+/** For tests. */
+export function clearStationCache() {
+  dirCache = null;
 }

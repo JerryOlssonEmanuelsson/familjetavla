@@ -2,9 +2,11 @@
 
 ## 0.10.0
 
-- **Musik.** Tryck på en radiokanal på tavlan, så spelar den i vald högtalare: Google Home/Nest, Chromecast, Sonos eller annat som finns i Home Assistant. Välj en **förvald högtalare** (t.ex. Google Home i köket), så räcker ett tryck på RIX FM för att det ska spela där. Väljer man en annan högtalare i rutan gäller det i fem minuter, sedan är den förvalda vald igen. Rutan visar vad som spelas (även Spotify från en telefon), och har Stopp och volym.
-- **Alla svenska kanaler ett sök bort.** Under Inställningar → Huset → Musik söker du "P4 Jönköping", "RIX FM" eller "Mix Megapol" i en öppen radiokatalog. **Prova** spelar kanalen i den förvalda högtalaren direkt, så du hör att den fungerar innan du trycker Lägg till. Egna länkar till en ström går också.
-- "Hämta från Home Assistant" hittar högtalarna själv (inte tv-apparater) och slår på Musik på startskärmen.
+- **Musik.** Tryck på en radiokanal så spelar den i vald högtalare: Google Home/Nest, Chromecast, Sonos eller annat som finns i Home Assistant. Välj en **förvald högtalare** (t.ex. Google Home i köket) under Inställningar → Huset → Musik, så räcker ett tryck på RIX FM för att det ska spela där.
+- **Fliken Musik** har alla svenska kanaler: Sveriges Radio (P1–P3 och alla P4-kanaler, t.ex. P4 Östergötland) och övriga (Mix Megapol, RIX FM, Lugna Favoriter …). Sök, tryck för att spela, välj högtalare, och tryck ☆ för att lägga kanalen på startsidan. Väljer man en annan högtalare gäller det i fem minuter, sedan är den förvalda vald igen. Kanalerna kommer från den öppna katalogen radio-browser.info.
+- **Liten ruta på startsidan** med bara favoriterna, t.ex. P4 Jönköping och RIX FM, med vad som spelas, Stopp och volym. Tryck på rutan för fliken.
+- **Spotify:** finns integrationen Spotify i Home Assistant visar fliken vad som spelas, med Spela/Paus och Nästa. Annars står det steg för steg hur man lägger till den.
+- Under Inställningar → Huset → Musik: **Prova** spelar en kanal direkt innan du lägger till den, och egna länkar till en ström går också. "Hämta från Home Assistant" hittar högtalarna själv (inte tv-apparater).
 
 ## 0.9.2
 

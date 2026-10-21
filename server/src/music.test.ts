@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HaState } from "./connectors/ha.js";
-import { buildMusic, pickStations, playCall, searchStations, stationIndex } from "./music.js";
+import { buildMusic, cleanName, clearStationCache, directory, pickStations, playCall, searchStations, stationIndex, swedishStations } from "./music.js";
 import type { Config } from "./types.js";
 
 const stations = [
@@ -119,5 +119,63 @@ describe("speaker discovery", () => {
       { name: "Nest Audio", entityId: "media_player.nest_audio" },
     ]);
     expect(d.summary).toContain("Högtalare: Kök, Sonos One, Nest Audio");
+  });
+});
+
+describe("all Swedish stations", () => {
+  const rb = (stationuuid: string, name: string, url: string, clickcount = 0, extra = {}) => ({ stationuuid, name, url_resolved: url, countrycode: "SE", lastcheckok: 1, clickcount, ...extra });
+
+  it("reads Sveriges Radio names plainly", () => {
+    expect(cleanName("SR P4 Jönköping")).toEqual({ name: "P4 Jönköping", sr: true });
+    expect(cleanName("Sveriges Radio - P3")).toEqual({ name: "P3", sr: true });
+    expect(cleanName("P4 Östergötland")).toEqual({ name: "P4 Östergötland", sr: true });
+    expect(cleanName("Mix Megapol")).toEqual({ name: "Mix Megapol", sr: false });
+    expect(cleanName("Sr")).toEqual({ name: "Sr", sr: false });
+  });
+
+  it("puts Sveriges Radio first in P1–P4 order, then the rest by popularity, one per name", () => {
+    const list = directory([
+      rb("a", "Mix Megapol", "https://m/1", 900),
+      rb("b", "SR P4 Östergötland", "https://sr/p4og", 50),
+      rb("c", "Sveriges Radio - P3", "https://sr/p3", 300),
+      rb("d", "SR P4 Jönköping", "http://sr/p4j-old", 80),
+      rb("e", "SR P4 Jönköping", "https://sr/p4j", 10),
+      rb("f", "RIX FM", "https://rix", 1000),
+      rb("g", "SR P1", "https://sr/p1", 200),
+      rb("h", "Trasig", "https://x", 5000, { lastcheckok: 0 }),
+      rb("", "Utan id", "https://y", 5),
+    ]);
+    expect(list.map((x) => `${x.group}:${x.name}`)).toEqual(["sr:P1", "sr:P3", "sr:P4 Jönköping", "sr:P4 Östergötland", "other:RIX FM", "other:Mix Megapol"]);
+    expect(list.find((x) => x.name === "P4 Jönköping")).toMatchObject({ id: "e", url: "https://sr/p4j" });
+  });
+
+  it("is fetched once a day and the last good list is kept when the directory is down", async () => {
+    clearStationCache();
+    let calls = 0;
+    const up = (async () => {
+      calls++;
+      return [rb("p3", "SR P3", "https://sr/p3")];
+    }) as never;
+    const down = (async () => {
+      calls++;
+      throw new Error("nere");
+    }) as never;
+    const t0 = Date.UTC(2026, 9, 21, 8);
+    expect((await swedishStations(up, t0)).map((x) => x.name)).toEqual(["P3"]);
+    await swedishStations(up, t0 + 3600_000);
+    expect(calls).toBe(1);
+    expect((await swedishStations(down, t0 + 25 * 3600_000)).map((x) => x.name)).toEqual(["P3"]);
+    clearStationCache();
+    await expect(swedishStations(down, t0)).rejects.toThrow(/Radiokatalogen svarar inte/);
+  });
+});
+
+describe("Spotify", () => {
+  it("is null without the integration, so the tab can say how to add it", () => {
+    expect(buildMusic(cfg, new Map([st("media_player.kok", "idle")]))!.spotify).toBeNull();
+  });
+  it("shows what plays and where", () => {
+    const m = buildMusic(cfg, new Map([st("media_player.kok", "playing"), st("media_player.spotify_anna", "playing", { media_artist: "Laleh", media_title: "Some Die Young", source: "Kök" })]))!;
+    expect(m.spotify).toEqual({ entityId: "media_player.spotify_anna", playing: true, title: "Laleh – Some Die Young", device: "Kök", offline: false });
   });
 });

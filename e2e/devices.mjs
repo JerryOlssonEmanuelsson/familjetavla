@@ -29,7 +29,7 @@ const DEVICES = LIST.filter((_, i) => i % parts === partNo - 1).filter(([n]) => 
 const ROUTES = [
   ["guide-hem", "#/setup/hem"], ["guide-familj", "#/setup/familj"], ["guide-kalendrar", "#/setup/kalendrar"], ["guide-omsorg", "#/setup/familj", "care4"], ["guide-skola", "#/setup/skola"], ["guide-huset", "#/setup/huset"], ["guide-musik", "#/setup/huset", "radio"], ["guide-edlevo", "#/setup/skola", "edlevo"], ["guide-startskarm", "#/setup/visning"], ["guide-klart", "#/setup/klart"],
   ["planera", "", "plan"], ["handelse", "", "event"], ["skjuts", "#/sida/veckan", "sport"], ["uppgift", "#/sida/skolan", "task"], ["nyhet", "#/sida/skolan", "news"], ["nyhet-vecka", "#/sida/skolan", "newsadd"], ["lagg-till", "#/lagg-till"],
-  ["start", ""], ["veckan", "#/sida/veckan"], ["kort", "#/sida/kort"], ["maten", "#/sida/maten"], ["skolan", "#/sida/skolan"], ["komihag", "#/sida/komihag"], ["inkop", "#/sida/inkop"], ["hososs", "#/sida/hososs"], ["energi", "#/flik/energy"], ["bil", "#/flik/cars"], ["ljus", "#/flik/lights"], ["eink-start", "?tema=eink"], ["eink-veckan", "?tema=eink#/sida/veckan"], ["eink-ljus", "?tema=eink#/flik/lights"]];
+  ["start", ""], ["veckan", "#/sida/veckan"], ["kort", "#/sida/kort"], ["maten", "#/sida/maten"], ["skolan", "#/sida/skolan"], ["komihag", "#/sida/komihag"], ["inkop", "#/sida/inkop"], ["hososs", "#/sida/hososs"], ["energi", "#/flik/energy"], ["bil", "#/flik/cars"], ["ljus", "#/flik/lights"], ["musik", "#/flik/music"], ["musik-ovriga", "#/flik/music", "otherStations"], ["eink-start", "?tema=eink"], ["eink-veckan", "?tema=eink#/sida/veckan"], ["eink-ljus", "?tema=eink#/flik/lights"]];
 // ROUTES_ONLY=ljus,uppgift checks just those views (quick local runs).
 const routeOnly = process.env.ROUTES_ONLY?.split(",");
 if (routeOnly) ROUTES.splice(0, ROUTES.length, ...ROUTES.filter(([r]) => routeOnly.includes(r)));
@@ -87,6 +87,11 @@ for (const [name0, dev, tablet] of DEVICES) {
       await p.getByLabel("Sök radiokanal").fill("P4");
       await p.getByRole("button", { name: "Sök", exact: true }).click();
       await p.locator(".station-hits").scrollIntoViewIfNeeded();
+    }
+    if (open === "otherStations") {
+      await p.getByRole("radio", { name: "Övriga" }).click();
+      // On a phone the list is further down: scroll there like a person would.
+      await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     }
     if (open === "task") await p.locator(".task-row", { hasText: "Prov i NO" }).first().click();
     if (open) await p.waitForTimeout(600);

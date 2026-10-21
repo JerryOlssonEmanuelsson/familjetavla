@@ -122,7 +122,7 @@ export const HOME_WIDGETS = ["now", "meals", "schoolday", "reminders", "custody"
 export type HomeWidget = (typeof HOME_WIDGETS)[number];
 /** Startskärmens rutor: "auto" följer hur många rutor som visas, annars liten/normal/stor. */
 export type WidgetSize = "auto" | "s" | "m" | "l";
-export const TAB_IDS = ["cars", "lights", "house", "energy", "graphs"] as const;
+export const TAB_IDS = ["cars", "lights", "house", "energy", "graphs", "music"] as const;
 export type TabId = (typeof TAB_IDS)[number];
 
 // ---------- Leverantörsmoduler (skola, mataffär, sopor, elpris) ----------
@@ -626,8 +626,12 @@ export interface Music {
     station?: number;
     /** 0–100. */
     volume?: number;
+    /** The stream playing now, to mark it in the Musik tab's list of all stations. */
+    playingUrl?: string;
   }[];
-  stations: { index: number; name: string; logo?: string }[];
+  stations: { index: number; name: string; logo?: string; url: string }[];
+  /** Home Assistant's Spotify integration: null when it is not installed (the tab then says how). */
+  spotify: { entityId: string; playing: boolean; title?: string; device?: string; offline: boolean } | null;
 }
 
 /** One lamp on the board. brightness 1–100 when it is on and can be dimmed. */

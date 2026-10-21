@@ -15,7 +15,7 @@ import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
 import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
 import { vklassLogin, vklassWelcome } from "../server/dist/connectors/vklass.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
-import { searchStations } from "../server/dist/music.js";
+import { searchStations, swedishStations } from "../server/dist/music.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
 const problems = [];
@@ -178,6 +178,13 @@ for (const [q, mustPlay] of [["P4 Jönköping", true], ["P3", true], ["RIX FM", 
     throw new Error(`ingen ström spelade: ${tried.join(", ")}`);
   });
 }
+await check("Radiokatalog: alla svenska kanaler (fliken Musik)", async () => {
+  const all = await swedishStations();
+  const sr = all.filter((x) => x.group === "sr");
+  const missing = ["P1", "P3", "P4 Jönköping", "P4 Östergötland", "Mix Megapol", "RIX FM"].filter((n) => !all.some((x) => x.name.toLowerCase() === n.toLowerCase()));
+  if (sr.length < 20 || missing.length) throw new Error(`${all.length} kanaler, ${sr.length} från Sveriges Radio${missing.length ? `, saknas: ${missing.join(", ")}` : ""}`);
+  return `${all.length} kanaler, ${sr.length} från Sveriges Radio, t.ex. ${all.filter((x) => x.group === "other").slice(0, 4).map((x) => x.name).join(", ")}`;
+});
 for (const url of cfg.skolmaten ?? []) {
   await check(`Skolmaten.se (${url})`, async () => {
     const ctx = { integration: {}, settings: { url }, str: (k) => (k === "url" ? url : ""), secret: () => undefined, remember: () => {} };

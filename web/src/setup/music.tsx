@@ -198,7 +198,7 @@ export function MusicCard({ cfg, set, saveNow }: { cfg: Config; set: (c: Config 
       </details>
 
       <p className="muted" style={{ margin: 0 }}>
-        Spotify: starta från Spotify-appen i telefonen och välj högtalaren där. Tavlan visar vad som spelas och kan stoppa och ändra volymen.
+        Spotify: starta från Spotify-appen och välj högtalaren där. Med integrationen Spotify i Home Assistant (Inställningar → Enheter och tjänster → Lägg till integration → Spotify) visar fliken Musik vad som spelas, med Spela/Paus och Nästa.
       </p>
     </section>
   );
