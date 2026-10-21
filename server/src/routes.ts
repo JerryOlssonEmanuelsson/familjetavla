@@ -39,6 +39,7 @@ import { addDays, dayKey, hhmm, shortDate, shortWeekday, startOfDay } from "./ti
 import { setSick } from "./sick.js";
 import { makeBackup, restoreBackup } from "./backup.js";
 import { follows } from "./notify.js";
+import { findStations, playCall, spotifyPlayer, swedishStations } from "./music.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export { VERSION } from "./version.js";
@@ -255,6 +256,11 @@ export const configSchema = z
       graphs: z
         .array(z.object({ title: label(40), series: z.array(z.object({ name: label(30), entityId: entity, color: z.string().regex(/^#[0-9a-fA-F]{6}$/) })).max(6) }))
         .max(6),
+      speakers: z.array(z.object({ name: label(40), entityId: entity.regex(/^media_player\./) })).max(12).optional(),
+      stations: z
+        .array(z.object({ name: label(40), url: z.string().url().max(500).regex(/^https?:\/\//), logo: z.string().url().max(500).regex(/^https:\/\//).optional() }))
+        .max(16)
+        .optional(),
     }),
     dashboard: z.object({
       accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -446,6 +452,7 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(e.climates ?? []).flatMap((x) => [x.entityId, ...(x.controls ?? [])]),
       ...(e.deviceCards ?? []).flatMap((x) => [x.primary, ...x.sensors, ...x.controls].filter(Boolean) as string[]),
       ...(c.shopping.entityId ? [c.shopping.entityId] : []),
+      ...(e.speakers ?? []).map((x) => x.entityId),
     ]);
   };
   let watchSet = watched();
@@ -689,6 +696,132 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     invalidate("ha:states");
     return { ok: true };
+  });
+
+  // ---------- Musik ----------
+  /** Only speakers on the board can be played on. */
+  const speakerOf = (id: unknown) => (typeof id === "string" ? (loadConfig().entities.speakers ?? []).find((x) => x.entityId === id) : undefined);
+
+  app.post("/api/music/play", async (req, reply) => {
+    const body = z.object({ index: z.number().int().min(0), speaker: entity }).safeParse(req.body);
+    const station = body.success ? loadConfig().entities.stations?.[body.data.index] : undefined;
+    if (!body.success || !station || !speakerOf(body.data.speaker)) return fail(reply, new Error("Okänd kanal eller högtalare"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const c = playCall(body.data.speaker, station);
+    try {
+      await ha.service(conn, c.domain, c.service, c.data);
+    } catch (e) {
+      return fail(reply, new Error(`${speakerOf(body.data.speaker)!.name} kunde inte spela ${station.name}: ${(e as Error).message}`), 502);
+    }
+    invalidate("ha:states");
+    return { ok: true };
+  });
+
+  app.post("/api/music/stop", async (req, reply) => {
+    const { speaker } = (req.body ?? {}) as { speaker?: string };
+    if (!speakerOf(speaker)) return fail(reply, new Error("Okänd högtalare"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    // Not every speaker can stop (some only pause); media_stop falls back to pause there.
+    try {
+      await ha.service(conn, "media_player", "media_stop", { entity_id: speaker });
+    } catch {
+      await ha.service(conn, "media_player", "media_pause", { entity_id: speaker });
+    }
+    invalidate("ha:states");
+    return { ok: true };
+  });
+
+  app.post("/api/music/volume", async (req, reply) => {
+    const body = z.object({ speaker: entity, pct: z.number().int().min(0).max(100) }).safeParse(req.body);
+    if (!body.success || !speakerOf(body.data.speaker)) return fail(reply, new Error("Okänd högtalare"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    await ha.service(conn, "media_player", "volume_set", { entity_id: body.data.speaker, volume_level: body.data.pct / 100 });
+    invalidate("ha:states");
+    return { ok: true };
+  });
+
+  // The Musik tab: every Swedish station, played by its directory id (never an arbitrary link from the board).
+  app.get("/api/music/stations", async (_req, reply) => {
+    try {
+      return { stations: await swedishStations() };
+    } catch (e) {
+      return fail(reply, e, 502);
+    }
+  });
+
+  app.post("/api/music/play-id", async (req, reply) => {
+    const body = z.object({ id: z.string().max(64), speaker: entity }).safeParse(req.body);
+    if (!body.success || !speakerOf(body.data.speaker)) return fail(reply, new Error("Okänd högtalare"));
+    const station = (await swedishStations().catch(() => [])).find((x) => x.id === body.data.id);
+    if (!station) return fail(reply, new Error("Kanalen finns inte i katalogen längre"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const c = playCall(body.data.speaker, station);
+    try {
+      await ha.service(conn, c.domain, c.service, c.data);
+    } catch (e) {
+      return fail(reply, new Error(`${speakerOf(body.data.speaker)!.name} kunde inte spela ${station.name}: ${(e as Error).message}`), 502);
+    }
+    invalidate("ha:states");
+    return { ok: true };
+  });
+
+  /** ★ in the Musik tab: a favourite is on the home card. Only stations from the directory can be added. */
+  app.post("/api/music/favorite", async (req, reply) => {
+    const body = z.object({ id: z.string().max(64).optional(), url: z.string().max(500).optional(), on: z.boolean() }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Okänd kanal"));
+    const cfg = loadConfig();
+    const favs = cfg.entities.stations ?? [];
+    if (body.data.on) {
+      const station = (await swedishStations().catch(() => [])).find((x) => x.id === body.data.id);
+      if (!station) return fail(reply, new Error("Kanalen finns inte i katalogen längre"));
+      if (favs.length >= 16) return fail(reply, new Error("Högst 16 favoriter – ta bort någon först."));
+      if (!favs.some((f) => f.url === station.url)) cfg.entities.stations = [...favs, { name: station.name, url: station.url, ...(station.logo ? { logo: station.logo } : {}) }];
+    } else {
+      cfg.entities.stations = favs.filter((f) => f.url !== body.data.url);
+    }
+    saveConfig(cfg);
+    return { ok: true, stations: cfg.entities.stations };
+  });
+
+  /** Spotify: play/pause and next on the account's player (whatever device it plays on). */
+  app.post("/api/music/spotify", async (req, reply) => {
+    const body = z.object({ op: z.enum(["playpause", "next"]) }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Okänd knapp"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const player = spotifyPlayer(new Map((await ha.states(conn)).map((s) => [s.entity_id, s])));
+    if (!player) return fail(reply, new Error("Spotify finns inte i Home Assistant."));
+    await ha.service(conn, "media_player", body.data.op === "next" ? "media_next_track" : "media_play_pause", { entity_id: player.entity_id });
+    invalidate("ha:states");
+    return { ok: true };
+  });
+
+  // Settings: try a station before adding it (admin only, any http(s) stream, a known speaker).
+  app.post("/api/music/try", { preHandler: guard }, async (req, reply) => {
+    const body = z.object({ name: label(40), url: z.string().url().max(500).regex(/^https?:\/\//), speaker: entity }).safeParse(req.body);
+    if (!body.success || !speakerOf(body.data.speaker)) return fail(reply, new Error("Välj en högtalare först"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const c = playCall(body.data.speaker, { name: body.data.name, url: body.data.url });
+    try {
+      await ha.service(conn, c.domain, c.service, c.data);
+    } catch (e) {
+      return fail(reply, new Error(`${speakerOf(body.data.speaker)!.name} kunde inte spela ${body.data.name}: ${(e as Error).message}`), 502);
+    }
+    return { ok: true };
+  });
+
+  app.get("/api/radio/search", { preHandler: guard }, async (req, reply) => {
+    const { q } = (req.query ?? {}) as { q?: string };
+    try {
+      return { stations: await findStations(String(q ?? "")) };
+    } catch (e) {
+      return fail(reply, e, 502);
+    }
   });
 
   // ---------- Auto-discovery from Home Assistant ----------

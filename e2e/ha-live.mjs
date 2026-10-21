@@ -67,6 +67,18 @@ await check("Lampor", async () => {
   return `${lights.length} lampor (${dim} dimbara, ${off} otillgängliga), ${groups.length} rum/grupper: ${groups.map((g) => `${g.name} (${g.entities.length})`).join(", ") || "-"}`;
 });
 
+await check("Högtalare (Musik)", async () => {
+  const players = byDomain("media_player");
+  const picked = found?.speakers ?? [];
+  const skipped = players.filter((s) => !picked.some((p) => p.entityId === s.entity_id));
+  // Read only: what kind of player each is and what it can do – nothing is played.
+  const kind = (s) => {
+    const x = all.find((y) => y.e === s.entity_id);
+    return `${s.entity_id} (${s.state}${x?.m ? `, ${x.m}` : ""}${s.attributes.device_class ? `, ${s.attributes.device_class}` : ""})`;
+  };
+  return `${players.length} mediaspelare. Föreslås: ${picked.map((p) => `${p.name} = ${kind(players.find((s) => s.entity_id === p.entityId))}`).join("; ") || "-"}. Hoppas över: ${skipped.map(kind).join("; ") || "-"}`;
+});
+
 await check("Bilar", async () => {
   const cars = found?.cars ?? [];
   if (!cars.length) return "inga bilar hittade";

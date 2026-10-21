@@ -4,7 +4,7 @@
 
 **En familjetavla för surfplattan i hallen eller köket** – byggd för svenska familjer – med eller utan växelvis boende – som kör Home Assistant (men fungerar även utan).
 
-Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem** (vem skjutsar, buss eller skjuts), **skola** (schema, gympapåse, skolmat), **sophämtning**, **inköpslista** (som kan skickas till Willys), **elpris** med billigaste timmarna – och från Home Assistant: **bilar, ljus, värmepump, spabad, solel och grafer**. Allt sätts upp i en **visuell guide**, utan YAML.
+Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem** (vem skjutsar, buss eller skjuts), **skola** (schema, gympapåse, skolmat), **sophämtning**, **inköpslista** (som kan skickas till Willys), **elpris** med billigaste timmarna – och från Home Assistant: **bilar, ljus, musik, värmepump, spabad, solel och grafer**. Allt sätts upp i en **visuell guide**, utan YAML.
 
 **[Prova demon i webbläsaren](https://murre87.github.io/familjetavla/demo/familjetavla-demo.html)**, ingen installation behövs.
 
@@ -41,6 +41,7 @@ Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem
 **Flikar** (visas bara om du har något att visa)
 - **Bil:** batteri, räckvidd, hemma/borta, "data 18 h gammal", **Alla data** (bilens alla entiteter i grupper, ✓/⚠), bilens knappar (blinka, tuta, lås), **Starta värme nu** och **schema per veckodag**.
 - **Ljus:** rum med Tänd alla / Släck alla, "6 av 8 tända · offline: …", egna knappar för scener ("Godnatt – släck uppe").
+- **Musik:** alla svenska radiokanaler (Sveriges Radio med alla P4, Mix Megapol, RIX FM …) i fliken Musik, favoriterna som en liten ruta på startsidan. Spelar i vald högtalare – Google Home/Nest, Chromecast, Sonos eller annat i Home Assistant – med Stopp och volym. Spotify visas med Spela/Paus och Nästa om integrationen finns.
 - **Hus:** termostater, värmepump, varmvatten och **spabad** (Balboa, Gecko …) med lägen och pumpar. **Enhetskort** för värmepumpar som bara ger sensorer, t.ex. via **Husdata H60/H66**.
 - **Energi:** solel, köp/sälj mot nätet, husets effekt, hembatteri – vilken växelriktare som helst.
 - **Grafer:** senaste dygnet för valfria sensorer + elpris.

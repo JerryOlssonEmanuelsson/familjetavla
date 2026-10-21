@@ -1,5 +1,24 @@
 import type { CarEntity, Config, ConfigResponse, Dashboard, Integration, NamedEntity, Schedule, TestResult, TravelChoice } from "../../server/src/types";
 
+/** A station in the Musik tab: every Swedish station from the radio directory. */
+export interface DirStation {
+  id: string;
+  name: string;
+  url: string;
+  logo?: string;
+  group: "sr" | "other";
+  quality?: string;
+}
+
+/** A station from the radio directory (Inställningar → Huset → Musik). */
+export interface StationHit {
+  name: string;
+  url: string;
+  logo?: string;
+  country?: string;
+  quality?: string;
+}
+
 export interface Discovery {
   cars: (CarEntity & { deviceName: string; maker?: string })[];
   energy: Config["entities"]["energy"];
@@ -11,6 +30,7 @@ export interface Discovery {
   calendars: (NamedEntity & { waste: boolean })[];
   priceSensors: NamedEntity[];
   buttons: { name: string; entityId: string }[];
+  speakers?: NamedEntity[];
   summary: string[];
 }
 
@@ -165,6 +185,15 @@ const realApi = {
   toggleLight: (entityId: string) => post("lights/toggle", { entityId }),
   brightness: (entityId: string, pct: number) => post("lights/brightness", { entityId, pct }),
   lightsOff: () => post("lights/off"),
+  playStation: (index: number, speaker: string) => post("music/play", { index, speaker }),
+  stopMusic: (speaker: string) => post("music/stop", { speaker }),
+  tryStation: (name: string, url: string, speaker: string) => post("music/try", { name, url, speaker }),
+  musicStations: () => request<{ stations: DirStation[] }>("music/stations"),
+  playStationId: (id: string, speaker: string) => post("music/play-id", { id, speaker }),
+  favoriteStation: (b: { id?: string; url?: string; on: boolean }) => post("music/favorite", b),
+  spotify: (op: "playpause" | "next") => post("music/spotify", { op }),
+  volume: (speaker: string, pct: number) => post("music/volume", { speaker, pct }),
+  searchStations: (q: string) => request<{ stations: StationHit[] }>(`radio/search?q=${encodeURIComponent(q)}`),
   addItem: (name: string) => post("shopping/add", { name }),
   toggleItem: (id: string, done: boolean) => post("shopping/toggle", { id, done }),
   clearDone: () => post("shopping/clear-done"),

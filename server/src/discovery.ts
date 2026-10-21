@@ -139,6 +139,8 @@ export interface Discovery {
   calendars: (NamedEntity & { waste: boolean })[];
   priceSensors: NamedEntity[];
   buttons: { name: string; entityId: string }[];
+  /** Speakers for Musik: Google/Nest, Chromecast, Sonos … – not TVs, not Spotify's own player. */
+  speakers: NamedEntity[];
   summary: string[];
 }
 
@@ -264,6 +266,10 @@ export function discover(all: HaEntityInfo[]): Discovery {
     .sort((a, b) => Number(working(b)) - Number(working(a)) || Number(has(`${b.e} ${b.n}`, /nordpool|tibber|elpris|spot|price/i)) - Number(has(`${a.e} ${a.n}`, /nordpool|tibber|elpris|spot|price/i)))
     .map((x) => ({ name: x.n, entityId: x.e }));
   const buttons = all.filter((x) => domain(x.e) === "scene" || domain(x.e) === "script").map((x) => ({ name: x.n, entityId: x.e }));
+  const speakers = all
+    .filter((x) => domain(x.e) === "media_player" && !x.o && x.st !== "unavailable" && x.dc !== "tv" && x.dc !== "receiver" && !has(`${x.m ?? ""} ${x.e}`, /spotify/i) && !has(x.n, /\btv\b|television/i))
+    // "Google Home Mini" in the area Kök reads as "Kök" – unless two speakers share the room.
+    .map((x, _i, list) => ({ name: x.a && list.filter((y) => y.a === x.a).length === 1 ? x.a : x.n, entityId: x.e }));
 
   const summary = [
     cars.length ? `${cars.length} bil${cars.length > 1 ? "ar" : ""}: ${cars.map((c) => c.name).join(", ")}` : "",
@@ -275,6 +281,7 @@ export function discover(all: HaEntityInfo[]): Discovery {
     lightGroups.length ? `${lightGroups.reduce((s, g) => s + g.entities.length, 0)} lampor i ${lightGroups.length} rum` : "",
     priceSensors.length ? `Elpris-sensor: ${priceSensors[0].name}` : "",
     calendars.some((c) => c.waste) ? "Sopkalender hittad" : "",
+    speakers.length ? `Högtalare: ${speakers.map((x) => x.name).join(", ")}` : "",
   ].filter(Boolean);
 
   return {
@@ -288,6 +295,7 @@ export function discover(all: HaEntityInfo[]): Discovery {
     calendars,
     priceSensors,
     buttons,
+    speakers,
     summary,
   };
 }

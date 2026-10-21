@@ -15,6 +15,7 @@ import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
 import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
 import { vklassLogin, vklassWelcome } from "../server/dist/connectors/vklass.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
+import { findStations, swedishStations } from "../server/dist/music.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
 const problems = [];
@@ -151,6 +152,39 @@ await check("Postnummer (OpenStreetMap)", async () => {
   const r = await lookupPostcode("55318");
   if (!/jönköping/i.test(r.municipality ?? r.place ?? "")) throw new Error(`55318 gav ${r.place}/${r.municipality}`);
   return `55318 → ${r.place}, ${r.municipality}, sophämtning: ${r.wasteProvider ?? "–"}`;
+});
+// Musik: the radio directory finds the stations families ask for, and their streams play.
+// Sveriges Radio comes from its own API (api.sr.se), the rest from radio-browser.info.
+// GitHub runs in the US: commercial Swedish stations often stream only inside Sweden (401/403),
+// which is noted, not counted as broken. Sveriges Radio streams everywhere and must play.
+async function streamAnswer(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  const type = res.headers.get("content-type") ?? "";
+  const reader = res.body?.getReader();
+  const first = reader ? await reader.read().catch(() => ({ value: undefined })) : { value: undefined };
+  await reader?.cancel().catch(() => {});
+  return { status: res.status, type, audio: res.ok && (/audio|mpegurl|ogg|aac|octet-stream/i.test(type) || res.headers.has("icy-name")) && Boolean(first.value?.length) };
+}
+for (const [q, mustPlay] of [["P4 Jönköping", true], ["P4 Östergötland", true], ["P3", true], ["RIX FM", false]]) {
+  await check(`Radiokatalog: ${q}`, async () => {
+    const hits = (await findStations(q)).filter((h) => h.country === "SE" && h.name.toLowerCase().includes(q.toLowerCase()));
+    if (!hits.length) throw new Error("hittade ingen svensk kanal med det namnet");
+    const tried = [];
+    for (const hit of hits.slice(0, 4)) {
+      const a = await streamAnswer(hit.url).catch((e) => ({ status: 0, type: e.message, audio: false }));
+      if (a.audio) return `${hit.name} · ${hit.quality ?? ""} · ${a.type} · ${hit.url.startsWith("https://") ? "https" : "http"}`;
+      tried.push(`${new URL(hit.url).host} ${a.status || a.type}`);
+    }
+    if (!mustPlay && tried.every((t) => / 40[13]$/.test(t))) return `${hits.length} träffar, strömmarna svarar bara i Sverige (${tried.join(", ")})`;
+    throw new Error(`ingen ström spelade: ${tried.join(", ")}`);
+  });
+}
+await check("Radiokatalog: alla svenska kanaler (fliken Musik)", async () => {
+  const all = await swedishStations();
+  const sr = all.filter((x) => x.group === "sr");
+  const missing = ["P1", "P3", "P4 Jönköping", "P4 Östergötland", "Mix Megapol", "RIX FM"].filter((n) => !all.some((x) => x.name.toLowerCase() === n.toLowerCase()));
+  if (sr.length < 20 || missing.length) throw new Error(`${all.length} kanaler, ${sr.length} från Sveriges Radio${missing.length ? `, saknas: ${missing.join(", ")}` : ""}`);
+  return `${all.length} kanaler, ${sr.length} från Sveriges Radio, t.ex. ${all.filter((x) => x.group === "other").slice(0, 4).map((x) => x.name).join(", ")}`;
 });
 for (const url of cfg.skolmaten ?? []) {
   await check(`Skolmaten.se (${url})`, async () => {

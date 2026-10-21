@@ -48,7 +48,7 @@ const STEPS: { id: string; label: string; title: string; lead: string; C: (p: St
   { id: "ha", label: "Home Assistant", title: "Home Assistant", lead: "Behövs för påminnelser till telefonen och för bil, ljus, värme och energi.", C: HaStep },
   { id: "paminnelser", label: "Påminnelser", title: "Påminnelser till telefonen", lead: "Den som ska lämna, hämta eller skjutsa får en notis i tid, och alla får dagens kom ihåg på morgonen – via Home Assistant-appen. Eller prenumerera på en egen kalender.", C: NotifyStep, needsHa: true, optional: true },
   { id: "hamta", label: "Hämta", title: "Hämta från Home Assistant", lead: "Vi letar upp det du redan har integrerat – bilar, växelriktare, värmepump, spabad, lampor och mer. Bocka ur det du inte vill ha.", C: DiscoverStep, needsHa: true, optional: true },
-  { id: "huset", label: "Huset", title: "Huset", lead: "Finjustera bilar, energi, ljus, värme och grafer.", C: HouseStep, needsHa: true, optional: true },
+  { id: "huset", label: "Huset", title: "Huset", lead: "Finjustera bilar, energi, ljus, musik, värme och grafer.", C: HouseStep, needsHa: true, optional: true },
   { id: "sopor", label: "Sopor", title: "Sophämtning", lead: "Få en påminnelse kvällen innan kärlen töms.", C: WasteStep, optional: true },
   { id: "inkop", label: "Inköp", title: "Mat & inköp", lead: "Inköpslistan på tavlan – och skicka den till butikens varukorg.", C: ShoppingStep, optional: true },
   { id: "el", label: "El", title: "Elpris", lead: "Se timpriset och de billigaste timmarna. Lägg till ditt elbolags påslag för verkligt pris.", C: ElectricityStep, optional: true },
@@ -233,7 +233,7 @@ function stepHasData(cfg: Config, id: string): boolean {
   switch (id) {
     case "hamta":
     case "huset":
-      return e.cars.length + e.lights.length + e.climates.length + e.deviceCards.length + e.lightGroups.length + e.temps.length > 0 || Object.values(e.energy).some(Boolean);
+      return e.cars.length + e.lights.length + e.climates.length + e.deviceCards.length + e.lightGroups.length + e.temps.length + (e.speakers ?? []).length > 0 || Object.values(e.energy).some(Boolean);
     case "skola":
       return has("school");
     case "sopor":
