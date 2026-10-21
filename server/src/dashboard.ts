@@ -6,7 +6,7 @@ import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
 import { haSocket } from "./connectors/haws.js";
-import { forecast, rainBetween, skyNow, sunToday, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
+import { coldestBetween, forecast, rainBetween, skyNow, sunToday, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
 import { careTimesFor, custodyStatus, isHome } from "./custody.js";
 import {
   collectCalendars,
@@ -660,6 +660,20 @@ export function buildReminders(
         icon: "rain",
         title: evening ? "Regn imorgon" : now.getHours() < 12 ? "Regn under dagen" : "Regn i eftermiddag",
         sub: "Ta regnjackan",
+        tone: "blue",
+      });
+    }
+  }
+
+  // Cold morning for the children on their way: mössa och vantar (also in the morning notification).
+  if (weather && [...people.values()].some((p) => p.kind === "child")) {
+    const cold = evening ? coldestBetween(weather, 1, 7, 9, now) : now.getHours() < 9 ? coldestBetween(weather, 0, Math.max(now.getHours(), 6), 9, now) : undefined;
+    if (cold !== undefined && cold <= 5) {
+      const deg = `${Math.round(cold)}°`.replace("-", "−");
+      out.push({
+        icon: "kids",
+        title: cold <= 0 ? `Minusgrader ${evening ? "imorgon bitti" : "i morse"} (${deg})` : `Kallt ${evening ? "imorgon bitti" : "på morgonen"} (${deg})`,
+        sub: cold <= 0 ? "Mössa, vantar och varma kläder" : "Mössa och vantar",
         tone: "blue",
       });
     }

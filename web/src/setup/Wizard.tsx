@@ -45,7 +45,7 @@ const STEPS: { id: string; label: string; title: string; lead: string; C: (p: St
   { id: "kalendrar", label: "Kalendrar", title: "Kalendrar", lead: "Lägg till familjens kalendrar och barnens aktiviteter – en kalender per lag eller aktivitet.", C: CalendarsStep, core: true },
   { id: "skola", label: "Skola", title: "Skola och förskola", lead: "Skola och förskola: schema, idrott, omsorgstid och matsedel. Tavlan påminner om gympapåsen.", C: SchoolStep, optional: true, core: true },
   { id: "ha", label: "Home Assistant", title: "Home Assistant", lead: "Behövs för påminnelser till telefonen och för bil, ljus, värme och energi.", C: HaStep },
-  { id: "paminnelser", label: "Påminnelser", title: "Påminnelser till telefonen", lead: "Den som ska lämna, hämta eller skjutsa får en notis i tid – via Home Assistant-appen. Eller prenumerera på en egen kalender.", C: NotifyStep, needsHa: true, optional: true },
+  { id: "paminnelser", label: "Påminnelser", title: "Påminnelser till telefonen", lead: "Den som ska lämna, hämta eller skjutsa får en notis i tid, och alla får dagens kom ihåg på morgonen – via Home Assistant-appen. Eller prenumerera på en egen kalender.", C: NotifyStep, needsHa: true, optional: true },
   { id: "hamta", label: "Hämta", title: "Hämta från Home Assistant", lead: "Vi letar upp det du redan har integrerat – bilar, växelriktare, värmepump, spabad, lampor och mer. Bocka ur det du inte vill ha.", C: DiscoverStep, needsHa: true, optional: true },
   { id: "huset", label: "Huset", title: "Huset", lead: "Finjustera bilar, energi, ljus, värme och grafer.", C: HouseStep, needsHa: true, optional: true },
   { id: "sopor", label: "Sopor", title: "Sophämtning", lead: "Få en påminnelse kvällen innan kärlen töms.", C: WasteStep, optional: true },
