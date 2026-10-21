@@ -8,7 +8,7 @@ import { ha, haConnection } from "./connectors/ha.js";
 import { geocode } from "./connectors/weather.js";
 import { buildDashboard, gatherFamily } from "./dashboard.js";
 import { duties, dutiesIcs } from "./plan.js";
-import { saveDinner, saveShelf } from "./meals.js";
+import { loadShelf, saveDinner, saveShelf } from "./meals.js";
 import { carActions, carCharging, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
 import { haSocket } from "./connectors/haws.js";
@@ -415,7 +415,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!person) return reply.code(404).send("Hittades inte");
     const now = new Date();
     const fam = await gatherFamily(cfg, now, []);
-    const mine = duties(fam.withCare, fam.people, fam.travelCtx, startOfDay(now), addDays(startOfDay(now), 7)).filter((d) => d.personId === person.id);
+    const mine = duties(fam.withCare, fam.people, fam.travelCtx, startOfDay(now), addDays(startOfDay(now), 7), loadShelf()).filter((d) => d.personId === person.id);
     reply.header("content-type", "text/calendar; charset=utf-8").header("cache-control", "no-store");
     return dutiesIcs(person.name, mine, person.notify?.before);
   });

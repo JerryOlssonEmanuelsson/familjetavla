@@ -340,6 +340,17 @@ describe("ansvar och påminnelser", () => {
     expect(at(19, 0, 18).map((n) => n.title)).toEqual(["Planera veckan"]); // söndag 18 okt
   });
 
+  it("det som saknas på hyllan följer med lämningen i notisen, även den vanliga morgonen", async () => {
+    const { duties } = await import("./plan.js");
+    const { dueNotifications } = await import("./notify.js");
+    const { events, ctx } = await family();
+    const list = duties(events, people, ctx, new Date(2026, 9, 18), new Date(2026, 9, 21), { maja: ["Blöjor", "Extrakläder"] });
+    expect(dueNotifications([emil, anna], list, 0, 0, new Date(2026, 9, 19, 7, 0)).map((n) => `${n.title}: ${n.message}`)).toEqual([
+      "Om 30 min: Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder",
+    ]);
+    expect(dueNotifications([emil, anna], list, 0, 0, new Date(2026, 9, 18, 20, 0))[0].message).toBe("Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder");
+  });
+
   it("kalenderlänken är giltig ICS med påminnelse", async () => {
     const { dutiesIcs } = await import("./plan.js");
     const { parseIcs } = await import("./connectors/ics.js");

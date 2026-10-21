@@ -1,5 +1,9 @@
 # Ändringar
 
+## 0.9.1
+
+- **"Ta med" i telefonen.** Det du markerat under "Saknas på hyllan" (t.ex. blöjor och extrakläder) står nu i påminnelsen till den som lämnar på förskolan eller fritids: kvällen innan kl 20 och en stund före lämningen, "Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder". Den vanliga morgonlämningen får då en notis också, så det inte glöms när ingen tittar på tavlan. Det står också i den vuxnas kalenderlänk. Kräver påminnelser till telefonen (steget Påminnelser i guiden).
+
 ## 0.9.0
 
 - **Lägg till från mobilen.** En enkel sida för telefonen: skriv "Tandläkare", välj dag, tid och vem, så hamnar det i veckan på tavlan direkt. Under Handla lägger man till på inköpslistan och ser vad som redan står där. Länken finns i guidens sista steg och under "Lägg tavlan på hemskärmen". Lägg den på telefonens hemskärm så är det ett tryck bort.

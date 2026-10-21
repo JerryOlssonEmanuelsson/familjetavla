@@ -1,7 +1,8 @@
 import type { FastifyBaseLogger } from "fastify";
 import { ha, haConnection } from "./connectors/ha.js";
 import { gatherFamily } from "./dashboard.js";
-import { buildPlan, duties, needsAttention, type Duty } from "./plan.js";
+import { buildPlan, dutyMessage, duties, needsAttention, type Duty } from "./plan.js";
+import { loadShelf } from "./meals.js";
 import { loadConfig } from "./store.js";
 import { addDays, hhmm, isoWeekday, startOfDay } from "./time.js";
 import type { Person } from "./types.js";
@@ -18,6 +19,7 @@ const join = (xs: string[]) => xs.join(" · ");
 /**
  * Pure: which notifications are due this minute.
  *  - `before` minutes before each duty: "Om 30 min: Hämta Maja på förskolan 16:00"
+ *    (a drop-off with something to bring: "… – ta med: blöjor, extrakläder")
  *  - 20:00: tomorrow's duties for that person
  *  - Sunday 19:00: "Planera veckan" when something has no one yet
  */
@@ -32,11 +34,12 @@ export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek
     const mine = list.filter((d) => d.personId === a.id);
     if (n.before && n.before > 0) {
       for (const d of mine) {
-        // The usual morning drop-off is routine – only remind when this morning is different.
-        if (d.leg === "to" && d.standard && d.at.getHours() < 10) continue;
+        // The usual morning drop-off is routine – only remind when this morning is different,
+        // or when something has to come along (blöjor, extrakläder).
+        if (d.leg === "to" && d.standard && d.at.getHours() < 10 && !d.bring?.length) continue;
         const fire = new Date(d.at.getTime() - n.before * 60_000);
         if (hhmm(fire) === t && fire.toDateString() === now.toDateString()) {
-          out.push({ service: n.service, title: `Om ${n.before} min`, message: d.text, key: `before:${a.id}:${d.key}` });
+          out.push({ service: n.service, title: `Om ${n.before} min`, message: dutyMessage(d), key: `before:${a.id}:${d.key}` });
         }
       }
     }
@@ -45,8 +48,8 @@ export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek
       const extra = missingTomorrow ? [`${missingTomorrow} ${missingTomorrow === 1 ? "sak" : "saker"} imorgon saknar ansvarig`] : [];
       if (tm.length || extra.length) {
         // Key includes what is in it, so a changed plan after 20:00 does not stay silent until tomorrow's own reminders.
-        const sig = tm.map((d) => d.key).join(",");
-        out.push({ service: n.service, title: "Imorgon", message: join([...tm.map((d) => d.text), ...extra]), key: `evening:${a.id}:${tomorrow.toDateString()}:${sig}` });
+        const sig = tm.map((d) => `${d.key}${d.bring?.join("+") ?? ""}`).join(",");
+        out.push({ service: n.service, title: "Imorgon", message: join([...tm.map((d) => dutyMessage(d)), ...extra]), key: `evening:${a.id}:${tomorrow.toDateString()}:${sig}` });
       }
     }
     if (n.weekly && isoWeekday(now) === 7 && t === "19:00" && missingThisWeek > 0) {
@@ -76,7 +79,7 @@ export function startNotifier(log: FastifyBaseLogger) {
     if (!adults.length || !conn || !cfg.setupComplete) return;
     try {
       const fam = await gatherFamily(cfg, now, []);
-      const list = duties(fam.withCare, fam.people, fam.travelCtx, now, addDays(startOfDay(now), 3));
+      const list = duties(fam.withCare, fam.people, fam.travelCtx, now, addDays(startOfDay(now), 3), loadShelf());
       const plan = buildPlan(fam.withCare, fam.people, fam.travelCtx, now, () => ({ time: "", title: "", color: "", who: "", category: "family", icon: "event" }));
       const missingTomorrow = plan.items.filter((i) => i.dayLabel === "imorgon" && needsAttention(i)).length;
       for (const m of dueNotifications(adults, list, plan.missing, missingTomorrow, now)) {

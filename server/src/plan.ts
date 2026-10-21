@@ -47,10 +47,21 @@ export interface Duty {
   leg: "to" | "home";
   /** Comes from the usual default, not a choice for this day. */
   standard: boolean;
+  /** Förskola/fritids drop-off: what is missing on the shelf ("Blöjor", "Extrakläder"). */
+  bring?: string[];
 }
 
-/** What each grown-up is responsible for: drop-offs at the start, pick-ups at the end. */
-export function duties(events: SourcedEvent[], people: Map<string, Person>, travel: TravelCtx, from: Date, until: Date): Duty[] {
+/** The text for a notification or calendar entry: "Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder". */
+export function dutyMessage(d: Duty, withTime = true): string {
+  const text = withTime ? d.text : d.text.replace(/ \d{2}:\d{2}$/, "");
+  return d.bring?.length ? `${text} – ta med: ${d.bring.join(", ").toLowerCase()}` : text;
+}
+
+/**
+ * What each grown-up is responsible for: drop-offs at the start, pick-ups at the end.
+ * `shelf` ("saknas på hyllan" per child) goes with every förskola/fritids drop-off until it is cleared.
+ */
+export function duties(events: SourcedEvent[], people: Map<string, Person>, travel: TravelCtx, from: Date, until: Date, shelf: Record<string, string[]> = {}): Duty[] {
   const out: Duty[] = [];
   for (const e of events) {
     if (e.end <= from || e.start >= until || !wantsTravel(e, people) || !visibleOn(e, people, startOfDay(e.start))) continue;
@@ -65,7 +76,8 @@ export function duties(events: SourcedEvent[], people: Map<string, Person>, trav
     ];
     for (const [i, l] of legs.entries()) {
       if (!l.leg?.mode.startsWith("adult:") || l.at < from || l.at >= until) continue;
-      out.push({ personId: l.leg.mode.slice(6), at: l.at, text: `${l.text} ${hhmm(l.at)}`, key: `${t.key}:${i ? "home" : "to"}`, leg: i ? "home" : "to", standard: t.fromCalendar });
+      const bring = care && !i && shelf[child.id]?.length ? shelf[child.id] : undefined;
+      out.push({ personId: l.leg.mode.slice(6), at: l.at, text: `${l.text} ${hhmm(l.at)}`, key: `${t.key}:${i ? "home" : "to"}`, leg: i ? "home" : "to", standard: t.fromCalendar, bring });
     }
   }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime());
@@ -87,7 +99,7 @@ export function dutiesIcs(name: string, list: Duty[], alarmMin?: number): string
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Familjetavla//SV", "CALSCALE:GREGORIAN", `X-WR-CALNAME:${icsText(`Familjetavla – ${name}`)}`, "X-PUBLISHED-TTL:PT30M", "REFRESH-INTERVAL;VALUE=DURATION:PT30M"];
   const stamp = icsDate(new Date());
   for (const d of list) {
-    const text = d.text.replace(/ \d{2}:\d{2}$/, "");
+    const text = dutyMessage(d, false);
     lines.push(
       "BEGIN:VEVENT",
       `UID:${icsText(d.key)}@familjetavla`,
