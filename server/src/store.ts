@@ -232,6 +232,8 @@ export interface LocalFile {
   newsSeen?: string[];
   /** Egna händelser, t.ex. från en skolnyhet: "Workshop på biblioteket" tis 26/10 14:30. */
   ownEvents?: OwnEvent[];
+  /** Sjuk/VAB per barn: dagar (YYYY-MM-DD) då förskola, skola och aktiviteter stryks. */
+  sick?: Record<string, string[]>;
 }
 
 export interface OwnEvent {
@@ -313,4 +315,24 @@ export function loadDevices(): PairedDevice[] {
 
 export function saveDevices(list: PairedDevice[]) {
   writeAtomic(DEVICES_FILE, JSON.stringify(list, null, 2), 0o600);
+}
+
+// ---------- Backup ----------
+
+/** All secrets in plain text – only for an encrypted backup file. */
+export function exportSecrets(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const k of Object.keys(secretsFile())) {
+    const v = getSecret(k as SecretKey);
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+/** Restore what a backup holds: settings, local lists and (when given) secrets. */
+export function importBackup(config: Config, local: LocalFile, secrets?: Record<string, string>) {
+  saveConfig(config);
+  writeAtomic(LOCAL_FILE, JSON.stringify(local, null, 2));
+  if (secrets) for (const [k, v] of Object.entries(secrets)) setSecret(k as SecretKey, v);
+  cached = null;
 }

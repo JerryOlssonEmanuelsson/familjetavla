@@ -9,6 +9,7 @@ import type { HaConn, HaState } from "./ha.js";
  * Uses Node's built-in WebSocket (Node 22+). Reconnects with backoff.
  */
 type Listener = (entityId: string) => void;
+type ActionListener = (action: string) => void;
 
 export class HaSocket {
   states = new Map<string, HaState>();
@@ -17,6 +18,7 @@ export class HaSocket {
   private nextId = 1;
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   private listeners = new Set<Listener>();
+  private actionListeners = new Set<ActionListener>();
   private retry = 0;
   private timer: NodeJS.Timeout | null = null;
   private conn: HaConn | null = null;
@@ -46,6 +48,12 @@ export class HaSocket {
     this.connected = false;
     for (const p of this.pending.values()) p.reject(new Error("WebSocket stängd"));
     this.pending.clear();
+  }
+
+  /** A button pressed in a notification on a phone (Home Assistant companion app). */
+  onAction(fn: ActionListener) {
+    this.actionListeners.add(fn);
+    return () => this.actionListeners.delete(fn);
   }
 
   onChange(fn: Listener) {
@@ -115,7 +123,7 @@ export class HaSocket {
     this.timer = setTimeout(() => this.open(), delay);
   }
 
-  private async handle(ws: WebSocket, conn: HaConn, msg: { type: string; id?: number; success?: boolean; result?: unknown; error?: { message: string }; event?: { data: { entity_id: string; new_state: HaState | null } } }) {
+  private async handle(ws: WebSocket, conn: HaConn, msg: { type: string; id?: number; success?: boolean; result?: unknown; error?: { message: string }; event?: { event_type?: string; data: { entity_id: string; new_state: HaState | null; action?: string } } }) {
     if (msg.type === "auth_required") {
       ws.send(JSON.stringify({ type: "auth", access_token: conn.token }));
     } else if (msg.type === "auth_invalid") {
@@ -138,6 +146,7 @@ export class HaSocket {
         this.states = new Map(states.map((s) => [s.entity_id, s]));
         await this.call({ type: "subscribe_events", event_type: "state_changed" });
         for (const fn of this.listeners) fn("*");
+        await this.call({ type: "subscribe_events", event_type: "mobile_app_notification_action" }).catch(() => {});
       } catch (e) {
         this.log.warn(`HA WebSocket: ${(e as Error).message}`);
       }
@@ -147,6 +156,9 @@ export class HaSocket {
       this.pending.delete(msg.id);
       if (msg.success) p.resolve(msg.result);
       else p.reject(new Error(msg.error?.message ?? "Fel från Home Assistant"));
+    } else if (msg.type === "event" && msg.event?.event_type === "mobile_app_notification_action") {
+      const action = msg.event.data.action;
+      if (action) for (const fn of this.actionListeners) fn(action);
     } else if (msg.type === "event" && msg.event?.data) {
       const { entity_id, new_state } = msg.event.data;
       if (new_state) this.states.set(entity_id, new_state);

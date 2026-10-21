@@ -340,6 +340,50 @@ describe("ansvar och påminnelser", () => {
     expect(at(19, 0, 18).map((n) => n.title)).toEqual(["Planera veckan"]); // söndag 18 okt
   });
 
+  it("det som saknas på hyllan följer med lämningen i notisen, även den vanliga morgonen", async () => {
+    const { duties } = await import("./plan.js");
+    const { dueNotifications } = await import("./notify.js");
+    const { events, ctx } = await family();
+    const list = duties(events, people, ctx, new Date(2026, 9, 18), new Date(2026, 9, 21), { maja: ["Blöjor", "Extrakläder"] });
+    expect(dueNotifications([emil, anna], list, 0, 0, new Date(2026, 9, 19, 7, 0)).map((n) => `${n.title}: ${n.message}`)).toEqual([
+      "Om 30 min: Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder",
+    ]);
+    expect(dueNotifications([emil, anna], list, 0, 0, new Date(2026, 9, 18, 20, 0))[0].message).toBe("Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder");
+    // A button in the notification ticks the shelf off from the phone.
+    expect(dueNotifications([emil, anna], list, 0, 0, new Date(2026, 9, 19, 7, 0))[0].actions).toEqual([{ action: "FAMILJETAVLA_LAMNAT:maja", title: "Lämnat ✓" }]);
+  });
+
+  it("flyttad eller inställd träning till den som skjutsar – inte när någon annan tar skjutsen", async () => {
+    const { dutyChanges } = await import("./notify.js");
+    const now = new Date(2026, 9, 19, 12);
+    const d = (at: Date, key = "fotboll@t1@2026-10-19") => ({ personId: "emil", at, text: `Skjutsa Ella till F14 – Träning ${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`, key: `${key}:to`, leg: "to" as const, standard: false });
+    const before = [d(new Date(2026, 9, 19, 17, 30))];
+    const keys = new Set(["fotboll@t1@2026-10-19"]);
+    expect(dutyChanges(before, [d(new Date(2026, 9, 19, 18, 0))], now, true, keys).map((c) => `${c.title}: ${c.message}`)).toEqual(["Ny tid: Skjutsa Ella till F14 – Träning mån 19 okt: nu 18:00 (var 17:30)"]);
+    expect(dutyChanges(before, [], now, true, new Set()).map((c) => c.title)).toEqual(["Inställt?"]);
+    // Still in the calendar, just nobody drives now (bus) → nothing.
+    expect(dutyChanges(before, [], now, true, keys)).toEqual([]);
+    // A calendar could not be read this time → never "cancelled".
+    expect(dutyChanges(before, [], now, false, new Set())).toEqual([]);
+  });
+
+  it("morgonnotis 06:45 med dagens kom ihåg och det man själv ansvarar för", async () => {
+    const { duties } = await import("./plan.js");
+    const { dueNotifications, reminderLine } = await import("./notify.js");
+    const { events, ctx } = await family();
+    const list = duties(events, people, ctx, new Date(2026, 9, 19, 6), new Date(2026, 9, 21), { maja: ["Blöjor"] });
+    const items = [reminderLine({ title: "Regn under dagen", sub: "Ta regnjackan" }), reminderLine({ title: "Idrott tis – Ella", sub: "Tryck för detaljer" })];
+    const out = dueNotifications([emil, anna], list, 0, 0, new Date(2026, 9, 19, 6, 45), items);
+    expect(out.map((n) => `${n.service}|${n.title}: ${n.message}`)).toEqual([
+      "mobile_app_emil|Idag: Lämna Maja på förskolan 07:30 – ta med: blöjor · Regn under dagen – ta regnjackan · Idrott tis – Ella",
+    ]);
+    // Anna has no phone set – nothing for her. With a phone and no duties she still gets the day's list.
+    const annaPhone = { ...anna, notify: { service: "mobile_app_anna" } };
+    expect(dueNotifications([annaPhone], list, 0, 0, new Date(2026, 9, 19, 6, 45), items).map((n) => n.message)).toEqual(["Regn under dagen – ta regnjackan · Idrott tis – Ella"]);
+    // Off when the grown-up turned it off.
+    expect(dueNotifications([{ ...emil, notify: { ...emil.notify, morning: "" } }], list, 0, 0, new Date(2026, 9, 19, 6, 45), items)).toEqual([]);
+  });
+
   it("kalenderlänken är giltig ICS med påminnelse", async () => {
     const { dutiesIcs } = await import("./plan.js");
     const { parseIcs } = await import("./connectors/ics.js");

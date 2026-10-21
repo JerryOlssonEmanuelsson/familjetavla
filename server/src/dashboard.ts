@@ -1,12 +1,13 @@
 import { energyLive, energyToday, todaySeries } from "./energy.js";
-import { buildSchoolNews, newsReminders, ownCalendarEvents } from "./news.js";
+import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
 import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
 import { haSocket } from "./connectors/haws.js";
-import { forecast, rainBetween, skyNow, sunToday, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
+import { applySick, loadSick } from "./sick.js";
+import { coldestBetween, forecast, rainBetween, skyNow, sunToday, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
 import { careTimesFor, custodyStatus, isHome } from "./custody.js";
 import {
   collectCalendars,
@@ -166,6 +167,7 @@ function toDash(ev: SourcedEvent, people: Map<string, Person>, travel?: TravelCt
     location: ev.location,
     description: cleanDescription(ev.description, ev.title),
     ...(ev.sourceId === "own" && ev.uid ? { ownId: ev.uid } : {}),
+    ...(p?.kind === "child" ? { sick: { personId: p.id, date: dayKey(ev.start), on: ev.sourceId === "sick" } } : {}),
   };
 }
 
@@ -229,7 +231,7 @@ export interface Family {
   travelCtx: TravelCtx;
 }
 
-export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]): Promise<Family & { schoolFood: SchoolData["food"]; schoolNews: SchoolData["news"] }> {
+export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]): Promise<Family & { schoolFood: SchoolData["food"]; schoolNews: SchoolData["news"]; hiddenSick: SourcedEvent[] }> {
   const today = startOfDay(now);
   const horizon = addDays(today, 7);
   const [calEvents, school] = await Promise.all([collectCalendars(cfg, today, horizon, errors), collectSchool(cfg, today, horizon, errors)]);
@@ -239,10 +241,14 @@ export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]
   const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events, ...ownCalendarEvents()];
   const careEvents = buildCareEvents([...people.values()], school.care, all, today, 7);
   const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map([...cfg.calendars.map((c) => [c.id, c] as const), ...careCalendars([...people.values()])]) };
-  return { people, children, all, withCare: [...all, ...careEvents], travelCtx, schoolFood: school.food, schoolNews: school.news };
+  // A sick child's förskola, lessons and training are struck that day (one "Sjuk" marker instead).
+  const sick = loadSick();
+  const withCare = applySick([...all, ...careEvents], sick);
+  return { people, children, all: applySick(all, sick).kept, withCare: withCare.kept, hiddenSick: withCare.hidden, travelCtx, schoolFood: school.food, schoolNews: school.news };
 }
 
-export async function buildDashboard(now = new Date()): Promise<Dashboard> {
+/** `allReminders`: the morning notification wants every reminder, the board shows the first five. */
+export async function buildDashboard(now = new Date(), opts: { allReminders?: boolean } = {}): Promise<Dashboard> {
   const cfg = loadConfig();
   const errors: SourceError[] = [];
   const today = startOfDay(now);
@@ -340,11 +346,14 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: [...planReminder(plan, now), ...newsReminders(schoolNews, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, 5),
+    reminders: [...planReminder(plan, now), ...newsTripReminders(schoolNews, now), ...newsReminders(schoolNews, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, opts.allReminders ? 20 : 5),
     schoolNews,
     plan,
     meals,
     mealFavorites: mealFavorites(now),
+    sick: Object.entries(loadSick()).flatMap(([id, days]) =>
+      days.filter((d) => d >= dayKey(today) && people.get(id)).map((d) => ({ personId: id, name: people.get(id)!.name, date: d })),
+    ),
     shelf: Object.entries(loadShelf())
       .filter(([id]) => people.get(id)?.care)
       .map(([id, items]) => ({ personId: id, name: people.get(id)!.name, items })),
@@ -659,6 +668,26 @@ export function buildReminders(
         icon: "rain",
         title: evening ? "Regn imorgon" : now.getHours() < 12 ? "Regn under dagen" : "Regn i eftermiddag",
         sub: "Ta regnjackan",
+        tone: "blue",
+      });
+    }
+  }
+
+  // Sick children (Sjuk/VAB): first, so nobody drives off to förskola.
+  for (const e of events.filter((x) => x.sourceId === "sick" && daysBetween(focusDay, x.start) === 0)) {
+    const p = e.personId ? people.get(e.personId) : undefined;
+    if (p) out.push({ icon: "kids", title: `${p.name} är sjuk ${focusLabel}`, sub: "Förskola, skola och aktiviteter är strukna", tone: "amber" });
+  }
+
+  // Cold morning for the children on their way: mössa och vantar (also in the morning notification).
+  if (weather && [...people.values()].some((p) => p.kind === "child")) {
+    const cold = evening ? coldestBetween(weather, 1, 7, 9, now) : now.getHours() < 9 ? coldestBetween(weather, 0, Math.max(now.getHours(), 6), 9, now) : undefined;
+    if (cold !== undefined && cold <= 5) {
+      const deg = `${Math.round(cold)}°`.replace("-", "−");
+      out.push({
+        icon: "kids",
+        title: cold <= 0 ? `Minusgrader ${evening ? "imorgon bitti" : "i morse"} (${deg})` : `Kallt ${evening ? "imorgon bitti" : "på morgonen"} (${deg})`,
+        sub: cold <= 0 ? "Mössa, vantar och varma kläder" : "Mössa och vantar",
         tone: "blue",
       });
     }

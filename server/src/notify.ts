@@ -1,7 +1,10 @@
 import type { FastifyBaseLogger } from "fastify";
 import { ha, haConnection } from "./connectors/ha.js";
-import { gatherFamily } from "./dashboard.js";
-import { buildPlan, duties, needsAttention, type Duty } from "./plan.js";
+import { buildDashboard, gatherFamily } from "./dashboard.js";
+import { haSocket } from "./connectors/haws.js";
+import { buildPlan, dutyMessage, duties, needsAttention, type Duty } from "./plan.js";
+import { loadShelf, saveShelf } from "./meals.js";
+import { travelKey } from "./travel.js";
 import { loadConfig } from "./store.js";
 import { addDays, hhmm, isoWeekday, startOfDay } from "./time.js";
 import type { Person } from "./types.js";
@@ -11,17 +14,26 @@ export interface Outgoing {
   title: string;
   message: string;
   key: string;
+  /** Buttons in the notification (Home Assistant companion app). */
+  actions?: { action: string; title: string }[];
 }
+
+/** The button in a drop-off notification that clears "saknas på hyllan" for the child. */
+export const SHELF_DONE = "FAMILJETAVLA_LAMNAT:";
+
+const MORNING = "06:45";
 
 const join = (xs: string[]) => xs.join(" · ");
 
 /**
  * Pure: which notifications are due this minute.
  *  - `before` minutes before each duty: "Om 30 min: Hämta Maja på förskolan 16:00"
+ *    (a drop-off with something to bring: "… – ta med: blöjor, extrakläder")
+ *  - morning (06:45 unless changed): today's "kom ihåg" and what that person is responsible for today
  *  - 20:00: tomorrow's duties for that person
  *  - Sunday 19:00: "Planera veckan" when something has no one yet
  */
-export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek: number, missingTomorrow: number, now: Date): Outgoing[] {
+export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek: number, missingTomorrow: number, now: Date, todayItems: string[] = []): Outgoing[] {
   const out: Outgoing[] = [];
   const t = hhmm(now);
   const tomorrow = addDays(startOfDay(now), 1);
@@ -32,21 +44,28 @@ export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek
     const mine = list.filter((d) => d.personId === a.id);
     if (n.before && n.before > 0) {
       for (const d of mine) {
-        // The usual morning drop-off is routine – only remind when this morning is different.
-        if (d.leg === "to" && d.standard && d.at.getHours() < 10) continue;
+        // The usual morning drop-off is routine – only remind when this morning is different,
+        // or when something has to come along (blöjor, extrakläder).
+        if (d.leg === "to" && d.standard && d.at.getHours() < 10 && !d.bring?.length) continue;
         const fire = new Date(d.at.getTime() - n.before * 60_000);
         if (hhmm(fire) === t && fire.toDateString() === now.toDateString()) {
-          out.push({ service: n.service, title: `Om ${n.before} min`, message: d.text, key: `before:${a.id}:${d.key}` });
+          const actions = d.bring?.length && d.childId ? [{ action: `${SHELF_DONE}${d.childId}`, title: "Lämnat ✓" }] : undefined;
+          out.push({ service: n.service, title: `Om ${n.before} min`, message: dutyMessage(d), key: `before:${a.id}:${d.key}`, actions });
         }
       }
+    }
+    if (morningTime(a) === t) {
+      const today = mine.filter((d) => d.at.toDateString() === now.toDateString() && d.at >= now);
+      const lines = [...today.map((d) => dutyMessage(d)), ...todayItems];
+      if (lines.length) out.push({ service: n.service, title: "Idag", message: join(lines), key: `morning:${a.id}:${now.toDateString()}` });
     }
     if (n.evening && t === "20:00") {
       const tm = mine.filter((d) => d.at >= tomorrow && d.at < dayAfter);
       const extra = missingTomorrow ? [`${missingTomorrow} ${missingTomorrow === 1 ? "sak" : "saker"} imorgon saknar ansvarig`] : [];
       if (tm.length || extra.length) {
         // Key includes what is in it, so a changed plan after 20:00 does not stay silent until tomorrow's own reminders.
-        const sig = tm.map((d) => d.key).join(",");
-        out.push({ service: n.service, title: "Imorgon", message: join([...tm.map((d) => d.text), ...extra]), key: `evening:${a.id}:${tomorrow.toDateString()}:${sig}` });
+        const sig = tm.map((d) => `${d.key}${d.bring?.join("+") ?? ""}`).join(",");
+        out.push({ service: n.service, title: "Imorgon", message: join([...tm.map((d) => dutyMessage(d)), ...extra]), key: `evening:${a.id}:${tomorrow.toDateString()}:${sig}` });
       }
     }
     if (n.weekly && isoWeekday(now) === 7 && t === "19:00" && missingThisWeek > 0) {
@@ -61,9 +80,60 @@ export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek
   return out;
 }
 
+const withoutTime = (text: string) => text.replace(/ \d{2}:\d{2}$/, "");
+const dayName = (d: Date) => d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" }).replace(/\.$/, "");
+
+/**
+ * A training or match the grown-up drives to that moved or disappeared from the club's calendar
+ * (SportAdmin, laget.se …) within the next two days. `sourcesOk` false (a calendar could not be read)
+ * means nothing is called cancelled, since it may just be missing this time.
+ */
+export function dutyChanges(prev: Duty[], next: Duty[], now: Date, sourcesOk: boolean, eventKeys: Set<string>): { personId: string; title: string; message: string; key: string }[] {
+  const out: { personId: string; title: string; message: string; key: string }[] = [];
+  const soon = now.getTime() + 48 * 3_600_000;
+  const watched = (d: Duty) => d.leg === "to" && !d.key.startsWith("care:") && d.at.getTime() > now.getTime() && d.at.getTime() < soon;
+  for (const p of prev.filter(watched)) {
+    const same = next.find((n) => n.key === p.key && n.leg === p.leg) ?? next.find((n) => n.leg === p.leg && n.personId === p.personId && withoutTime(n.text) === withoutTime(p.text) && n.at.toDateString() === p.at.toDateString());
+    if (same) {
+      if (same.at.getTime() !== p.at.getTime()) {
+        out.push({
+          personId: same.personId,
+          title: "Ny tid",
+          message: `${withoutTime(p.text)} ${dayName(same.at)}: nu ${hhmm(same.at)} (var ${hhmm(p.at)})`,
+          key: `moved:${p.key}:${hhmm(same.at)}`,
+        });
+      }
+    } else if (sourcesOk && !eventKeys.has(p.key.replace(/:(to|home)$/, ""))) {
+      // Still in the calendar but nobody drives any more (bus, someone else) is not a cancellation.
+      out.push({ personId: p.personId, title: "Inställt?", message: `${withoutTime(p.text)} ${dayName(p.at)} ${hhmm(p.at)} finns inte längre i kalendern`, key: `gone:${p.key}` });
+    }
+  }
+  return out;
+}
+
+/** When this grown-up gets the morning notification, or "" when it is off. */
+export function morningTime(a: Person): string {
+  return a.notify?.morning ?? MORNING;
+}
+
+/** A reminder as one line for the phone: "Regn under dagen – ta regnjackan" (board-only hints left out). */
+export function reminderLine(r: { title: string; sub: string }): string {
+  return r.sub && !/tryck|bocka|tavlan|planera veckan/i.test(r.sub) ? `${r.title} – ${r.sub.charAt(0).toLowerCase()}${r.sub.slice(1)}` : r.title;
+}
+
 /** Checks every minute (only when someone has notifications on) and sends each message once. */
 export function startNotifier(log: FastifyBaseLogger) {
   const sent = new Set<string>();
+  let lastDuties: Duty[] | null = null;
+  // "Lämnat ✓" in the phone: clear what was missing on the shelf, like ticking it off on the board.
+  haSocket()?.onAction((action) => {
+    if (!action.startsWith(SHELF_DONE)) return;
+    const id = action.slice(SHELF_DONE.length);
+    if (loadConfig().people.some((p) => p.id === id && p.care)) {
+      saveShelf(id, []);
+      log.info("Hyllan bockad av från telefonen");
+    }
+  });
   let lastMinute = "";
   const tick = async () => {
     const now = new Date();
@@ -75,14 +145,29 @@ export function startNotifier(log: FastifyBaseLogger) {
     const conn = haConnection();
     if (!adults.length || !conn || !cfg.setupComplete) return;
     try {
-      const fam = await gatherFamily(cfg, now, []);
-      const list = duties(fam.withCare, fam.people, fam.travelCtx, now, addDays(startOfDay(now), 3));
+      const errors: { source: string; message: string }[] = [];
+      const fam = await gatherFamily(cfg, now, errors);
+      const list = duties(fam.withCare, fam.people, fam.travelCtx, now, addDays(startOfDay(now), 3), loadShelf());
+      // Trainings that moved or were cancelled since the last look: tell the one who drives.
+      // A sick child's training is struck on purpose – not "inställd".
+      const eventKeys = new Set([...fam.withCare, ...fam.hiddenSick].map((e) => travelKey(e)));
+      const changes = lastDuties ? dutyChanges(lastDuties, list, now, errors.length === 0, eventKeys) : [];
+      lastDuties = list;
+      for (const c of changes) {
+        const a = adults.find((x) => x.id === c.personId);
+        if (!a?.notify?.service || sent.has(c.key)) continue;
+        sent.add(c.key);
+        await ha.service(conn, "notify", a.notify.service, { title: c.title, message: c.message }).catch((e) => log.warn(`Notis till ${a.notify!.service} misslyckades: ${(e as Error).message}`));
+      }
       const plan = buildPlan(fam.withCare, fam.people, fam.travelCtx, now, () => ({ time: "", title: "", color: "", who: "", category: "family", icon: "event" }));
       const missingTomorrow = plan.items.filter((i) => i.dayLabel === "imorgon" && needsAttention(i)).length;
-      for (const m of dueNotifications(adults, list, plan.missing, missingTomorrow, now)) {
+      // The morning list is the board's own "kom ihåg" – only built in the minute someone gets it.
+      const t = hhmm(now);
+      const todayItems = adults.some((a) => morningTime(a) === t) ? (await buildDashboard(now, { allReminders: true })).reminders.map(reminderLine) : [];
+      for (const m of dueNotifications(adults, list, plan.missing, missingTomorrow, now, todayItems)) {
         if (sent.has(m.key)) continue;
         sent.add(m.key);
-        await ha.service(conn, "notify", m.service, { title: m.title, message: m.message }).catch((e) => log.warn(`Notis till ${m.service} misslyckades: ${(e as Error).message}`));
+        await ha.service(conn, "notify", m.service, { title: m.title, message: m.message, ...(m.actions ? { data: { actions: m.actions } } : {}) }).catch((e) => log.warn(`Notis till ${m.service} misslyckades: ${(e as Error).message}`));
       }
       if (sent.size > 2000) sent.clear();
     } catch (e) {

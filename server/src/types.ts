@@ -50,6 +50,8 @@ export interface NotifySettings {
   before?: number;
   /** Kl 20: vad man ansvarar för imorgon. */
   evening?: boolean;
+  /** "06:45": dagens kom ihåg och det man ansvarar för idag. "" = av, saknas = 06:45. */
+  morning?: string;
   /** Söndag kl 19: "Planera veckan" om något saknar ansvarig. */
   weekly?: boolean;
 }
@@ -378,6 +380,8 @@ export interface DashEvent {
   /** Beskrivningen från kalendern (samlingstid, vad som behövs …). */
   /** Egen händelse (tillagd på tavlan) – id för att kunna ta bort den. */
   ownId?: string;
+  /** Barnets händelse: kan markeras sjuk den dagen (on = det här är "Sjuk"-markeringen). */
+  sick?: { personId: string; date: string; on: boolean };
   description?: string;
 }
 
@@ -520,6 +524,8 @@ export interface Dashboard {
   meals: MealDay[];
   /** Familjens vanligaste middagar (lärda från tidigare veckor) med det man brukar handla. */
   mealFavorites: { name: string; shopping?: string }[];
+  /** Sjuk/VAB idag och framåt. */
+  sick: { personId: string; name: string; date: string }[];
   /** "Saknas på hyllan" per barn på förskola/fritids. */
   shelf: { personId: string; name: string; items: string[] }[];
   cars: {

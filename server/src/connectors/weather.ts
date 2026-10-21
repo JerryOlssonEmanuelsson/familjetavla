@@ -107,6 +107,15 @@ export function rainBetween(f: Forecast, dayOffset: number, fromHour: number, to
     .reduce((s, h) => s + h.precip, 0);
 }
 
+/** Lowest temperature between two hours of a day (0 = today), or undefined without forecast. */
+export function coldestBetween(f: Forecast, dayOffset: number, fromHour: number, toHour: number, now = new Date()): number | undefined {
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
+  const temps = f.hourly
+    .filter((h) => h.time.getDate() === target.getDate() && h.time.getMonth() === target.getMonth() && h.time.getHours() >= fromHour && h.time.getHours() < toHour)
+    .map((h) => h.temp);
+  return temps.length ? Math.min(...temps) : undefined;
+}
+
 function currentHour(f: Forecast, now: Date) {
   return f.hourly.find((h) => h.time.getHours() === now.getHours() && h.time.getDate() === now.getDate());
 }

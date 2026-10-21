@@ -39,6 +39,80 @@ export function newsReminders(news: SchoolNews[], now: Date): Reminder[] {
     .map((n) => ({ icon: "school" as const, title: `Från skolan: ${n.title}`, sub: `${n.who ? `${n.who} · ` : ""}läs på Skolan`, tone: "blue" as const }));
 }
 
+// ---------- Utflykt, matsäck … from school news ----------
+
+const TRIP = /utflykt|friluftsdag|skogsdag|studiebesök|exkursion|skridskodag|skiddag|idrottsdag|temadag|teaterbesök|biblioteksbesök/i;
+const BRING: [RegExp, string][] = [
+  [/matsäck/i, "matsäck"],
+  [/vattenflask/i, "vattenflaska"],
+  [/ombyte|extrakläder/i, "ombyteskläder"],
+  [/gymnastikkläder|idrottskläder|gympakläder/i, "idrottskläder"],
+  [/regnkläder|regnställ/i, "regnkläder"],
+  [/sittunderlag/i, "sittunderlag"],
+  [/skridsko/i, "skridskor"],
+  [/hjälm/i, "hjälm"],
+  [/skidor|längdskid/i, "skidor"],
+  [/busskort|reskort/i, "busskort"],
+  [/lånekort|bibliotekskort/i, "lånekort"],
+];
+const MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+const WEEKDAYS = ["söndag", "måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag"];
+
+/** Dates mentioned in a text ("27/10", "27 oktober", "på torsdag"), from the day it was written. */
+export function datesIn(text: string, from: Date): Date[] {
+  const out: Date[] = [];
+  const year = (m: number, d: number) => {
+    const c = new Date(from.getFullYear(), m, d);
+    return c.getTime() < from.getTime() - 60 * 86_400_000 ? new Date(from.getFullYear() + 1, m, d) : c;
+  };
+  for (const m of text.matchAll(/\b(\d{1,2})\/(\d{1,2})\b/g)) {
+    const d = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    if (d >= 1 && d <= 31 && mo >= 0 && mo <= 11) out.push(year(mo, d));
+  }
+  for (const m of text.toLowerCase().matchAll(/\b(\d{1,2})(?::e|e)?\s+(jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec)[a-zåäö]*/g)) {
+    out.push(year(MONTHS.indexOf(m[2]), Number(m[1])));
+  }
+  for (const m of text.toLowerCase().matchAll(/\b(måndag|tisdag|onsdag|torsdag|fredag)(en)?\b/g)) {
+    const wd = WEEKDAYS.indexOf(m[1]);
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+    do d.setDate(d.getDate() + 1);
+    while (d.getDay() !== wd);
+    out.push(d);
+  }
+  return out;
+}
+
+/**
+ * Trips and things to bring that the school writes about: "Ella · utflykt imorgon – ta med matsäck,
+ * vattenflaska". Shown the day before and on the day, so they also reach the morning notification.
+ */
+export function newsTripReminders(news: SchoolNews[], now: Date): Reminder[] {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today.getTime() + 86_400_000);
+  const out: Reminder[] = [];
+  const recent = now.getTime() - 21 * 86_400_000;
+  for (const n of news) {
+    if (n.published && Date.parse(n.published) < recent) continue;
+    const text = `${n.title}\n${n.text}`;
+    const trip = text.match(TRIP)?.[0];
+    const bring = BRING.filter(([re]) => re.test(text)).map(([, what]) => what);
+    if (!trip && !bring.length) continue;
+    const written = n.published ? new Date(n.published) : now;
+    const day = datesIn(text, written).find((d) => d.getTime() === today.getTime() || d.getTime() === tomorrow.getTime());
+    if (!day) continue;
+    const when = day.getTime() === today.getTime() ? "idag" : "imorgon";
+    const what = trip ? trip.toLowerCase() : n.title;
+    out.push({
+      icon: "bag",
+      title: `${n.who ? `${n.who} · ` : ""}${what} ${when}${bring.length ? ` – ta med ${bring.join(", ")}` : ""}`,
+      sub: `Från skolan: ${n.title}`,
+      tone: "amber",
+    });
+  }
+  return out.slice(0, 2);
+}
+
 export function markNewsSeen(ids: string[]) {
   const all = [...new Set([...ids, ...(loadLocal().newsSeen ?? [])])].slice(0, 200);
   saveLocal({ newsSeen: all });

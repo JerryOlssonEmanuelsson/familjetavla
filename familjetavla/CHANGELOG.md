@@ -1,5 +1,16 @@
 # Ändringar
 
+## 0.9.1
+
+- **Utflykt och matsäck från skolan.** Skriver skolan om en utflykt, friluftsdag eller studiebesök med datum ("på torsdag", "27/10", "27 oktober"), kommer en påminnelse dagen innan och samma dag – med vad som ska med (matsäck, vattenflaska, ombyteskläder, skridskor …): "Ella · friluftsdag imorgon – ta med matsäck, vattenflaska". Den hamnar i Kom ihåg och i morgonnotisen.
+- **Säkerhetskopia.** Under Inställningar → Klart: ladda ner alla inställningar som en fil, och återställ dem på en ny dator. Med ett lösenord följer även inloggningar och länkar med, krypterade. (Som tillägg i Home Assistant ingår tavlan redan i HA:s egna säkerhetskopior.)
+- **Sjuk / VAB.** Markera ett barn som sjukt idag eller imorgon, på mobilsidan (fliken Sjuk) eller genom att trycka på barnets händelse på tavlan. Förskola, skola och aktiviteter stryks den dagen, ingen behöver lämna, hämta eller skjutsa (och får ingen påminnelse), Kom ihåg säger "Maja är sjuk idag" och de vuxna får en notis. "Frisk igen" tar tillbaka allt.
+- **Morgonnotis till telefonen.** Kl 06:45 (eller när du vill) kommer dagens kom ihåg till telefonen: vad du själv ska lämna och hämta, gympapåse, det som saknas på hyllan, regnkläder, soporna, skolans nyheter. Allt som står på tavlan når er även när ingen tittar på den. Ställs in per vuxen under Påminnelser.
+- **Träning som flyttas eller ställs in.** Ändrar föreningen tiden i kalendern (SportAdmin, laget.se …) får den som skjutsar en notis: "Ny tid: Skjutsa Ella till F14 – Träning tis 21 okt: nu 18:00 (var 17:30)". Försvinner den helt kommer "Inställt?". Byter ni bara skjuts (buss, någon annan) kommer ingen notis, och om en kalender inte gick att läsa sägs aldrig något vara inställt.
+- **Kallt på morgonen:** under 5° visar Kom ihåg (och morgonnotisen) "Mössa och vantar", vid minusgrader "Mössa, vantar och varma kläder" – kvällen innan och på morgonen.
+- **"Lämnat ✓" direkt i notisen.** Tryck på knappen i lämningsnotisen så bockas det som saknades på hyllan av, utan att gå till tavlan.
+- **"Ta med" i telefonen.** Det du markerat under "Saknas på hyllan" (t.ex. blöjor och extrakläder) står nu i påminnelsen till den som lämnar på förskolan eller fritids: kvällen innan kl 20 och en stund före lämningen, "Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder". Den vanliga morgonlämningen får då en notis också, så det inte glöms när ingen tittar på tavlan. Det står också i den vuxnas kalenderlänk. Kräver påminnelser till telefonen (steget Påminnelser i guiden).
+
 ## 0.9.0
 
 - **Lägg till från mobilen.** En enkel sida för telefonen: skriv "Tandläkare", välj dag, tid och vem, så hamnar det i veckan på tavlan direkt. Under Handla lägger man till på inköpslistan och ser vad som redan står där. Länken finns i guidens sista steg och under "Lägg tavlan på hemskärmen". Lägg den på telefonens hemskärm så är det ett tryck bort.
