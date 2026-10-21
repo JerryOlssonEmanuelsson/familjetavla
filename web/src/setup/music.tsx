@@ -8,7 +8,7 @@ import { EntityPicker, Text } from "./parts";
  * Huset → Musik: which speakers the board plays on, and the favourite stations.
  * Stations come from an open radio directory, so every Swedish channel is a search away.
  */
-export function MusicCard({ cfg, set }: { cfg: Config; set: (c: Config | ((prev: Config) => Config)) => void }) {
+export function MusicCard({ cfg, set, saveNow }: { cfg: Config; set: (c: Config | ((prev: Config) => Config)) => void; saveNow: () => Promise<void> }) {
   const speakers = cfg.entities.speakers ?? [];
   const stations = cfg.entities.stations ?? [];
   const setEn = (patch: Partial<Config["entities"]>) =>
@@ -47,6 +47,35 @@ export function MusicCard({ cfg, set }: { cfg: Config; set: (c: Config | ((prev:
     setEn({ stations: next });
   };
   const ownOk = own.name.trim() && /^https?:\/\/\S+$/.test(own.url.trim());
+  // "Prova": play it on the default speaker right now, so a dead stream is found before it is added.
+  const [trying, setTrying] = useState<{ url: string; msg: string; ok: boolean } | null>(null);
+  const tryIt = async (s: RadioStation) => {
+    const sp = speakers[0];
+    if (!sp) return setTrying({ url: s.url, ok: false, msg: "Lägg till en högtalare först." });
+    setTrying({ url: s.url, ok: true, msg: `Startar i ${sp.name} …` });
+    try {
+      await saveNow();
+      await api.tryStation(s.name, s.url, sp.entityId);
+      setTrying({ url: s.url, ok: true, msg: `Spelar i ${sp.name}? Hörs inget efter några sekunder fungerar inte strömmen där – välj en annan träff.` });
+    } catch (e) {
+      setTrying({ url: s.url, ok: false, msg: (e as Error).message });
+    }
+  };
+  const stopTry = async () => {
+    if (speakers[0]) await api.stopMusic(speakers[0].entityId).catch(() => {});
+    setTrying(null);
+  };
+  const tryNote = (url: string) =>
+    trying?.url === url && (
+      <p className={trying.ok ? "muted" : "error-text"} style={{ margin: 0, flexBasis: "100%" }} role="status">
+        {trying.msg}{" "}
+        {trying.ok && (
+          <button type="button" className="btn small ghost" onClick={() => void stopTry()}>
+            Stoppa
+          </button>
+        )}
+      </p>
+    );
 
   return (
     <section className="card stack">
@@ -89,16 +118,20 @@ export function MusicCard({ cfg, set }: { cfg: Config; set: (c: Config | ((prev:
         <b>Kanaler på tavlan</b>
         {stations.length === 0 && <p className="muted" style={{ margin: 0 }}>Inga än – sök nedan, t.ex. "P4 Jönköping" eller "RIX FM".</p>}
         {stations.map((s, i) => (
-          <div className="row gap" key={s.url} style={{ alignItems: "center" }}>
+          <div className="row gap wrap" key={s.url} style={{ alignItems: "center" }}>
             <div className="grow">
               <Text label={`Kanal ${i + 1}`} value={s.name} onChange={(v) => setEn({ stations: stations.map((x, j) => (j === i ? { ...x, name: v } : x)) })} />
             </div>
+            <button className="btn small" disabled={!speakers.length} onClick={() => void tryIt(s)}>
+              Prova
+            </button>
             <button className="btn small ghost" aria-label={`Flytta upp ${s.name}`} disabled={i === 0} onClick={() => move(i, -1)}>
               ↑
             </button>
             <button className="btn small ghost" aria-label={`Ta bort ${s.name}`} onClick={() => setEn({ stations: stations.filter((_, j) => j !== i) })}>
               <Icon name="x" size={18} />
             </button>
+            {tryNote(s.url)}
           </div>
         ))}
       </div>
@@ -125,16 +158,20 @@ export function MusicCard({ cfg, set }: { cfg: Config; set: (c: Config | ((prev:
         {hits && hits.length > 0 && (
           <div className="station-hits">
             {hits.map((h) => (
-              <div key={h.url} className="row gap" style={{ alignItems: "center" }}>
+              <div key={h.url} className="row gap wrap" style={{ alignItems: "center" }}>
                 <span className="grow" style={{ minWidth: 0 }}>
                   <b>{h.name}</b>
                   <small className="muted" style={{ display: "block" }}>
                     {[h.country, h.quality].filter(Boolean).join(" · ")}
                   </small>
                 </span>
+                <button type="button" className="btn small ghost" disabled={!speakers.length} onClick={() => void tryIt(h)}>
+                  Prova
+                </button>
                 <button type="button" className="btn small" disabled={has(h.url) || stations.length >= 16} onClick={() => add(h)}>
                   {has(h.url) ? "Tillagd" : "Lägg till"}
                 </button>
+                {tryNote(h.url)}
               </div>
             ))}
           </div>

@@ -1419,7 +1419,7 @@ function ListCard<T>({
   );
 }
 
-export function HouseStep({ cfg, set }: StepProps) {
+export function HouseStep({ cfg, set, saveNow }: StepProps) {
   const en = cfg.entities;
   const setEn = (patch: Partial<Config["entities"]>) => set({ ...cfg, entities: { ...en, ...patch } });
   return (
@@ -1481,7 +1481,7 @@ export function HouseStep({ cfg, set }: StepProps) {
           onChange={(v, o) => v && !en.lights.some((l) => l.entityId === v) && setEn({ lights: [...en.lights, { entityId: v, name: o?.name ?? v }] })}
         />
       </section>
-      <MusicCard cfg={cfg} set={set} />
+      <MusicCard cfg={cfg} set={set} saveNow={saveNow} />
       <ListCard
         title="Ljusgrupper"
         help="Visas på fliken Ljus med Tänd alla / Släck alla."

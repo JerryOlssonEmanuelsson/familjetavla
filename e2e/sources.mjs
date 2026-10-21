@@ -154,19 +154,28 @@ await check("Postnummer (OpenStreetMap)", async () => {
   return `55318 → ${r.place}, ${r.municipality}, sophämtning: ${r.wasteProvider ?? "–"}`;
 });
 // Musik: the radio directory finds the stations families ask for, and their streams play.
-for (const q of ["P4 Jönköping", "RIX FM", "P3"]) {
+// GitHub runs in the US: commercial Swedish stations often stream only inside Sweden (401/403),
+// which is noted, not counted as broken. Sveriges Radio streams everywhere and must play.
+async function streamAnswer(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  const type = res.headers.get("content-type") ?? "";
+  const reader = res.body?.getReader();
+  const first = reader ? await reader.read().catch(() => ({ value: undefined })) : { value: undefined };
+  await reader?.cancel().catch(() => {});
+  return { status: res.status, type, audio: res.ok && (/audio|mpegurl|ogg|aac|octet-stream/i.test(type) || res.headers.has("icy-name")) && Boolean(first.value?.length) };
+}
+for (const [q, mustPlay] of [["P4 Jönköping", true], ["P3", true], ["RIX FM", false]]) {
   await check(`Radiokatalog: ${q}`, async () => {
-    const hits = await searchStations(q);
-    const hit = hits.find((h) => h.country === "SE" && h.name.toLowerCase().includes(q.toLowerCase()));
-    if (!hit) throw new Error(`hittade ingen svensk kanal (${hits.length} träffar: ${hits.slice(0, 3).map((h) => h.name).join(", ")})`);
-    // Read the first bytes of the stream: it must answer with audio.
-    const res = await fetch(hit.url, { signal: AbortSignal.timeout(10_000) });
-    const type = res.headers.get("content-type") ?? "";
-    const reader = res.body?.getReader();
-    const first = reader ? await reader.read() : { value: undefined };
-    await reader?.cancel().catch(() => {});
-    if (!res.ok || !(/audio|mpegurl|ogg|aac|octet-stream/i.test(type) || res.headers.has("icy-name")) || !first.value?.length) throw new Error(`${hit.url} svarade ${res.status} ${type}`);
-    return `${hit.name} · ${hit.quality ?? ""} · ${type} · ${hit.url.startsWith("https://") ? "https" : "http"}`;
+    const hits = (await searchStations(q)).filter((h) => h.country === "SE" && h.name.toLowerCase().includes(q.toLowerCase()));
+    if (!hits.length) throw new Error("hittade ingen svensk kanal med det namnet");
+    const tried = [];
+    for (const hit of hits.slice(0, 4)) {
+      const a = await streamAnswer(hit.url).catch((e) => ({ status: 0, type: e.message, audio: false }));
+      if (a.audio) return `${hit.name} · ${hit.quality ?? ""} · ${a.type} · ${hit.url.startsWith("https://") ? "https" : "http"}`;
+      tried.push(`${new URL(hit.url).host} ${a.status || a.type}`);
+    }
+    if (!mustPlay && tried.every((t) => / 40[13]$/.test(t))) return `${hits.length} träffar, strömmarna svarar bara i Sverige (${tried.join(", ")})`;
+    throw new Error(`ingen ström spelade: ${tried.join(", ")}`);
   });
 }
 for (const url of cfg.skolmaten ?? []) {

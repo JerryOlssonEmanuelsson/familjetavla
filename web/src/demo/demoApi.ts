@@ -635,6 +635,7 @@ export const demoApi = {
     if (sp && st) Object.assign(sp, { playing: true, station: index, title: st.name });
     return wait({});
   },
+  tryStation: (_name: string, _url: string, _speaker: string) => wait({}),
   stopMusic: (speaker: string) => {
     const sp = d.music?.speakers.find((x) => x.entityId === speaker);
     if (sp) Object.assign(sp, { playing: false, station: undefined, title: undefined });

@@ -177,6 +177,7 @@ const realApi = {
   lightsOff: () => post("lights/off"),
   playStation: (index: number, speaker: string) => post("music/play", { index, speaker }),
   stopMusic: (speaker: string) => post("music/stop", { speaker }),
+  tryStation: (name: string, url: string, speaker: string) => post("music/try", { name, url, speaker }),
   volume: (speaker: string, pct: number) => post("music/volume", { speaker, pct }),
   searchStations: (q: string) => request<{ stations: StationHit[] }>(`radio/search?q=${encodeURIComponent(q)}`),
   addItem: (name: string) => post("shopping/add", { name }),

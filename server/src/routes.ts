@@ -743,6 +743,21 @@ export async function registerRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  // Settings: try a station before adding it (admin only, any http(s) stream, a known speaker).
+  app.post("/api/music/try", { preHandler: guard }, async (req, reply) => {
+    const body = z.object({ name: label(40), url: z.string().url().max(500).regex(/^https?:\/\//), speaker: entity }).safeParse(req.body);
+    if (!body.success || !speakerOf(body.data.speaker)) return fail(reply, new Error("Välj en högtalare först"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const c = playCall(body.data.speaker, { name: body.data.name, url: body.data.url });
+    try {
+      await ha.service(conn, c.domain, c.service, c.data);
+    } catch (e) {
+      return fail(reply, new Error(`${speakerOf(body.data.speaker)!.name} kunde inte spela ${body.data.name}: ${(e as Error).message}`), 502);
+    }
+    return { ok: true };
+  });
+
   app.get("/api/radio/search", { preHandler: guard }, async (req, reply) => {
     const { q } = (req.query ?? {}) as { q?: string };
     try {
