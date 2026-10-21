@@ -372,7 +372,7 @@ describe("ansvar och påminnelser", () => {
     const { dueNotifications, reminderLine } = await import("./notify.js");
     const { events, ctx } = await family();
     const list = duties(events, people, ctx, new Date(2026, 9, 19, 6), new Date(2026, 9, 21), { maja: ["Blöjor"] });
-    const items = [reminderLine({ title: "Regn under dagen", sub: "Ta regnjackan" }), reminderLine({ title: "Idrott tis – Ella", sub: "Tryck för detaljer" })];
+    const items = [{ text: reminderLine({ title: "Regn under dagen", sub: "Ta regnjackan" }) }, { text: reminderLine({ title: "Idrott tis – Ella", sub: "Tryck för detaljer" }), personId: "ella" }];
     const out = dueNotifications([emil, anna], list, 0, 0, new Date(2026, 9, 19, 6, 45), items);
     expect(out.map((n) => `${n.service}|${n.title}: ${n.message}`)).toEqual([
       "mobile_app_emil|Idag: Lämna Maja på förskolan 07:30 – ta med: blöjor · Regn under dagen – ta regnjackan · Idrott tis – Ella",
@@ -380,6 +380,11 @@ describe("ansvar och påminnelser", () => {
     // Anna has no phone set – nothing for her. With a phone and no duties she still gets the day's list.
     const annaPhone = { ...anna, notify: { service: "mobile_app_anna" } };
     expect(dueNotifications([annaPhone], list, 0, 0, new Date(2026, 9, 19, 6, 45), items).map((n) => n.message)).toEqual(["Regn under dagen – ta regnjackan · Idrott tis – Ella"]);
+    // A grown-up who follows only Maja: no Ella in the list – but still the own drop-off.
+    const onlyMaja = { ...emil, notify: { ...emil.notify, children: ["maja"] } };
+    expect(dueNotifications([onlyMaja], list, 0, 0, new Date(2026, 9, 19, 6, 45), items)[0].message).toBe("Lämna Maja på förskolan 07:30 – ta med: blöjor · Regn under dagen – ta regnjackan");
+    const onlyElla = { ...emil, notify: { ...emil.notify, children: ["ella"] } };
+    expect(dueNotifications([onlyElla], list, 0, 0, new Date(2026, 9, 19, 6, 45), items)[0].message).toBe("Lämna Maja på förskolan 07:30 – ta med: blöjor · Regn under dagen – ta regnjackan · Idrott tis – Ella");
     // Off when the grown-up turned it off.
     expect(dueNotifications([{ ...emil, notify: { ...emil.notify, morning: "" } }], list, 0, 0, new Date(2026, 9, 19, 6, 45), items)).toEqual([]);
   });

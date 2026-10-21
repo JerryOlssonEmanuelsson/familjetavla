@@ -1,5 +1,9 @@
 # Ändringar
 
+## 0.9.2
+
+- **Välj vilka barn du får notiser om.** Under Påminnelser väljer varje vuxen vilka barn den följer – t.ex. en bonusförälder som bara vill ha sina egna barns gympapåse, utflykter och sjukdagar. Det du själv ska lämna, hämta eller skjutsa får du alltid, oavsett val.
+
 ## 0.9.1
 
 - **Utflykt och matsäck från skolan.** Skriver skolan om en utflykt, friluftsdag eller studiebesök med datum ("på torsdag", "27/10", "27 oktober"), kommer en påminnelse dagen innan och samma dag – med vad som ska med (matsäck, vattenflaska, ombyteskläder, skridskor …): "Ella · friluftsdag imorgon – ta med matsäck, vattenflaska". Den hamnar i Kom ihåg och i morgonnotisen.

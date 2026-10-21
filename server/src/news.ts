@@ -36,7 +36,7 @@ export function newsReminders(news: SchoolNews[], now: Date): Reminder[] {
   return news
     .filter((n) => !n.seen && (!n.published || Date.parse(n.published) >= week))
     .slice(0, 2)
-    .map((n) => ({ icon: "school" as const, title: `Från skolan: ${n.title}`, sub: `${n.who ? `${n.who} · ` : ""}läs på Skolan`, tone: "blue" as const }));
+    .map((n) => ({ icon: "school" as const, title: `Från skolan: ${n.title}`, sub: `${n.who ? `${n.who} · ` : ""}läs på Skolan`, tone: "blue" as const, personId: n.personId }));
 }
 
 // ---------- Utflykt, matsäck … from school news ----------
@@ -108,6 +108,7 @@ export function newsTripReminders(news: SchoolNews[], now: Date): Reminder[] {
       title: `${n.who ? `${n.who} · ` : ""}${what} ${when}${bring.length ? ` – ta med ${bring.join(", ")}` : ""}`,
       sub: `Från skolan: ${n.title}`,
       tone: "amber",
+      personId: n.personId,
     });
   }
   return out.slice(0, 2);
