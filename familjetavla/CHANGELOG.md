@@ -1,5 +1,9 @@
 # Ändringar
 
+## 0.10.1
+
+- **Versionen syns högst upp,** smått bredvid veckan: "v0.10.1 ✓ senaste" när ni har den senaste, eller "v0.10.0 · uppdatera till 0.10.1" i gult när en ny finns. Tryck på den gula så står det hur du uppdaterar.
+
 ## 0.10.0
 
 - **Musik.** Tryck på en radiokanal så spelar den i vald högtalare: Google Home/Nest, Chromecast, Sonos eller annat som finns i Home Assistant. Välj en **förvald högtalare** (t.ex. Google Home i köket) under Inställningar → Huset → Musik, så räcker ett tryck på RIX FM för att det ska spela där.

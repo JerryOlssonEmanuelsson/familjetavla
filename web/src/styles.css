@@ -3240,3 +3240,28 @@ marker.pf-buy path {
   text-overflow: ellipsis;
   overflow-wrap: normal;
 }
+
+/* Version, small at the top: green tick when it is the latest, amber when an update waits. */
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--control-border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.version-badge.ok {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.version-badge.old {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+  background: var(--amber-soft);
+  cursor: pointer;
+}

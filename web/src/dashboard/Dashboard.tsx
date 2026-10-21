@@ -611,6 +611,24 @@ function EventSheet({
   );
 }
 
+const SHOW_UPDATE = "familjetavla:visa-uppdatering";
+
+/** Small, top of the board: which version runs, and whether it is the latest. */
+function VersionBadge({ version, update }: { version: NonNullable<Dash["version"]>; update?: Dash["update"] }) {
+  if (update)
+    return (
+      <button className="version-badge old" onClick={() => window.dispatchEvent(new Event(SHOW_UPDATE))} aria-label={`Version ${version.current}. Ny version ${update.latest} finns – visa hur du uppdaterar`}>
+        v{version.current} · uppdatera till {update.latest}
+      </button>
+    );
+  return (
+    <span className={`version-badge ${version.latest ? "ok" : ""}`} title={version.latest ? "Ni har den senaste versionen" : "Kunde inte se om det finns en nyare version"}>
+      v{version.current}
+      {version.latest ? " ✓ senaste" : ""}
+    </span>
+  );
+}
+
 /** "Ny version finns": how to update depends on how the board is installed. */
 function UpdateBanner({ update }: { update: NonNullable<Dash["update"]> }) {
   const [open, setOpen] = useState(false);
@@ -622,6 +640,15 @@ function UpdateBanner({ update }: { update: NonNullable<Dash["update"]> }) {
       return false;
     }
   });
+  // The version badge in the header brings the banner back, opened.
+  useEffect(() => {
+    const show = () => {
+      setHidden(false);
+      setOpen(true);
+    };
+    window.addEventListener(SHOW_UPDATE, show);
+    return () => window.removeEventListener(SHOW_UPDATE, show);
+  }, []);
   if (hidden) return null;
   return (
     <div className="card update-banner" role="status">
@@ -972,6 +999,7 @@ export function Dashboard() {
                 </span>
               )}
               {data.header.weather && <span>· {data.header.weather}</span>}
+              {data.version && <VersionBadge version={data.version} update={data.update} />}
             </p>
           </div>
           {data.people.length > 0 && (

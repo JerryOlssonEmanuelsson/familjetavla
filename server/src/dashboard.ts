@@ -1,6 +1,6 @@
 import { energyLive, energyToday, todaySeries } from "./energy.js";
 import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
-import { updateAvailable } from "./updates.js";
+import { updateAvailable, versionInfo } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
 import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
@@ -376,6 +376,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     schoolDay: buildSchoolDays(all, people, now, (e, day) => visibleOn(e, people, day)),
     school: buildSchoolWeek(all, people, now, (e, day) => visibleOn(e, people, day)),
     update: updateAvailable(),
+    version: versionInfo(),
     cars: cfg.entities.cars.map((c) => ({
       ...buildCar(c, stateMap, now),
       climate: c.climate ? { entityId: c.climate, on: isOnState(stateMap.get(c.climate)?.state) } : undefined,

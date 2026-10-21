@@ -526,6 +526,8 @@ export interface Dashboard {
   school?: SchoolChild[];
   /** En nyare version finns publicerad. */
   update?: { latest: string; current: string };
+  /** Running version, and the published one when known: "v0.10.0 ✓ senaste" or "uppdatera till …" in the header. */
+  version?: { current: string; latest?: string };
   /** "Skolan idag": when each child's school day starts and ends (today, or the next school day). */
   schoolDay?: { personId: string; name: string; color: string; dayLabel: string; start: string; end: string; gym: boolean }[];
   /** Veckans mat: skollunch per barn och familjens middag, kommande 7 dagar. */

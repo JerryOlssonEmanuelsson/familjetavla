@@ -17,6 +17,12 @@ export function newer(a: string, b: string): boolean {
 let latest: string | null = null;
 let lastTry = 0;
 
+/** The version running, and the published one once GitHub has answered (shown small in the header). */
+export function versionInfo(now = Date.now()): { current: string; latest?: string } {
+  updateAvailable(now);
+  return { current: VERSION, ...(latest ? { latest } : {}) };
+}
+
 /** Answers at once from what is known and checks GitHub in the background now and then – never slows the board. */
 export function updateAvailable(now = Date.now()): { latest: string; current: string } | undefined {
   if (process.env.UPDATE_CHECK !== "off" && now - lastTry > EVERY) {

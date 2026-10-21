@@ -3,6 +3,7 @@
 import type { Config, ConfigResponse, DashEvent, Dashboard, Integration, PlanItem, Schedule, TestResult, TravelChoice, TravelLeg } from "../../../server/src/types";
 import type { CalendarTest, CarDetails, Discovery, EntityOption, GraphData, GroceryLine, PostcodeInfo } from "../api";
 import fixtures from "./fixtures.json";
+import pkg from "../../package.json";
 
 const fx = structuredClone(fixtures) as unknown as {
   config: ConfigResponse;
@@ -389,6 +390,8 @@ const groupState = new Map<string, boolean>([
   ["light.fonster_vardagsrum", true],
 ]);
 recountGroups();
+// The demo is always the latest version.
+d.version = { current: pkg.version, latest: pkg.version };
 
 function syncDayParts() {
   const h = new Date().getHours() + new Date().getMinutes() / 60;
