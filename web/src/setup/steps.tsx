@@ -33,10 +33,12 @@ export function HomeStep({ cfg, set, postcode, setPostcode }: StepProps) {
     try {
       const p = await api.postcode(pnr);
       setPostcode(p);
-      const integrations = cfg.integrations.map((i) =>
-        i.category === "price" && i.provider === "spot" ? { ...i, settings: { ...i.settings, area: p.area } } : i,
-      );
-      set({ ...cfg, integrations, household: { ...cfg.household, postcode: p.postcode, place: p.place, municipality: p.municipality, lat: p.lat, lon: p.lon } });
+      // The answer can come after the user has moved on – build on the latest config, not this render's.
+      set((c) => ({
+        ...c,
+        integrations: c.integrations.map((i) => (i.category === "price" && i.provider === "spot" ? { ...i, settings: { ...i.settings, area: p.area } } : i)),
+        household: { ...c.household, postcode: p.postcode, place: p.place, municipality: p.municipality, lat: p.lat, lon: p.lon },
+      }));
     } catch (e) {
       setError(`${(e as Error).message} Postnumret sparas ändå – väder och elområde kan fyllas i senare under Inställningar.`);
     } finally {

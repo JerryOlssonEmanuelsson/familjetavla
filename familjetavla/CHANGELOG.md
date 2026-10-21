@@ -3,6 +3,7 @@
 ## 0.9.2
 
 - **Välj vilka barn du får notiser om.** Under Påminnelser väljer varje vuxen vilka barn den följer – t.ex. en bonusförälder som bara vill ha sina egna barns gympapåse, utflykter och sjukdagar. Det du själv ska lämna, hämta eller skjutsa får du alltid, oavsett val.
+- **Guiden tappar inte familjen.** Svarade postnummersökningen först när du redan gått vidare till "Vilka bor här?", försvann de du just lagt till. Nu ligger de kvar.
 
 ## 0.9.1
 

@@ -21,7 +21,8 @@ import {
 
 export interface StepProps {
   cfg: Config;
-  set: (c: Config) => void;
+  /** Pass a function when the change lands after an await, so it builds on the latest config. */
+  set: (c: Config | ((prev: Config) => Config)) => void;
   secrets: SecretDraft;
   setSecrets: (s: SecretDraft) => void;
   resp: ConfigResponse;
