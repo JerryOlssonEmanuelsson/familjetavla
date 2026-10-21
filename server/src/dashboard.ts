@@ -1,5 +1,5 @@
 import { energyLive, energyToday, todaySeries } from "./energy.js";
-import { buildSchoolNews, newsReminders, ownCalendarEvents } from "./news.js";
+import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
 import { cached } from "./cache.js";
@@ -346,7 +346,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: [...planReminder(plan, now), ...newsReminders(schoolNews, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, opts.allReminders ? 20 : 5),
+    reminders: [...planReminder(plan, now), ...newsTripReminders(schoolNews, now), ...newsReminders(schoolNews, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, opts.allReminders ? 20 : 5),
     schoolNews,
     plan,
     meals,
