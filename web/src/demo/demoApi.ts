@@ -479,6 +479,8 @@ export const demoApi = {
   },
   checkPin: () => wait({ ok: true }),
   authStatus: () => wait({ paired: true, pinRequired: false, supervisor: false }),
+  backup: (_password?: string) => wait({ app: "familjetavla", version: "demo", created: new Date().toISOString(), config: fx.config.config, local: {} } as unknown, 200),
+  restore: (_backup: unknown, _password?: string) => wait({ ok: true as const, secrets: false }, 300),
   setSick: (personId: string, date: string, sick: boolean) => {
     const name = d.people.find((p) => p.id === personId)?.name ?? "Barnet";
     d.sick = (d.sick ?? []).filter((x) => !(x.personId === personId && x.date === date));

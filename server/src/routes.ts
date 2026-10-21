@@ -37,6 +37,7 @@ import {
 import { readFileSync } from "node:fs";
 import { addDays, dayKey, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
 import { setSick } from "./sick.js";
+import { makeBackup, restoreBackup } from "./backup.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export { VERSION } from "./version.js";
@@ -951,6 +952,31 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!body.success || !loadConfig().people.some((p) => p.id === body.data.personId && p.care)) return fail(reply, new Error("Okänt barn"));
     saveShelf(body.data.personId, body.data.items);
     return { ok: true };
+  });
+
+  // ---------- Backup ----------
+  // Download a backup (passwords only with a backup password, then encrypted), and restore one.
+  app.post("/api/backup", { preHandler: guard }, async (req, reply) => {
+    const body = z.object({ password: z.string().max(200).optional() }).safeParse(req.body ?? {});
+    if (!body.success) return fail(reply, new Error("Ogiltigt"));
+    return makeBackup(body.data.password || undefined);
+  });
+  app.post("/api/restore", { preHandler: guard, bodyLimit: 5 * 1024 * 1024 }, async (req, reply) => {
+    const body = z.object({ backup: z.unknown(), password: z.string().max(200).optional() }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltigt"));
+    // The settings in the file go through the same check as a normal save.
+    const raw = body.data.backup as { config?: unknown } | null;
+    const parsed = configSchema.safeParse(raw?.config);
+    if (raw && typeof raw === "object" && raw.config && !parsed.success) return fail(reply, new Error("Inställningarna i säkerhetskopian gick inte att läsa."));
+    try {
+      const r = restoreBackup(parsed.success ? { ...raw, config: parsed.data } : raw, body.data.password || undefined);
+      invalidate("");
+      watchSet = watched();
+      haSocket()?.start(haConnection());
+      return { ok: true, secrets: r.secrets };
+    } catch (e) {
+      return fail(reply, e);
+    }
   });
 
   // Sjuk/VAB: strike a child's förskola, school and activities that day, and tell the grown-ups.

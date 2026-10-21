@@ -1,5 +1,10 @@
 # Ändringar
 
+## 0.9.2
+
+- **Utflykt och matsäck från skolan.** Skriver skolan om en utflykt, friluftsdag eller studiebesök med datum ("på torsdag", "27/10", "27 oktober"), kommer en påminnelse dagen innan och samma dag – med vad som ska med (matsäck, vattenflaska, ombyteskläder, skridskor …): "Ella · friluftsdag imorgon – ta med matsäck, vattenflaska". Den hamnar i Kom ihåg och i morgonnotisen.
+- **Säkerhetskopia.** Under Inställningar → Klart: ladda ner alla inställningar som en fil, och återställ dem på en ny dator. Med ett lösenord följer även inloggningar och länkar med, krypterade. (Som tillägg i Home Assistant ingår tavlan redan i HA:s egna säkerhetskopior.)
+
 ## 0.9.1
 
 - **Sjuk / VAB.** Markera ett barn som sjukt idag eller imorgon, på mobilsidan (fliken Sjuk) eller genom att trycka på barnets händelse på tavlan. Förskola, skola och aktiviteter stryks den dagen, ingen behöver lämna, hämta eller skjutsa (och får ingen påminnelse), Kom ihåg säger "Maja är sjuk idag" och de vuxna får en notis. "Frisk igen" tar tillbaka allt.

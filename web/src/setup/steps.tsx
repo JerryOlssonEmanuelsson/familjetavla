@@ -1950,6 +1950,91 @@ export function NotifyStep({ cfg, set, resp }: StepProps) {
 
 // ======================= Klart =======================
 
+/** Save all settings to a file, and bring them back – e.g. after moving to a new computer. */
+function BackupCard() {
+  const [pw, setPw] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [file, setFile] = useState<unknown>(null);
+  const [rpw, setRpw] = useState("");
+  return (
+    <section className="card stack">
+      <h2>Säkerhetskopia</h2>
+      <p className="muted" style={{ margin: 0 }}>
+        Spara familjen, kalendrarna, omsorgstiderna och alla val i en fil. Kör du tavlan som tillägg i Home Assistant ingår den redan i Home Assistants egna
+        säkerhetskopior.
+      </p>
+      <label className="field">
+        <span>Lösenord för filen (valfritt)</span>
+        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="Utan lösenord följer inga inloggningar med" autoComplete="new-password" />
+        <small>Med lösenord sparas även inloggningar och länkar (Vklass, kalenderlänkar, Home Assistant), krypterade med lösenordet.</small>
+      </label>
+      <button
+        className="btn"
+        style={{ alignSelf: "flex-start" }}
+        onClick={async () => {
+          setMsg(null);
+          try {
+            const data = await api.backup(pw || undefined);
+            const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `familjetavla-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            setMsg({ ok: true, text: pw ? "Sparad – med inloggningar, krypterade med ditt lösenord." : "Sparad – utan inloggningar." });
+          } catch (e) {
+            setMsg({ ok: false, text: (e as Error).message });
+          }
+        }}
+      >
+        Ladda ner säkerhetskopia
+      </button>
+      <label className="field">
+        <span>Återställ från en fil</span>
+        <input
+          type="file"
+          accept="application/json,.json"
+          onChange={async (e) => {
+            setMsg(null);
+            const f = e.target.files?.[0];
+            if (!f) return;
+            try {
+              setFile(JSON.parse(await f.text()));
+            } catch {
+              setMsg({ ok: false, text: "Filen gick inte att läsa." });
+            }
+          }}
+        />
+      </label>
+      {file !== null && (
+        <>
+          <label className="field">
+            <span>Lösenord (om filen har ett)</span>
+            <input type="password" value={rpw} onChange={(e) => setRpw(e.target.value)} autoComplete="off" />
+          </label>
+          <button
+            className="btn primary"
+            style={{ alignSelf: "flex-start" }}
+            onClick={async () => {
+              if (!confirm("Ersätta alla inställningar på den här tavlan med säkerhetskopian?")) return;
+              try {
+                const r = await api.restore(file, rpw || undefined);
+                setMsg({ ok: true, text: r.secrets ? "Återställd, med inloggningar. Laddar om …" : "Återställd. Fyll i lösenorden igen där det behövs. Laddar om …" });
+                setTimeout(() => location.reload(), 1500);
+              } catch (err) {
+                setMsg({ ok: false, text: (err as Error).message });
+              }
+            }}
+          >
+            Återställ
+          </button>
+        </>
+      )}
+      {msg && (msg.ok ? <Result result={{ ok: true, message: msg.text }} /> : <Result error={msg.text} />)}
+    </section>
+  );
+}
+
 export function DoneStep({ cfg, secrets, setSecrets, resp, haOk, addSteps }: StepProps) {
   const ha = (ids: string[]) => (haOk ? ids : ["ha", ...ids]);
   const adultsNotified = cfg.people.filter((p) => p.kind === "adult" && p.notify?.service).length;
@@ -1989,6 +2074,7 @@ export function DoneStep({ cfg, secrets, setSecrets, resp, haOk, addSteps }: Ste
         <p className="muted">Då startar den som en egen app bland de andra, i helskärm.</p>
         <InstallHelp />
       </section>
+      <BackupCard />
       <section className="card">
         <h2>Lägg till från mobilen</h2>
         <p className="muted">Öppna adressen på telefonen och lägg den på hemskärmen. Där skriver ni in en händelse eller något att handla, och det syns på tavlan direkt.</p>
