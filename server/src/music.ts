@@ -191,27 +191,74 @@ export function directory(list: RbStation[]): DirStation[] {
 let dirCache: { at: number; list: DirStation[] } | null = null;
 const DAY = 24 * 3600_000;
 
-/** Swedish stations from radio-browser.info, fetched once a day; the last good list is kept if it is down. */
+interface SrChannel {
+  id: number;
+  name: string;
+  image?: string;
+  channeltype?: string;
+  liveaudio?: { url?: string };
+}
+
+/**
+ * Sveriges Radio's own channel list (api.sr.se): every SR channel with its live stream, all P4
+ * included. The open directory lacks some of them (P4 Östergötland), so SR comes from the source.
+ */
+export function srChannels(list: SrChannel[]): DirStation[] {
+  const rank = (c: SrChannel) => (c.channeltype === "Rikskanal" ? 0 : c.channeltype === "Lokal kanal" ? 1 : 2);
+  return list
+    .filter((c) => c.name && /^https?:\/\//.test(c.liveaudio?.url ?? ""))
+    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "sv", { numeric: true }))
+    .map((c) => ({
+      id: `sr-${c.id}`,
+      name: c.name.trim().slice(0, 40),
+      url: c.liveaudio!.url!,
+      logo: c.image && /^https:\/\//.test(c.image) ? c.image : undefined,
+      group: "sr" as const,
+    }));
+}
+
+/**
+ * Every Swedish station, fetched once a day: Sveriges Radio from its own API, the rest from
+ * radio-browser.info. If one of them is down, the other still counts, and the last good list is kept.
+ */
 export async function swedishStations(fetchJson: typeof getJson = getJson, now = Date.now()): Promise<DirStation[]> {
   if (dirCache && now - dirCache.at < DAY) return dirCache.list;
+  const errors: string[] = [];
+  const sr = await fetchJson<{ channels: SrChannel[] }>("https://api.sr.se/api/v2/channels?format=json&pagination=false&audioquality=hi", { timeoutMs: 10_000 })
+    .then((r) => srChannels(r.channels ?? []))
+    .catch((e: Error) => (errors.push(`Sveriges Radio: ${e.message}`), [] as DirStation[]));
+  let rb: DirStation[] = [];
   const path = "/json/stations/search?countrycode=SE&hidebroken=true&order=clickcount&reverse=true&limit=500";
-  let last: Error | undefined;
   for (const m of MIRRORS) {
     try {
-      const list = directory(await fetchJson<RbStation[]>(m + path, { timeoutMs: 10_000 }));
-      if (list.length) {
-        dirCache = { at: now, list };
-        return list;
-      }
+      rb = directory(await fetchJson<RbStation[]>(m + path, { timeoutMs: 10_000 }));
+      break;
     } catch (e) {
-      last = e as Error;
+      if (m === MIRRORS[MIRRORS.length - 1]) errors.push(`radiokatalogen: ${(e as Error).message}`);
     }
   }
+  // With Sveriges Radio's own list, the directory's copies of SR channels are left out.
+  const list = sr.length ? [...sr, ...rb.filter((x) => x.group !== "sr")] : rb;
+  if (list.length) {
+    dirCache = { at: now, list };
+    return list;
+  }
   if (dirCache) return dirCache.list;
-  throw new Error(`Radiokatalogen svarar inte just nu. ${last?.message ?? ""}`.trim());
+  throw new Error(`Radiokanalerna går inte att hämta just nu (${errors.join("; ")}).`);
 }
 
 /** For tests. */
 export function clearStationCache() {
   dirCache = null;
+}
+
+/** Settings search: Swedish stations (all of Sveriges Radio included) first, then the rest of the world's. */
+export async function findStations(q: string): Promise<StationHit[]> {
+  const words = q.trim().toLowerCase();
+  if (words.length < 2) return [];
+  const [se, world] = await Promise.all([swedishStations().catch(() => [] as DirStation[]), searchStations(q).catch(() => null)]);
+  const ours = se.filter((x) => x.name.toLowerCase().includes(words)).map((x) => ({ name: x.name, url: x.url, logo: x.logo, country: "SE", quality: x.quality }));
+  if (!ours.length && !world) throw new Error("Radiokanalerna går inte att hämta just nu.");
+  const names = new Set(ours.map((x) => x.name.toLowerCase()));
+  return [...ours, ...(world ?? []).filter((x) => !names.has(x.name.toLowerCase()))].slice(0, 12);
 }

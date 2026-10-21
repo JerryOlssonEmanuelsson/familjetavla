@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HaState } from "./connectors/ha.js";
-import { buildMusic, cleanName, clearStationCache, directory, pickStations, playCall, searchStations, stationIndex, swedishStations } from "./music.js";
+import { buildMusic, cleanName, clearStationCache, directory, srChannels, pickStations, playCall, searchStations, stationIndex, swedishStations } from "./music.js";
 import type { Config } from "./types.js";
 
 const stations = [
@@ -149,24 +149,46 @@ describe("all Swedish stations", () => {
     expect(list.find((x) => x.name === "P4 Jönköping")).toMatchObject({ id: "e", url: "https://sr/p4j" });
   });
 
-  it("is fetched once a day and the last good list is kept when the directory is down", async () => {
+  it("takes Sveriges Radio from its own API, the rest from the directory, once a day", async () => {
     clearStationCache();
-    let calls = 0;
-    const up = (async () => {
-      calls++;
-      return [rb("p3", "SR P3", "https://sr/p3")];
+    const asked: string[] = [];
+    const up = (async (url: string) => {
+      asked.push(new URL(url).host);
+      if (url.includes("api.sr.se"))
+        return { channels: [{ id: 210, name: "P4 Östergötland", channeltype: "Lokal kanal", liveaudio: { url: "https://sr/p4og" } }, { id: 164, name: "P3", channeltype: "Rikskanal", liveaudio: { url: "https://sr/p3" } }] };
+      return [rb("rb-p3", "SR P3", "https://rb/p3"), rb("mix", "Mix Megapol", "https://m")];
+    }) as never;
+    const t0 = Date.UTC(2026, 9, 21, 8);
+    expect((await swedishStations(up, t0)).map((x) => `${x.group}:${x.name}`)).toEqual(["sr:P3", "sr:P4 Östergötland", "other:Mix Megapol"]);
+    await swedishStations(up, t0 + 3600_000);
+    expect(asked).toEqual(["api.sr.se", "de1.api.radio-browser.info"]);
+  });
+
+  it("keeps working when one source is down, and keeps the last good list when both are", async () => {
+    clearStationCache();
+    const srDown = (async (url: string) => {
+      if (url.includes("api.sr.se")) throw new Error("nere");
+      return [rb("rb-p3", "SR P3", "https://rb/p3")];
     }) as never;
     const down = (async () => {
-      calls++;
       throw new Error("nere");
     }) as never;
     const t0 = Date.UTC(2026, 9, 21, 8);
-    expect((await swedishStations(up, t0)).map((x) => x.name)).toEqual(["P3"]);
-    await swedishStations(up, t0 + 3600_000);
-    expect(calls).toBe(1);
+    expect((await swedishStations(srDown, t0)).map((x) => x.name)).toEqual(["P3"]);
     expect((await swedishStations(down, t0 + 25 * 3600_000)).map((x) => x.name)).toEqual(["P3"]);
     clearStationCache();
-    await expect(swedishStations(down, t0)).rejects.toThrow(/Radiokatalogen svarar inte/);
+    await expect(swedishStations(down, t0)).rejects.toThrow(/Radiokanalerna går inte att hämta/);
+  });
+
+  it("orders Sveriges Radio: national channels, then the local P4s", () => {
+    expect(
+      srChannels([
+        { id: 1, name: "P4 Jönköping", channeltype: "Lokal kanal", liveaudio: { url: "https://a" } },
+        { id: 2, name: "P1", channeltype: "Rikskanal", liveaudio: { url: "https://b" }, image: "https://img" },
+        { id: 3, name: "Utan ström", channeltype: "Rikskanal" },
+        { id: 4, name: "SR Sápmi", channeltype: "Minoritet och språk", liveaudio: { url: "https://c" } },
+      ]).map((x) => x.name),
+    ).toEqual(["P1", "P4 Jönköping", "SR Sápmi"]);
   });
 });
 

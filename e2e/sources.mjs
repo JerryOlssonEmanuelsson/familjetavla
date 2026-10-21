@@ -15,7 +15,7 @@ import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
 import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
 import { vklassLogin, vklassWelcome } from "../server/dist/connectors/vklass.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
-import { searchStations, swedishStations } from "../server/dist/music.js";
+import { findStations, swedishStations } from "../server/dist/music.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
 const problems = [];
@@ -154,6 +154,7 @@ await check("Postnummer (OpenStreetMap)", async () => {
   return `55318 → ${r.place}, ${r.municipality}, sophämtning: ${r.wasteProvider ?? "–"}`;
 });
 // Musik: the radio directory finds the stations families ask for, and their streams play.
+// Sveriges Radio comes from its own API (api.sr.se), the rest from radio-browser.info.
 // GitHub runs in the US: commercial Swedish stations often stream only inside Sweden (401/403),
 // which is noted, not counted as broken. Sveriges Radio streams everywhere and must play.
 async function streamAnswer(url) {
@@ -164,9 +165,9 @@ async function streamAnswer(url) {
   await reader?.cancel().catch(() => {});
   return { status: res.status, type, audio: res.ok && (/audio|mpegurl|ogg|aac|octet-stream/i.test(type) || res.headers.has("icy-name")) && Boolean(first.value?.length) };
 }
-for (const [q, mustPlay] of [["P4 Jönköping", true], ["P3", true], ["RIX FM", false]]) {
+for (const [q, mustPlay] of [["P4 Jönköping", true], ["P4 Östergötland", true], ["P3", true], ["RIX FM", false]]) {
   await check(`Radiokatalog: ${q}`, async () => {
-    const hits = (await searchStations(q)).filter((h) => h.country === "SE" && h.name.toLowerCase().includes(q.toLowerCase()));
+    const hits = (await findStations(q)).filter((h) => h.country === "SE" && h.name.toLowerCase().includes(q.toLowerCase()));
     if (!hits.length) throw new Error("hittade ingen svensk kanal med det namnet");
     const tried = [];
     for (const hit of hits.slice(0, 4)) {

@@ -3,7 +3,7 @@
 ## 0.10.0
 
 - **Musik.** Tryck på en radiokanal så spelar den i vald högtalare: Google Home/Nest, Chromecast, Sonos eller annat som finns i Home Assistant. Välj en **förvald högtalare** (t.ex. Google Home i köket) under Inställningar → Huset → Musik, så räcker ett tryck på RIX FM för att det ska spela där.
-- **Fliken Musik** har alla svenska kanaler: Sveriges Radio (P1–P3 och alla P4-kanaler, t.ex. P4 Östergötland) och övriga (Mix Megapol, RIX FM, Lugna Favoriter …). Sök, tryck för att spela, välj högtalare, och tryck ☆ för att lägga kanalen på startsidan. Väljer man en annan högtalare gäller det i fem minuter, sedan är den förvalda vald igen. Kanalerna kommer från den öppna katalogen radio-browser.info.
+- **Fliken Musik** har alla svenska kanaler: Sveriges Radio (P1–P3 och alla P4-kanaler, t.ex. P4 Östergötland) och övriga (Mix Megapol, RIX FM, Lugna Favoriter …). Sök, tryck för att spela, välj högtalare, och tryck ☆ för att lägga kanalen på startsidan. Väljer man en annan högtalare gäller det i fem minuter, sedan är den förvalda vald igen. Sveriges Radios kanaler kommer direkt från Sveriges Radio, övriga från den öppna katalogen radio-browser.info.
 - **Liten ruta på startsidan** med bara favoriterna, t.ex. P4 Jönköping och RIX FM, med vad som spelas, Stopp och volym. Tryck på rutan för fliken.
 - **Spotify:** finns integrationen Spotify i Home Assistant visar fliken vad som spelas, med Spela/Paus och Nästa. Annars står det steg för steg hur man lägger till den.
 - Under Inställningar → Huset → Musik: **Prova** spelar en kanal direkt innan du lägger till den, och egna länkar till en ström går också. "Hämta från Home Assistant" hittar högtalarna själv (inte tv-apparater).

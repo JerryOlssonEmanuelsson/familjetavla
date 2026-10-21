@@ -39,7 +39,7 @@ import { addDays, dayKey, hhmm, shortDate, shortWeekday, startOfDay } from "./ti
 import { setSick } from "./sick.js";
 import { makeBackup, restoreBackup } from "./backup.js";
 import { follows } from "./notify.js";
-import { playCall, searchStations, spotifyPlayer, swedishStations } from "./music.js";
+import { findStations, playCall, spotifyPlayer, swedishStations } from "./music.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export { VERSION } from "./version.js";
@@ -818,7 +818,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/api/radio/search", { preHandler: guard }, async (req, reply) => {
     const { q } = (req.query ?? {}) as { q?: string };
     try {
-      return { stations: await searchStations(String(q ?? "")) };
+      return { stations: await findStations(String(q ?? "")) };
     } catch (e) {
       return fail(reply, e, 502);
     }
