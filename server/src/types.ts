@@ -50,6 +50,8 @@ export interface NotifySettings {
   before?: number;
   /** Kl 20: vad man ansvarar för imorgon. */
   evening?: boolean;
+  /** Barnen (id) den vuxna vill ha notiser om. Saknas = alla. Det man själv ansvarar för kommer alltid. */
+  children?: string[];
   /** "06:45": dagens kom ihåg och det man ansvarar för idag. "" = av, saknas = 06:45. */
   morning?: string;
   /** Söndag kl 19: "Planera veckan" om något saknar ansvarig. */
@@ -429,6 +431,8 @@ export interface Reminder {
   title: string;
   sub: string;
   tone: "blue" | "amber" | "neutral" | "green";
+  /** The child it is about – a grown-up who follows only some children gets only theirs in the phone. */
+  personId?: string;
 }
 
 export interface PriceBar {

@@ -38,6 +38,7 @@ import { readFileSync } from "node:fs";
 import { addDays, dayKey, hhmm, shortDate, shortWeekday, startOfDay } from "./time.js";
 import { setSick } from "./sick.js";
 import { makeBackup, restoreBackup } from "./backup.js";
+import { follows } from "./notify.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export { VERSION } from "./version.js";
@@ -135,6 +136,7 @@ const personSchema = z.object({
       evening: z.boolean().optional(),
       weekly: z.boolean().optional(),
       morning: z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/)]).optional(),
+      children: z.array(z.string().regex(ID)).max(20).optional(),
     })
     .optional(),
   care: z
@@ -991,7 +993,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const conn = haConnection();
     if (body.data.sick && conn && (body.data.date === today || body.data.date === tomorrow)) {
       const when = body.data.date === today ? "idag" : "imorgon";
-      for (const a of cfg.people.filter((p) => p.kind === "adult" && p.notify?.service)) {
+      for (const a of cfg.people.filter((p) => p.kind === "adult" && p.notify?.service && follows(p, child.id))) {
         await ha
           .service(conn, "notify", a.notify!.service!, { title: "Sjuk", message: `${child.name} är sjuk ${when} – förskola, skola och aktiviteter är strukna på tavlan.` })
           .catch(() => {});

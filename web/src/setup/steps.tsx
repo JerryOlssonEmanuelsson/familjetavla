@@ -33,10 +33,12 @@ export function HomeStep({ cfg, set, postcode, setPostcode }: StepProps) {
     try {
       const p = await api.postcode(pnr);
       setPostcode(p);
-      const integrations = cfg.integrations.map((i) =>
-        i.category === "price" && i.provider === "spot" ? { ...i, settings: { ...i.settings, area: p.area } } : i,
-      );
-      set({ ...cfg, integrations, household: { ...cfg.household, postcode: p.postcode, place: p.place, municipality: p.municipality, lat: p.lat, lon: p.lon } });
+      // The answer can come after the user has moved on – build on the latest config, not this render's.
+      set((c) => ({
+        ...c,
+        integrations: c.integrations.map((i) => (i.category === "price" && i.provider === "spot" ? { ...i, settings: { ...i.settings, area: p.area } } : i)),
+        household: { ...c.household, postcode: p.postcode, place: p.place, municipality: p.municipality, lat: p.lat, lon: p.lon },
+      }));
     } catch (e) {
       setError(`${(e as Error).message} Postnumret sparas ändå – väder och elområde kan fyllas i senare under Inställningar.`);
     } finally {
@@ -1829,6 +1831,7 @@ const MORNING_TIMES = ["05:45", "06:00", "06:15", "06:30", "06:45", "07:00", "07
 const BEFORE = [0, 15, 30, 45, 60, 90];
 
 export function NotifyStep({ cfg, set, resp }: StepProps) {
+  const kidsForNotify = cfg.people.filter((p) => p.kind === "child");
   const [phones, setPhones] = useState<string[] | null>(null);
   const [error, setError] = useState("");
   const [results, setResults] = useState<Record<string, TestResult | string>>({});
@@ -1892,6 +1895,32 @@ export function NotifyStep({ cfg, set, resp }: StepProps) {
                   onChange={(v) => setNotify(a.id, { morning: v })}
                   options={[{ value: "", label: "Ingen morgonnotis" }, ...MORNING_TIMES.map((t) => ({ value: t, label: `Kl ${t}` }))]}
                 />
+                {kidsForNotify.length > 1 && (
+                  <div className="field">
+                    <span>Notiser om</span>
+                    <div className="seg">
+                      {kidsForNotify.map((k) => {
+                        const chosen = n.children ?? kidsForNotify.map((x) => x.id);
+                        const on = chosen.includes(k.id);
+                        return (
+                          <button
+                            type="button"
+                            key={k.id}
+                            className={`seg-btn ${on ? "on" : ""}`}
+                            aria-pressed={on}
+                            onClick={() => {
+                              const next = on ? chosen.filter((id) => id !== k.id) : [...chosen, k.id];
+                              setNotify(a.id, { children: next.length === kidsForNotify.length ? undefined : next });
+                            }}
+                          >
+                            {k.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <small>Morgonens kom ihåg och sjuk-notiser gäller bara de barn du valt. Det du själv ska lämna, hämta eller skjutsa får du alltid.</small>
+                  </div>
+                )}
                 <Toggle label="Kvällen innan kl 20 – vad jag ansvarar för imorgon" checked={n.evening ?? true} onChange={(v) => setNotify(a.id, { evening: v })} />
                 <Toggle label="Söndag kl 19 – Planera veckan om något saknar ansvarig" checked={n.weekly ?? true} onChange={(v) => setNotify(a.id, { weekly: v })} />
               </>

@@ -33,7 +33,19 @@ const join = (xs: string[]) => xs.join(" · ");
  *  - 20:00: tomorrow's duties for that person
  *  - Sunday 19:00: "Planera veckan" when something has no one yet
  */
-export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek: number, missingTomorrow: number, now: Date, todayItems: string[] = []): Outgoing[] {
+/** Whether this grown-up wants notifications about this child (no choice made = all children). */
+export function follows(a: Person, childId: string | undefined): boolean {
+  return !childId || !a.notify?.children || a.notify.children.includes(childId);
+}
+
+export function dueNotifications(
+  adults: Person[],
+  list: Duty[],
+  missingThisWeek: number,
+  missingTomorrow: number,
+  now: Date,
+  todayItems: { text: string; personId?: string }[] = [],
+): Outgoing[] {
   const out: Outgoing[] = [];
   const t = hhmm(now);
   const tomorrow = addDays(startOfDay(now), 1);
@@ -56,7 +68,8 @@ export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek
     }
     if (morningTime(a) === t) {
       const today = mine.filter((d) => d.at.toDateString() === now.toDateString() && d.at >= now);
-      const lines = [...today.map((d) => dutyMessage(d)), ...todayItems];
+      // Own duties always; the day's list only for the children this grown-up follows.
+      const lines = [...today.map((d) => dutyMessage(d)), ...todayItems.filter((i) => follows(a, i.personId)).map((i) => i.text)];
       if (lines.length) out.push({ service: n.service, title: "Idag", message: join(lines), key: `morning:${a.id}:${now.toDateString()}` });
     }
     if (n.evening && t === "20:00") {
@@ -163,7 +176,7 @@ export function startNotifier(log: FastifyBaseLogger) {
       const missingTomorrow = plan.items.filter((i) => i.dayLabel === "imorgon" && needsAttention(i)).length;
       // The morning list is the board's own "kom ihåg" – only built in the minute someone gets it.
       const t = hhmm(now);
-      const todayItems = adults.some((a) => morningTime(a) === t) ? (await buildDashboard(now, { allReminders: true })).reminders.map(reminderLine) : [];
+      const todayItems = adults.some((a) => morningTime(a) === t) ? (await buildDashboard(now, { allReminders: true })).reminders.map((r) => ({ text: reminderLine(r), personId: r.personId })) : [];
       for (const m of dueNotifications(adults, list, plan.missing, missingTomorrow, now, todayItems)) {
         if (sent.has(m.key)) continue;
         sent.add(m.key);

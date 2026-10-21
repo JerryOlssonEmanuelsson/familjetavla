@@ -676,7 +676,7 @@ export function buildReminders(
   // Sick children (Sjuk/VAB): first, so nobody drives off to förskola.
   for (const e of events.filter((x) => x.sourceId === "sick" && daysBetween(focusDay, x.start) === 0)) {
     const p = e.personId ? people.get(e.personId) : undefined;
-    if (p) out.push({ icon: "kids", title: `${p.name} är sjuk ${focusLabel}`, sub: "Förskola, skola och aktiviteter är strukna", tone: "amber" });
+    if (p) out.push({ icon: "kids", title: `${p.name} är sjuk ${focusLabel}`, sub: "Förskola, skola och aktiviteter är strukna", tone: "amber", personId: p.id });
   }
 
   // Cold morning for the children on their way: mössa och vantar (also in the morning notification).
@@ -708,7 +708,7 @@ export function buildReminders(
     const sub = c.early
       ? "Kolla när förskolan stänger – hämta tidigare?"
       : diff <= 1 ? "Ordna barnomsorg" : `Om ${diff} dagar – ordna barnomsorg`;
-    out.push({ icon: "school", title: `${c.name} · ${c.title} ${when}`, sub, tone: "amber" });
+    out.push({ icon: "school", title: `${c.name} · ${c.title} ${when}`, sub, tone: "amber", personId: c.personId });
   }
 
   // Förskola/fritids: "saknas på hyllan" until it is cleared, and the weekday's own note.
@@ -716,9 +716,9 @@ export function buildReminders(
   for (const p of [...people.values()].filter((x) => x.kind === "child" && x.care)) {
     if (!isHome(p.custody, focusDay)) continue;
     const place = p.care!.name || "Förskola";
-    if (shelf[p.id]?.length) out.push({ icon: "bag", title: `${p.name} · ta med ${careAt(place).replace(/^(på|hos) /, "till ")}: ${shelf[p.id].join(", ").toLowerCase()}`, sub: "Bocka av när det är lämnat – tryck på lämningen", tone: "amber" });
+    if (shelf[p.id]?.length) out.push({ icon: "bag", title: `${p.name} · ta med ${careAt(place).replace(/^(på|hos) /, "till ")}: ${shelf[p.id].join(", ").toLowerCase()}`, sub: "Bocka av när det är lämnat – tryck på lämningen", tone: "amber", personId: p.id });
     const note = p.care!.notes?.[String(isoWeekday(focusDay))];
-    if (note && careTimesFor(p.care, focusDay)) out.push({ icon: "bag", title: `${p.name} · ${note}`, sub: `${place} ${evening ? "imorgon" : "idag"}`, tone: "blue" });
+    if (note && careTimesFor(p.care, focusDay)) out.push({ icon: "bag", title: `${p.name} · ${note}`, sub: `${place} ${evening ? "imorgon" : "idag"}`, tone: "blue", personId: p.id });
   }
 
   // Förskola/fritids: who drops off and picks up (today, or tomorrow in the evening).
@@ -731,6 +731,7 @@ export function buildReminders(
       title: `${p.name} · ${e.title.toLowerCase()} ${evening ? "imorgon " : ""}${hhmm(e.start)}–${hhmm(e.end)}`,
       sub: who || "Vem lämnar och hämtar? Tryck på lämningen i Nu",
       tone: "green",
+      personId: p.id,
     });
   }
 
@@ -754,12 +755,13 @@ export function buildReminders(
         title: `${p.name} · ${e.title} ${evening ? `${focusLabel} ` : ""}${e.allDay ? (evening ? "" : focusLabel) : hhmm(e.start)}`.trim(),
         sub: ride ? `Packa väskan · ${ride}` : asks ? "Packa väskan · tryck i kalendern för att välja skjuts" : "Packa träningsväskan",
         tone: "blue",
+        personId: p.id,
       });
     } else if (e.gym) {
       const key = `gym:${p.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ icon: "gym", title: `${p.name} · Idrott ${focusLabel}`, sub: "Gympapåse · från Vklass", tone: "amber" });
+      out.push({ icon: "gym", title: `${p.name} · Idrott ${focusLabel}`, sub: "Gympapåse · från Vklass", tone: "amber", personId: p.id });
     }
   }
 
@@ -849,7 +851,7 @@ export function careCalendars(people: Person[]): [string, CalendarSource][] {
 
 /** School/förskola events that say the place is closed, per child at home that day. */
 export function closures(events: SourcedEvent[], people: Map<string, Person>, today: Date, days: number) {
-  const out: { name: string; title: string; date: Date; early: boolean }[] = [];
+  const out: { name: string; personId: string; title: string; date: Date; early: boolean }[] = [];
   const seen = new Set<string>();
   for (const e of events) {
     if (e.category !== "school" || !e.personId) continue;
@@ -864,7 +866,7 @@ export function closures(events: SourcedEvent[], people: Map<string, Person>, to
     const key = `${p.id}@${dayKey(d)}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ name: p.name, title: e.title.replace(/\s+/g, " ").trim(), date: d, early });
+    out.push({ name: p.name, personId: p.id, title: e.title.replace(/\s+/g, " ").trim(), date: d, early });
   }
   return out.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
