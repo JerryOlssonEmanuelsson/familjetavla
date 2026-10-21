@@ -353,6 +353,20 @@ describe("ansvar och påminnelser", () => {
     expect(dueNotifications([emil, anna], list, 0, 0, new Date(2026, 9, 19, 7, 0))[0].actions).toEqual([{ action: "FAMILJETAVLA_LAMNAT:maja", title: "Lämnat ✓" }]);
   });
 
+  it("flyttad eller inställd träning till den som skjutsar – inte när någon annan tar skjutsen", async () => {
+    const { dutyChanges } = await import("./notify.js");
+    const now = new Date(2026, 9, 19, 12);
+    const d = (at: Date, key = "fotboll@t1@2026-10-19") => ({ personId: "emil", at, text: `Skjutsa Ella till F14 – Träning ${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`, key: `${key}:to`, leg: "to" as const, standard: false });
+    const before = [d(new Date(2026, 9, 19, 17, 30))];
+    const keys = new Set(["fotboll@t1@2026-10-19"]);
+    expect(dutyChanges(before, [d(new Date(2026, 9, 19, 18, 0))], now, true, keys).map((c) => `${c.title}: ${c.message}`)).toEqual(["Ny tid: Skjutsa Ella till F14 – Träning mån 19 okt: nu 18:00 (var 17:30)"]);
+    expect(dutyChanges(before, [], now, true, new Set()).map((c) => c.title)).toEqual(["Inställt?"]);
+    // Still in the calendar, just nobody drives now (bus) → nothing.
+    expect(dutyChanges(before, [], now, true, keys)).toEqual([]);
+    // A calendar could not be read this time → never "cancelled".
+    expect(dutyChanges(before, [], now, false, new Set())).toEqual([]);
+  });
+
   it("morgonnotis 06:45 med dagens kom ihåg och det man själv ansvarar för", async () => {
     const { duties } = await import("./plan.js");
     const { dueNotifications, reminderLine } = await import("./notify.js");

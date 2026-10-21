@@ -4,6 +4,7 @@ import { buildDashboard, gatherFamily } from "./dashboard.js";
 import { haSocket } from "./connectors/haws.js";
 import { buildPlan, dutyMessage, duties, needsAttention, type Duty } from "./plan.js";
 import { loadShelf, saveShelf } from "./meals.js";
+import { travelKey } from "./travel.js";
 import { loadConfig } from "./store.js";
 import { addDays, hhmm, isoWeekday, startOfDay } from "./time.js";
 import type { Person } from "./types.js";
@@ -79,6 +80,37 @@ export function dueNotifications(adults: Person[], list: Duty[], missingThisWeek
   return out;
 }
 
+const withoutTime = (text: string) => text.replace(/ \d{2}:\d{2}$/, "");
+const dayName = (d: Date) => d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" }).replace(/\.$/, "");
+
+/**
+ * A training or match the grown-up drives to that moved or disappeared from the club's calendar
+ * (SportAdmin, laget.se …) within the next two days. `sourcesOk` false (a calendar could not be read)
+ * means nothing is called cancelled, since it may just be missing this time.
+ */
+export function dutyChanges(prev: Duty[], next: Duty[], now: Date, sourcesOk: boolean, eventKeys: Set<string>): { personId: string; title: string; message: string; key: string }[] {
+  const out: { personId: string; title: string; message: string; key: string }[] = [];
+  const soon = now.getTime() + 48 * 3_600_000;
+  const watched = (d: Duty) => d.leg === "to" && !d.key.startsWith("care:") && d.at.getTime() > now.getTime() && d.at.getTime() < soon;
+  for (const p of prev.filter(watched)) {
+    const same = next.find((n) => n.key === p.key && n.leg === p.leg) ?? next.find((n) => n.leg === p.leg && n.personId === p.personId && withoutTime(n.text) === withoutTime(p.text) && n.at.toDateString() === p.at.toDateString());
+    if (same) {
+      if (same.at.getTime() !== p.at.getTime()) {
+        out.push({
+          personId: same.personId,
+          title: "Ny tid",
+          message: `${withoutTime(p.text)} ${dayName(same.at)}: nu ${hhmm(same.at)} (var ${hhmm(p.at)})`,
+          key: `moved:${p.key}:${hhmm(same.at)}`,
+        });
+      }
+    } else if (sourcesOk && !eventKeys.has(p.key.replace(/:(to|home)$/, ""))) {
+      // Still in the calendar but nobody drives any more (bus, someone else) is not a cancellation.
+      out.push({ personId: p.personId, title: "Inställt?", message: `${withoutTime(p.text)} ${dayName(p.at)} ${hhmm(p.at)} finns inte längre i kalendern`, key: `gone:${p.key}` });
+    }
+  }
+  return out;
+}
+
 /** When this grown-up gets the morning notification, or "" when it is off. */
 export function morningTime(a: Person): string {
   return a.notify?.morning ?? MORNING;
@@ -92,6 +124,7 @@ export function reminderLine(r: { title: string; sub: string }): string {
 /** Checks every minute (only when someone has notifications on) and sends each message once. */
 export function startNotifier(log: FastifyBaseLogger) {
   const sent = new Set<string>();
+  let lastDuties: Duty[] | null = null;
   // "Lämnat ✓" in the phone: clear what was missing on the shelf, like ticking it off on the board.
   haSocket()?.onAction((action) => {
     if (!action.startsWith(SHELF_DONE)) return;
@@ -112,8 +145,19 @@ export function startNotifier(log: FastifyBaseLogger) {
     const conn = haConnection();
     if (!adults.length || !conn || !cfg.setupComplete) return;
     try {
-      const fam = await gatherFamily(cfg, now, []);
+      const errors: { source: string; message: string }[] = [];
+      const fam = await gatherFamily(cfg, now, errors);
       const list = duties(fam.withCare, fam.people, fam.travelCtx, now, addDays(startOfDay(now), 3), loadShelf());
+      // Trainings that moved or were cancelled since the last look: tell the one who drives.
+      const eventKeys = new Set(fam.withCare.map((e) => travelKey(e)));
+      const changes = lastDuties ? dutyChanges(lastDuties, list, now, errors.length === 0, eventKeys) : [];
+      lastDuties = list;
+      for (const c of changes) {
+        const a = adults.find((x) => x.id === c.personId);
+        if (!a?.notify?.service || sent.has(c.key)) continue;
+        sent.add(c.key);
+        await ha.service(conn, "notify", a.notify.service, { title: c.title, message: c.message }).catch((e) => log.warn(`Notis till ${a.notify!.service} misslyckades: ${(e as Error).message}`));
+      }
       const plan = buildPlan(fam.withCare, fam.people, fam.travelCtx, now, () => ({ time: "", title: "", color: "", who: "", category: "family", icon: "event" }));
       const missingTomorrow = plan.items.filter((i) => i.dayLabel === "imorgon" && needsAttention(i)).length;
       // The morning list is the board's own "kom ihåg" – only built in the minute someone gets it.
