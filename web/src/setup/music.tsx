@@ -60,10 +60,17 @@ export function MusicCard({ cfg, set }: { cfg: Config; set: (c: Config | ((prev:
       <div className="stack" style={{ gap: 8 }}>
         <b>Högtalare</b>
         {speakers.map((s, i) => (
-          <div className="row gap" key={s.entityId}>
+          <div className="row gap" key={s.entityId} style={{ alignItems: "center" }}>
             <div className="grow">
               <Text label={s.entityId} value={s.name} onChange={(v) => setEn({ speakers: speakers.map((x, j) => (j === i ? { ...x, name: v } : x)) })} />
             </div>
+            {i === 0 ? (
+              <span className="chip on" title="Spelar här om ingen väljer annat">Förvald</span>
+            ) : (
+              <button className="btn small" onClick={() => setEn({ speakers: [s, ...speakers.filter((_, j) => j !== i)] })}>
+                Gör förvald
+              </button>
+            )}
             <button className="btn small ghost" aria-label={`Ta bort ${s.name}`} onClick={() => setEn({ speakers: speakers.filter((_, j) => j !== i) })}>
               <Icon name="x" size={18} />
             </button>
@@ -74,7 +81,7 @@ export function MusicCard({ cfg, set }: { cfg: Config; set: (c: Config | ((prev:
           domains={["media_player"]}
           value={undefined}
           onChange={(v, o) => v && !speakers.some((s) => s.entityId === v) && setEn({ speakers: [...speakers, { entityId: v, name: o?.name ?? v }] })}
-          help="Den första är förvald. Varje skärm kommer ihåg vilken högtalare man valde senast."
+          help="Den förvalda spelar när man bara trycker på en kanal. Väljer man en annan högtalare på tavlan gäller det i fem minuter, sedan är den förvalda vald igen."
         />
       </div>
 

@@ -2,7 +2,7 @@
 
 ## 0.10.0
 
-- **Musik.** Tryck på en radiokanal på tavlan, så spelar den i vald högtalare: Google Home/Nest, Chromecast, Sonos eller annat som finns i Home Assistant. Välj högtalare överst i rutan; varje skärm kommer ihåg sin egen, så tavlan i köket spelar i köket. Rutan visar vad som spelas (även Spotify från en telefon), och har Stopp och volym.
+- **Musik.** Tryck på en radiokanal på tavlan, så spelar den i vald högtalare: Google Home/Nest, Chromecast, Sonos eller annat som finns i Home Assistant. Välj en **förvald högtalare** (t.ex. Google Home i köket), så räcker ett tryck på RIX FM för att det ska spela där. Väljer man en annan högtalare i rutan gäller det i fem minuter, sedan är den förvalda vald igen. Rutan visar vad som spelas (även Spotify från en telefon), och har Stopp och volym.
 - **Alla svenska kanaler ett sök bort.** Under Inställningar → Huset → Musik söker du "P4 Jönköping", "RIX FM" eller "Mix Megapol" i en öppen radiokatalog och trycker Lägg till. Egna länkar till en ström går också.
 - "Hämta från Home Assistant" hittar högtalarna själv (inte tv-apparater) och slår på Musik på startskärmen.
 

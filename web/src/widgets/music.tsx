@@ -1,41 +1,35 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Dashboard } from "../../../server/src/types";
 import { api } from "../api";
 import { Icon } from "../Icon";
 import type { Actions } from "../dashboard/Dashboard";
 import type { WidgetModule } from "./types";
 
-const KEY = "familjetavla.speaker";
-function savedSpeaker(): string | null {
-  try {
-    return localStorage.getItem(KEY);
-  } catch {
-    return null;
-  }
-}
+/** A speaker picked on the board is used for a while, then the board goes back to the default one. */
+const BACK_TO_DEFAULT_MS = 5 * 60_000;
 
 /** Musik: tap a station and it plays on the chosen speaker (Google/Nest, Sonos, Chromecast …). */
 export function Music({ data, actions }: { data: Dashboard; actions: Actions }) {
   const m = data.music;
-  // Each screen remembers its own speaker: the kitchen board plays in the kitchen.
-  const [chosen, setChosen] = useState(savedSpeaker);
+  // The default speaker (first under Huset → Musik) is always one tap away: "RIX FM" plays in the
+  // kitchen. Picking another speaker holds for a few minutes after the last tap, then it goes back.
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [touched, setTouched] = useState(0);
+  useEffect(() => {
+    if (!chosen) return;
+    const t = setTimeout(() => setChosen(null), BACK_TO_DEFAULT_MS);
+    return () => clearTimeout(t);
+  }, [chosen, touched]);
   if (!m || !m.speakers.length) return null;
   const sp = m.speakers.find((s) => s.entityId === chosen) ?? m.speakers[0]!;
-  const choose = (id: string) => {
-    setChosen(id);
-    try {
-      localStorage.setItem(KEY, id);
-    } catch {
-      /* private mode */
-    }
-  };
+  const choose = (id: string) => setChosen(id === m.speakers[0]!.entityId ? null : id);
+  const keep = () => chosen && setTouched(Date.now());
   const speakerNow = (d: Dashboard) => d.music?.speakers.find((s) => s.entityId === sp.entityId);
-  const play = (index: number, name: string) =>
-    actions.run(name, () => api.playStation(index, sp.entityId), {
+  const play = (index: number, name: string) => (keep(), actions.run(name, () => api.playStation(index, sp.entityId), {
       done: `${name} spelar i ${sp.name}`,
       check: (d) => speakerNow(d)?.station === index,
       slow: `${name} är skickad till ${sp.name} – vissa högtalare tar en stund att starta.`,
-    });
+    }));
   const stop = () =>
     actions.run(`Stopp i ${sp.name}`, () => api.stopMusic(sp.entityId), { done: `Tyst i ${sp.name}`, check: (d) => !speakerNow(d)?.playing });
   const vol = sp.volume ?? null;

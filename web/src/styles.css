@@ -401,6 +401,11 @@ a.btn {
   font-size: 14px;
   color: var(--muted);
 }
+.chip.on {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  font-weight: 650;
+}
 .chip.warn {
   color: var(--amber);
   border-color: color-mix(in srgb, var(--amber) 40%, transparent);
