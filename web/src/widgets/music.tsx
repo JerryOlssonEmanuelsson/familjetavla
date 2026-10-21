@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Dashboard, Music as MusicData } from "../../../server/src/types";
 import { api, type DirStation } from "../api";
 import { Icon } from "../Icon";
@@ -140,6 +140,40 @@ function MusicCard({ m, actions }: { m: MusicData; actions: Actions }) {
   );
 }
 
+// ---------- Pages instead of scrolling ----------
+// Tablets never scroll: the list shows as many stations as fit its box, and "Fler" turns the page.
+// Phones show the whole list and the page scrolls as usual.
+
+const TABLET = "(min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px)";
+
+function usePages(count: number, reset: unknown) {
+  const box = useRef<HTMLDivElement>(null);
+  const [per, setPer] = useState(0);
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [reset]);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => {
+      if (!window.matchMedia(TABLET).matches) return setPer(0);
+      const first = el.firstElementChild as HTMLElement | null;
+      if (!first) return;
+      const cs = getComputedStyle(el);
+      const gap = parseFloat(cs.rowGap) || 0;
+      const cols = Math.max(1, cs.gridTemplateColumns.split(" ").filter(Boolean).length);
+      const rows = Math.max(1, Math.floor((el.clientHeight + gap) / (first.offsetHeight + gap)));
+      setPer(rows * cols);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [count]);
+  const pages = per ? Math.max(1, Math.ceil(count / per)) : 1;
+  const at = Math.min(page, pages - 1);
+  return { box, from: per ? at * per : 0, to: per ? (at + 1) * per : count, at, pages, setPage };
+}
+
 // ---------- The Musik tab: speakers, favourites and every Swedish station ----------
 
 export function MusicPage({ data, actions }: { data: Dashboard; actions: Actions }) {
@@ -167,6 +201,7 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
     const words = q.trim().toLowerCase();
     return (all ?? []).filter((s) => (words ? s.name.toLowerCase().includes(words) : s.group === group));
   }, [all, group, q]);
+  const pg = usePages(shown.length, `${group}|${q}`);
   const star = (s: DirStation) => {
     keep();
     const on = !isFav(s.url);
@@ -214,8 +249,8 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
         {error && <p className="error-text">{error}</p>}
         {!all && !error && <p className="muted">Hämtar kanaler …</p>}
         {all && shown.length === 0 && <p className="muted">Ingen kanal heter så.</p>}
-        <div className="station-list">
-          {shown.map((s) => {
+        <div className="station-list" ref={pg.box}>
+          {shown.slice(pg.from, pg.to).map((s) => {
             const fav = isFav(s.url);
             return (
               <div key={s.id} className="station-row">
@@ -227,12 +262,36 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
             );
           })}
         </div>
-        <p className="muted music-hint">☆ lägger kanalen på startsidan.</p>
+        <div className="music-pager">
+          <span className="muted music-hint">☆ lägger kanalen på startsidan.</span>
+          {pg.pages > 1 && (
+            <span className="row gap" style={{ alignItems: "center" }}>
+              <button className="btn small" aria-label="Föregående kanaler" disabled={pg.at === 0} onClick={() => pg.setPage(pg.at - 1)}>
+                ‹
+              </button>
+              <span className="muted">
+                {pg.at + 1} av {pg.pages}
+              </span>
+              <button className="btn small" disabled={pg.at >= pg.pages - 1} onClick={() => pg.setPage(pg.at + 1)}>
+                Fler ›
+              </button>
+            </span>
+          )}
+        </div>
       </section>
 
       <SpotifyBox sp={m.spotify} actions={actions} />
     </div>
   );
+}
+
+/**
+ * Opens "Add integration → <domain>" in Home Assistant. Inside Home Assistant (ingress) that is the
+ * same window; elsewhere Home Assistant's own My link asks once which Home Assistant is yours.
+ */
+export function haAddIntegration(domain: string): string {
+  const inHa = /\/api\/hassio_ingress\//.test(location.pathname);
+  return inHa ? `${location.origin}/_my_redirect/config_flow_start?domain=${domain}` : `https://my.home-assistant.io/redirect/config_flow_start/?domain=${domain}`;
 }
 
 /** Spotify: controls when Home Assistant has the Spotify integration, otherwise how to add it. */
@@ -241,20 +300,14 @@ function SpotifyBox({ sp, actions }: { sp: MusicData["spotify"]; actions: Action
     return (
       <section className="card spotify-box">
         <h2>Spotify</h2>
-        <p style={{ margin: "0 0 8px" }}>
-          För att se och styra Spotify härifrån behöver Home Assistant integrationen <b>Spotify</b> (den finns inbyggd, inget extra att ladda ner):
+        <p style={{ margin: "0 0 10px" }}>
+          Lägg till integrationen <b>Spotify</b> i Home Assistant, så syns det som spelas här med Spela/Paus och Nästa.
         </p>
-        <ol className="guide">
-          <li>
-            Öppna Home Assistant → <b>Inställningar</b> → <b>Enheter och tjänster</b>.
-          </li>
-          <li>
-            Tryck <b>Lägg till integration</b> och sök <b>Spotify</b>.
-          </li>
-          <li>Följ stegen och logga in med ert Spotify-konto (Premium behövs). Home Assistant visar hur du skapar nyckeln hos Spotify.</li>
-        </ol>
-        <p className="muted" style={{ margin: "8px 0 0" }}>
-          Sedan syns det som spelas här, med Spela/Paus och Nästa. Starta låten från Spotify-appen och välj högtalaren där – Google-högtalare dyker upp i Spotify när de är påslagna på samma wifi.
+        <a className="btn primary" href={haAddIntegration("spotify")} target="_top" rel="noopener">
+          <Icon name="plus" size={18} /> Lägg till Spotify i Home Assistant
+        </a>
+        <p className="muted" style={{ margin: "10px 0 0" }}>
+          Home Assistant leder dig genom resten: en nyckel hos Spotify och inloggning med ert konto (Premium behövs).
         </p>
       </section>
     );

@@ -3,6 +3,7 @@ import type { Config, RadioStation } from "../../../server/src/types";
 import { api, type StationHit } from "../api";
 import { Icon } from "../Icon";
 import { EntityPicker, Text } from "./parts";
+import { haAddIntegration } from "../widgets/music";
 
 /**
  * Huset → Musik: which speakers the board plays on, and the favourite stations.
@@ -197,9 +198,15 @@ export function MusicCard({ cfg, set, saveNow }: { cfg: Config; set: (c: Config 
         </div>
       </details>
 
-      <p className="muted" style={{ margin: 0 }}>
-        Spotify: starta från Spotify-appen och välj högtalaren där. Med integrationen Spotify i Home Assistant (Inställningar → Enheter och tjänster → Lägg till integration → Spotify) visar fliken Musik vad som spelas, med Spela/Paus och Nästa.
-      </p>
+      <div className="stack" style={{ gap: 8 }}>
+        <b>Spotify</b>
+        <p className="muted" style={{ margin: 0 }}>
+          Med integrationen Spotify i Home Assistant visar fliken Musik vad som spelas, med Spela/Paus och Nästa. Låtar startar du från Spotify-appen.
+        </p>
+        <a className="btn small" style={{ alignSelf: "flex-start" }} href={haAddIntegration("spotify")} target="_top" rel="noopener">
+          <Icon name="plus" size={16} /> Lägg till Spotify i Home Assistant
+        </a>
+      </div>
     </section>
   );
 }
