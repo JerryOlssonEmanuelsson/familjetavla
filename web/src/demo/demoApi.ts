@@ -629,6 +629,30 @@ export const demoApi = {
     recountGroups();
     return wait({});
   },
+  playStation: (index: number, speaker: string) => {
+    const sp = d.music?.speakers.find((x) => x.entityId === speaker);
+    const st = d.music?.stations[index];
+    if (sp && st) Object.assign(sp, { playing: true, station: index, title: st.name });
+    return wait({});
+  },
+  stopMusic: (speaker: string) => {
+    const sp = d.music?.speakers.find((x) => x.entityId === speaker);
+    if (sp) Object.assign(sp, { playing: false, station: undefined, title: undefined });
+    return wait({});
+  },
+  volume: (speaker: string, pct: number) => {
+    const sp = d.music?.speakers.find((x) => x.entityId === speaker);
+    if (sp) sp.volume = pct;
+    return wait({});
+  },
+  searchStations: (q: string) =>
+    wait({
+      stations: [
+        { name: "P4 Jönköping", url: "https://sverigesradio.se/topsy/direkt/srapi/203.mp3", country: "SE", quality: "MP3 192 kbit/s" },
+        { name: "P4 Jämtland", url: "https://sverigesradio.se/topsy/direkt/srapi/200.mp3", country: "SE", quality: "MP3 192 kbit/s" },
+        { name: "RIX FM", url: "https://fm01-ice.stream.khz.se/fm01_mp3", country: "SE", quality: "MP3 128 kbit/s" },
+      ].filter((x) => x.name.toLowerCase().includes(q.toLowerCase().slice(0, 2))),
+    }),
   addItem: (name: string) => {
     d.shopping.items.push({ id: String(Date.now()), name, done: false });
     return wait({});

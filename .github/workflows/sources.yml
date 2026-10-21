@@ -17,6 +17,7 @@ on:
       - server/src/connectors/axfood.ts
       - server/src/connectors/ics.ts
       - server/src/providers/school.ts
+      - server/src/music.ts
       - e2e/sources.mjs
       - .github/upstream-sources.json
       - .github/workflows/sources.yml

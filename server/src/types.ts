@@ -118,7 +118,7 @@ export interface TravelChoice {
   home?: TravelLeg;
 }
 
-export const HOME_WIDGETS = ["now", "meals", "schoolday", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates"] as const;
+export const HOME_WIDGETS = ["now", "meals", "schoolday", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates", "music"] as const;
 export type HomeWidget = (typeof HOME_WIDGETS)[number];
 /** Startskärmens rutor: "auto" följer hur många rutor som visas, annars liten/normal/stor. */
 export type WidgetSize = "auto" | "s" | "m" | "l";
@@ -309,6 +309,10 @@ export interface Config {
     deviceCards: DeviceCard[];
     /** Grafer-fliken. */
     graphs: { title: string; series: { name: string; entityId: string; color: string }[] }[];
+    /** Musik: högtalare (media_player.*), den första är förvald. */
+    speakers?: NamedEntity[];
+    /** Musik: favoritkanaler, t.ex. P4 Jönköping eller RIX FM. */
+    stations?: RadioStation[];
   };
   dashboard: {
     accent: string;
@@ -545,6 +549,7 @@ export interface Dashboard {
     schedules: { id: string; name: string; days: number[]; time: string; enabled: boolean }[];
   }[];
   lights: Lamp[];
+  music?: Music;
   lightGroups: { index: number; name: string; on: number; total: number; offline: string[]; lamps: Lamp[] }[];
   buttons: { entityId: string; name: string; style: "accent" | "blue" | "amber" | "plain" }[];
   climates: {
@@ -599,6 +604,30 @@ export interface SchoolChild {
     /** Opens the task on the school platform. */
     url?: string;
   }[];
+}
+
+/** A radio station or any audio stream the speakers can play. */
+export interface RadioStation {
+  name: string;
+  url: string;
+  logo?: string;
+}
+
+/** The Musik card: favourite stations and the speakers they play on. */
+export interface Music {
+  speakers: {
+    entityId: string;
+    name: string;
+    offline: boolean;
+    playing: boolean;
+    /** What is playing now (station or song), if the speaker says. */
+    title?: string;
+    /** Index in stations when one of them is playing. */
+    station?: number;
+    /** 0–100. */
+    volume?: number;
+  }[];
+  stations: { index: number; name: string; logo?: string }[];
 }
 
 /** One lamp on the board. brightness 1–100 when it is on and can be dimmed. */

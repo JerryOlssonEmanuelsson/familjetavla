@@ -16,6 +16,7 @@ import type {
 } from "../../../server/src/types";
 import { api, type CalendarTest, type Discovery } from "../api";
 import { Icon } from "../Icon";
+import { MusicCard } from "./music";
 import { EntityPicker, MultiEntityPicker, PALETTE, ProviderForm, ProviderTiles, Result, Select, Text, Toggle, Words, uid } from "./parts";
 import type { StepProps } from "./Wizard";
 
@@ -549,6 +550,7 @@ export function DiscoverStep({ cfg, set }: StepProps) {
       r.deviceCards.forEach((_, i) => (p[`dc${i}`] = true));
       r.lightGroups.forEach((_, i) => (p[`lg${i}`] = true));
       r.temps.slice(0, 3).forEach((_, i) => (p[`t${i}`] = true));
+      (r.speakers ?? []).slice(0, 4).forEach((_, i) => (p[`sp${i}`] = true));
       p.todo = r.todo.length > 0;
       p.waste = r.calendars.some((c) => c.waste);
       p.price = false;
@@ -574,6 +576,12 @@ export function DiscoverStep({ cfg, set }: StepProps) {
     next.entities.deviceCards = d.deviceCards.filter((_, i) => on(`dc${i}`)).slice(0, 8);
     next.entities.lightGroups = d.lightGroups.filter((_, i) => on(`lg${i}`)).slice(0, 12).map((g) => ({ ...g, entities: g.entities.slice(0, 40) }));
     next.entities.temps = d.temps.filter((_, i) => on(`t${i}`)).slice(0, 8);
+    const speakers = (d.speakers ?? []).filter((_, i) => on(`sp${i}`)).slice(0, 12);
+    if (speakers.length) {
+      // Found speakers turn the Musik card on; channels are added under Huset → Musik.
+      if (!(cfg.entities.speakers ?? []).length) next.dashboard.home = next.dashboard.home.map((w) => (w.id === "music" ? { ...w, on: true } : w));
+      next.entities.speakers = speakers;
+    }
     if (on("todo") && d.todo[0]) next.shopping = { ...next.shopping, source: "ha", entityId: d.todo.find((t) => /shop|inköp|handla/i.test(t.entityId + t.name))?.entityId ?? d.todo[0].entityId };
     const wasteCal = d.calendars.find((c) => c.waste);
     if (on("waste") && wasteCal) {
@@ -608,7 +616,7 @@ export function DiscoverStep({ cfg, set }: StepProps) {
   // existing settings are only replaced after "Använd det valda".
   const [fresh] = useState(() => {
     const e = cfg.entities;
-    return e.cars.length + e.climates.length + e.deviceCards.length + e.lightGroups.length + e.temps.length === 0 && !Object.values(e.energy).some(Boolean);
+    return e.cars.length + e.climates.length + e.deviceCards.length + e.lightGroups.length + e.temps.length + (e.speakers ?? []).length === 0 && !Object.values(e.energy).some(Boolean);
   });
   useEffect(() => {
     if (d && (fresh || applied)) apply();
@@ -682,6 +690,14 @@ export function DiscoverStep({ cfg, set }: StepProps) {
               <h2>Temperaturer</h2>
               {d.temps.map((t, i) => (
                 <Box key={t.entityId} k={`t${i}`} label={t.name} />
+              ))}
+            </section>
+          )}
+          {(d.speakers ?? []).length > 0 && (
+            <section className="card">
+              <h2>Högtalare för musik</h2>
+              {d.speakers!.map((x, i) => (
+                <Box key={x.entityId} k={`sp${i}`} label={x.name} sub={x.entityId} />
               ))}
             </section>
           )}
@@ -1465,6 +1481,7 @@ export function HouseStep({ cfg, set }: StepProps) {
           onChange={(v, o) => v && !en.lights.some((l) => l.entityId === v) && setEn({ lights: [...en.lights, { entityId: v, name: o?.name ?? v }] })}
         />
       </section>
+      <MusicCard cfg={cfg} set={set} />
       <ListCard
         title="Ljusgrupper"
         help="Visas på fliken Ljus med Tänd alla / Släck alla."
@@ -2070,7 +2087,7 @@ export function DoneStep({ cfg, secrets, setSecrets, resp, haOk, addSteps }: Ste
   const e = cfg.entities;
   const tiles: { title: string; desc: string; ids: string[]; done: boolean }[] = [
     { title: "Påminnelser till telefonen", desc: "Den som ska lämna, hämta eller skjutsa får en notis i tid.", ids: ha(["paminnelser"]), done: adultsNotified > 0 },
-    { title: "Hemmet", desc: "Bil, ljus, värme och energi från Home Assistant.", ids: ha(["hamta", "huset"]), done: e.cars.length + e.lights.length + e.climates.length > 0 },
+    { title: "Hemmet", desc: "Bil, ljus, värme, energi och musik från Home Assistant.", ids: ha(["hamta", "huset"]), done: e.cars.length + e.lights.length + e.climates.length + (e.speakers ?? []).length > 0 },
     { title: "Sophämtning", desc: "Påminnelse kvällen innan kärlen töms.", ids: ["sopor"], done: cfg.integrations.some((i) => i.category === "waste") },
     { title: "Inköpslista", desc: "Lista på tavlan, och skicka till butikens varukorg.", ids: ["inkop"], done: cfg.shopping.source === "ha" || cfg.integrations.some((i) => i.category === "grocery") },
     { title: "Elpris", desc: "Timpris och billigaste timmarna.", ids: ["el"], done: cfg.integrations.some((i) => i.category === "price") },

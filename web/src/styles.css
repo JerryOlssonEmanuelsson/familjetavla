@@ -1298,6 +1298,66 @@ a.btn {
 .light-btn.offline {
   opacity: 0.45;
 }
+/* ---------- Musik ---------- */
+.music-speakers {
+  margin-bottom: 8px;
+}
+.music-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 44px;
+  margin-bottom: 10px;
+  color: var(--muted);
+}
+.music-title {
+  flex: 1 1 8em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+  color: var(--fg);
+}
+.music-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.music-vol {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.music-vol b {
+  min-width: 2em;
+  text-align: center;
+}
+.station-btn {
+  justify-content: flex-start;
+  min-width: 0;
+}
+.station-name {
+  min-width: 0;
+  text-align: left;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.station-btn img {
+  flex: none;
+  border-radius: 6px;
+  object-fit: contain;
+}
+.station-btn:disabled {
+  opacity: 0.45;
+}
 .stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
@@ -3075,4 +3135,11 @@ marker.pf-buy path {
 }
 .qa-list {
   margin: 0;
+}
+.station-hits {
+  display: grid;
+  gap: 10px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
 }

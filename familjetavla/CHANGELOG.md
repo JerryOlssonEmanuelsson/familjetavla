@@ -1,5 +1,11 @@
 # Ändringar
 
+## 0.10.0
+
+- **Musik.** Tryck på en radiokanal på tavlan, så spelar den i vald högtalare: Google Home/Nest, Chromecast, Sonos eller annat som finns i Home Assistant. Välj högtalare överst i rutan; varje skärm kommer ihåg sin egen, så tavlan i köket spelar i köket. Rutan visar vad som spelas (även Spotify från en telefon), och har Stopp och volym.
+- **Alla svenska kanaler ett sök bort.** Under Inställningar → Huset → Musik söker du "P4 Jönköping", "RIX FM" eller "Mix Megapol" i en öppen radiokatalog och trycker Lägg till. Egna länkar till en ström går också.
+- "Hämta från Home Assistant" hittar högtalarna själv (inte tv-apparater) och slår på Musik på startskärmen.
+
 ## 0.9.2
 
 - **Välj vilka barn du får notiser om.** Under Påminnelser väljer varje vuxen vilka barn den följer – t.ex. en bonusförälder som bara vill ha sina egna barns gympapåse, utflykter och sjukdagar. Det du själv ska lämna, hämta eller skjutsa får du alltid, oavsett val.

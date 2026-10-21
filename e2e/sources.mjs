@@ -15,6 +15,7 @@ import { detectGroups, fetchIcs } from "../server/dist/connectors/ics.js";
 import { AXFOOD_SITES, axfoodSearch } from "../server/dist/connectors/axfood.js";
 import { vklassLogin, vklassWelcome } from "../server/dist/connectors/vklass.js";
 import { skolmaten, vklass } from "../server/dist/providers/school.js";
+import { searchStations } from "../server/dist/music.js";
 
 const cfg = JSON.parse(readFileSync(new URL("../.github/upstream-sources.json", import.meta.url), "utf8"));
 const problems = [];
@@ -152,6 +153,22 @@ await check("Postnummer (OpenStreetMap)", async () => {
   if (!/jönköping/i.test(r.municipality ?? r.place ?? "")) throw new Error(`55318 gav ${r.place}/${r.municipality}`);
   return `55318 → ${r.place}, ${r.municipality}, sophämtning: ${r.wasteProvider ?? "–"}`;
 });
+// Musik: the radio directory finds the stations families ask for, and their streams play.
+for (const q of ["P4 Jönköping", "RIX FM", "P3"]) {
+  await check(`Radiokatalog: ${q}`, async () => {
+    const hits = await searchStations(q);
+    const hit = hits.find((h) => h.country === "SE" && h.name.toLowerCase().includes(q.toLowerCase()));
+    if (!hit) throw new Error(`hittade ingen svensk kanal (${hits.length} träffar: ${hits.slice(0, 3).map((h) => h.name).join(", ")})`);
+    // Read the first bytes of the stream: it must answer with audio.
+    const res = await fetch(hit.url, { signal: AbortSignal.timeout(10_000) });
+    const type = res.headers.get("content-type") ?? "";
+    const reader = res.body?.getReader();
+    const first = reader ? await reader.read() : { value: undefined };
+    await reader?.cancel().catch(() => {});
+    if (!res.ok || !(/audio|mpegurl|ogg|aac|octet-stream/i.test(type) || res.headers.has("icy-name")) || !first.value?.length) throw new Error(`${hit.url} svarade ${res.status} ${type}`);
+    return `${hit.name} · ${hit.quality ?? ""} · ${type} · ${hit.url.startsWith("https://") ? "https" : "http"}`;
+  });
+}
 for (const url of cfg.skolmaten ?? []) {
   await check(`Skolmaten.se (${url})`, async () => {
     const ctx = { integration: {}, settings: { url }, str: (k) => (k === "url" ? url : ""), secret: () => undefined, remember: () => {} };

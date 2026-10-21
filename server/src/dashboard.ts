@@ -5,6 +5,7 @@ import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
 import { cached } from "./cache.js";
 import { cheapestBlock, priceLevel, type HourPrice } from "./connectors/elpris.js";
 import { ha, haConnection, type HaState } from "./connectors/ha.js";
+import { buildMusic } from "./music.js";
 import { haSocket } from "./connectors/haws.js";
 import { applySick, loadSick } from "./sick.js";
 import { coldestBetween, forecast, rainBetween, skyNow, sunToday, tempNow, weatherSummary, type Forecast } from "./connectors/weather.js";
@@ -383,6 +384,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
         .map(({ id, name, days, time, enabled }) => ({ id, name, days, time, enabled })),
     })),
     lights: cfg.entities.lights.map((l) => lamp(stateMap, l.entityId, l.name)),
+    music: buildMusic(cfg, stateMap),
     lightGroups: (cfg.entities.lightGroups ?? []).map((g, index) => ({
       index,
       name: g.name,
