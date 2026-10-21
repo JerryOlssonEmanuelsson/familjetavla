@@ -132,6 +132,7 @@ const personSchema = z.object({
       before: z.number().int().min(0).max(240).optional(),
       evening: z.boolean().optional(),
       weekly: z.boolean().optional(),
+      morning: z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/)]).optional(),
     })
     .optional(),
   care: z

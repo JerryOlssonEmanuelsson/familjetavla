@@ -2,6 +2,8 @@
 
 ## 0.9.1
 
+- **Morgonnotis till telefonen.** Kl 06:45 (eller när du vill) kommer dagens kom ihåg till telefonen: vad du själv ska lämna och hämta, gympapåse, det som saknas på hyllan, regnkläder, soporna, skolans nyheter. Allt som står på tavlan når er även när ingen tittar på den. Ställs in per vuxen under Påminnelser.
+- **"Lämnat ✓" direkt i notisen.** Tryck på knappen i lämningsnotisen så bockas det som saknades på hyllan av, utan att gå till tavlan.
 - **"Ta med" i telefonen.** Det du markerat under "Saknas på hyllan" (t.ex. blöjor och extrakläder) står nu i påminnelsen till den som lämnar på förskolan eller fritids: kvällen innan kl 20 och en stund före lämningen, "Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder". Den vanliga morgonlämningen får då en notis också, så det inte glöms när ingen tittar på tavlan. Det står också i den vuxnas kalenderlänk. Kräver påminnelser till telefonen (steget Påminnelser i guiden).
 
 ## 0.9.0

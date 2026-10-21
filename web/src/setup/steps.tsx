@@ -1825,6 +1825,7 @@ function PinCard({ secrets, setSecrets, resp }: Pick<StepProps, "secrets" | "set
 
 // ======================= Påminnelser =======================
 
+const MORNING_TIMES = ["05:45", "06:00", "06:15", "06:30", "06:45", "07:00", "07:15", "07:30", "07:45", "08:00"];
 const BEFORE = [0, 15, 30, 45, 60, 90];
 
 export function NotifyStep({ cfg, set, resp }: StepProps) {
@@ -1884,6 +1885,12 @@ export function NotifyStep({ cfg, set, resp }: StepProps) {
                   value={String(n.before ?? 30)}
                   onChange={(v) => setNotify(a.id, { before: Number(v) })}
                   options={BEFORE.map((m) => ({ value: String(m), label: m ? `${m} minuter innan` : "Ingen påminnelse" }))}
+                />
+                <Select
+                  label="Morgon – dagens kom ihåg (gympapåse, blöjor, regnkläder, soporna …)"
+                  value={n.morning ?? "06:45"}
+                  onChange={(v) => setNotify(a.id, { morning: v })}
+                  options={[{ value: "", label: "Ingen morgonnotis" }, ...MORNING_TIMES.map((t) => ({ value: t, label: `Kl ${t}` }))]}
                 />
                 <Toggle label="Kvällen innan kl 20 – vad jag ansvarar för imorgon" checked={n.evening ?? true} onChange={(v) => setNotify(a.id, { evening: v })} />
                 <Toggle label="Söndag kl 19 – Planera veckan om något saknar ansvarig" checked={n.weekly ?? true} onChange={(v) => setNotify(a.id, { weekly: v })} />

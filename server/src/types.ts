@@ -50,6 +50,8 @@ export interface NotifySettings {
   before?: number;
   /** Kl 20: vad man ansvarar för imorgon. */
   evening?: boolean;
+  /** "06:45": dagens kom ihåg och det man ansvarar för idag. "" = av, saknas = 06:45. */
+  morning?: string;
   /** Söndag kl 19: "Planera veckan" om något saknar ansvarig. */
   weekly?: boolean;
 }

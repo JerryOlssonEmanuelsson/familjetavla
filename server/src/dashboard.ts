@@ -242,7 +242,8 @@ export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]
   return { people, children, all, withCare: [...all, ...careEvents], travelCtx, schoolFood: school.food, schoolNews: school.news };
 }
 
-export async function buildDashboard(now = new Date()): Promise<Dashboard> {
+/** `allReminders`: the morning notification wants every reminder, the board shows the first five. */
+export async function buildDashboard(now = new Date(), opts: { allReminders?: boolean } = {}): Promise<Dashboard> {
   const cfg = loadConfig();
   const errors: SourceError[] = [];
   const today = startOfDay(now);
@@ -340,7 +341,7 @@ export async function buildDashboard(now = new Date()): Promise<Dashboard> {
       kind: p.kind,
     })),
     idle: { minutes: cfg.dashboard.idleMinutes ?? 10, photos: listPhotos() },
-    reminders: [...planReminder(plan, now), ...newsReminders(schoolNews, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, 5),
+    reminders: [...planReminder(plan, now), ...newsReminders(schoolNews, now), ...dinnerReminder(meals, now), ...buildReminders(now, withCare, people, waste, weather, travelCtx)].slice(0, opts.allReminders ? 20 : 5),
     schoolNews,
     plan,
     meals,

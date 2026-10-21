@@ -49,6 +49,7 @@ export interface Duty {
   standard: boolean;
   /** Förskola/fritids drop-off: what is missing on the shelf ("Blöjor", "Extrakläder"). */
   bring?: string[];
+  childId?: string;
 }
 
 /** The text for a notification or calendar entry: "Lämna Maja på förskolan 07:30 – ta med: blöjor, extrakläder". */
@@ -77,7 +78,7 @@ export function duties(events: SourcedEvent[], people: Map<string, Person>, trav
     for (const [i, l] of legs.entries()) {
       if (!l.leg?.mode.startsWith("adult:") || l.at < from || l.at >= until) continue;
       const bring = care && !i && shelf[child.id]?.length ? shelf[child.id] : undefined;
-      out.push({ personId: l.leg.mode.slice(6), at: l.at, text: `${l.text} ${hhmm(l.at)}`, key: `${t.key}:${i ? "home" : "to"}`, leg: i ? "home" : "to", standard: t.fromCalendar, bring });
+      out.push({ personId: l.leg.mode.slice(6), at: l.at, text: `${l.text} ${hhmm(l.at)}`, key: `${t.key}:${i ? "home" : "to"}`, leg: i ? "home" : "to", standard: t.fromCalendar, bring, childId: child.id });
     }
   }
   return out.sort((a, b) => a.at.getTime() - b.at.getTime());
