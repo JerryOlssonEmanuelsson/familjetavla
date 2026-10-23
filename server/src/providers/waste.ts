@@ -117,7 +117,7 @@ export const wasteStockholm: WasteProvider = {
     category: "waste",
     name: "Stockholm Vatten och Avfall",
     description: "Villor och radhus i Stockholms stad – restavfall och matavfall.",
-    status: "beta",
+    status: "experimental",
     fields: [{ key: "address", label: "Adress", type: "text", placeholder: "Daltorpsvägen 28, Vällingby, 16244", help: "Gata och nummer, ort, postnummer – som på stockholmvattenochavfall.se." }],
     guide: [
       "Skriv adressen som \"Gata nr, Ort, postnummer\" och tryck Testa.",

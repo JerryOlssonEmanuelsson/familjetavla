@@ -139,9 +139,33 @@ async function check(name, fn) {
   }
 }
 // Stockholm Vatten och Avfall: the test address from hass-stockholm-sopbilen's README.
+// While the right address format is not known, an empty answer is reported with what the public
+// search page itself calls (all public website data – no accounts involved).
 await check("Stockholm Vatten och Avfall", async () => {
-  const p = await sthlmSchedule("Daltorpsvägen 28, Vällingby, 16244");
-  if (!p.length) throw new Error("inga kommande hämtningar för testadressen");
+  const p = await sthlmSchedule("Daltorpsvägen 28, Vällingby, 16244").catch(async (e) => {
+    const page = "https://www.stockholmvattenochavfall.se/villa-och-radhus/avfallstjanster/nar-kommer-sopbilen/";
+    const notes = [];
+    try {
+      const html = await (await fetch(page, { signal: AbortSignal.timeout(15000) })).text();
+      const urls = [...new Set([...html.matchAll(/["'](\/[^"'\s]*(?:[Ss]earch|[Ss]uggest|[Aa]utocomplete|[Aa]ddress|api)[^"'\s]*)["']/g)].map((m) => m[1]))].slice(0, 12);
+      notes.push(`sidan: ${html.length} tecken, anrop i sidan: ${urls.join(" ") || "-"}`);
+      const forms = [...html.matchAll(/<(?:form|input)[^>]*>/g)].map((m) => m[0].replace(/\s+/g, " ")).filter((t) => /sopbil|address|adress|search|sök/i.test(t)).slice(0, 6);
+      notes.push(`formulär: ${forms.join(" | ") || "-"}`);
+      const scripts = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map((m) => new URL(m[1], page).href).filter((u) => u.includes("stockholmvattenochavfall")).slice(0, 8);
+      for (const js of scripts) {
+        const code = await (await fetch(js, { signal: AbortSignal.timeout(15000) })).text().catch(() => "");
+        const hits = [...new Set([...code.matchAll(/["'`]([^"'`\s]{0,80}(?:nar-kommer-sopbilen|[Ss]earch\?|[Ss]uggest|[Aa]utocomplete)[^"'`\s]{0,80})["'`]/g)].map((m) => m[1]))].slice(0, 6);
+        if (hits.length) notes.push(`${new URL(js).pathname}: ${hits.join(" ")}`);
+      }
+      for (const q of ["Daltorpsvägen 28", "Daltorpsvägen 28, 16244 Vällingby", "Daltorpsvägen 28 Vällingby"]) {
+        const r = await fetch(`${page}Search?address=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(15000) });
+        notes.push(`"${q}" → ${r.status} ${(await r.text()).slice(0, 120).replace(/\s+/g, " ")}`);
+      }
+    } catch (x) {
+      notes.push(`kunde inte läsa sidan: ${x.message}`);
+    }
+    throw new Error(`${e.message}\n  ${notes.join("\n  ")}`);
+  });
   return `Daltorpsvägen 28, Vällingby → ${[...new Set(p.map((x) => x.type))].join(", ")}, nästa ${day(p[0].date)} ${p[0].type}`;
 });
 await check("Elpris (elprisetjustnu.se)", async () => {
