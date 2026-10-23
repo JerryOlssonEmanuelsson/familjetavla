@@ -30,10 +30,10 @@ export function haConnection(override?: { url?: string; token?: string }): HaCon
   return null;
 }
 
-async function call<T>(conn: HaConn, path: string, init: RequestInit = {}): Promise<T> {
+async function call<T>(conn: HaConn, path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const res = await fetchWithTimeout(`${conn.base}${path}`, {
     ...init,
-    timeoutMs: 10_000,
+    timeoutMs: init.timeoutMs ?? 10_000,
     headers: { authorization: `Bearer ${conn.token}`, "content-type": "application/json" },
   });
   if (res.status === 401) throw new Error("Home Assistant nekade åtkomst – kontrollera token.");
@@ -53,9 +53,10 @@ export const ha = {
     return { type: res.headers.get("content-type") ?? "image/jpeg", body: Buffer.from(await res.arrayBuffer()) };
   },
   state: (c: HaConn, id: string) => call<HaState>(c, `/states/${encodeURIComponent(id)}`),
-  service: (c: HaConn, domain: string, service: string, data: Record<string, unknown>, returnResponse = false) =>
+  service: (c: HaConn, domain: string, service: string, data: Record<string, unknown>, returnResponse = false, timeoutMs?: number) =>
     call<unknown>(c, `/services/${domain}/${service}${returnResponse ? "?return_response" : ""}`, {
       method: "POST",
+      timeoutMs,
       body: JSON.stringify(data),
     }),
 

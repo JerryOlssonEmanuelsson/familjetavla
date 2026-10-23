@@ -116,7 +116,7 @@ docker compose up -d     # se docker-compose.yml
 Öppna `http://<datorn>:8099`. Ange Home Assistants adress (t.ex. `http://192.168.1.10:8123`, inte `localhost`) och en **långlivad token** från en administratör i guiden.
 
 - **Sätt en PIN** i guidens sista steg. Då kommer bara skärmar som låsts upp med PIN-koden en gång åt tavlan – inte gäster eller andra enheter på wifi:t.
-- **Uppdatera:** `docker compose pull && docker compose up -d`. Inställningarna ligger kvar i `./data`.
+- **Uppdateras av sig själv:** `docker-compose.yml` startar också Watchtower, som hämtar nya versioner var sjätte timme. Vill du uppdatera själv, ta bort tjänsten `watchtower` och kör `docker compose pull && docker compose up -d`. Inställningarna ligger kvar i `./data`.
 
 ### Utan Home Assistant och utan Docker
 

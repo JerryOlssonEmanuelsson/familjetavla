@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HaState } from "./connectors/ha.js";
-import { findSmartCharging, parseSlots } from "./smartcharging.js";
+import { findAutoModes, findSmartCharging, parseSlots } from "./smartcharging.js";
 
 const st = (id: string, state: string, attributes: Record<string, unknown> = {}): HaState => ({ entity_id: id, state, attributes, last_changed: "2026-10-23T10:00:00Z" });
 const slots = [
@@ -54,5 +54,20 @@ describe("smart charging", () => {
 
   it("returns nothing without any smart-charging entities", () => {
     expect(findSmartCharging(new Map([["sensor.tesla_battery", st("sensor.tesla_battery", "41")]]), "Tesla")).toBeUndefined();
+  });
+
+  it("finds Auto-first mode selectors for heat, hot water and spa, not the car modes", () => {
+    const w = new Map<string, HaState>(
+      [
+        st("input_select.energywizard_varme", "Auto", { options: ["Auto", "Varm", "Sänkt"], friendly_name: "EnergyWizard varme" }),
+        st("input_select.energywizard_spabad", "Eco", { options: ["Auto", "Värm nu", "Eco"], friendly_name: "Spabad läge" }),
+        st("input_select.tesla_model_y_laddlage", "Auto", { options: ["Auto", "Ladda nu", "Pausa"] }),
+        st("select.fan_speed", "Low", { options: ["Low", "High"] }),
+        st("input_select.heat_style", "Cozy", { options: ["Cozy", "Auto"] }),
+      ].map((x) => [x.entity_id, x]),
+    );
+    const modes = findAutoModes(w);
+    expect(modes.map((m) => m.entityId)).toEqual(["input_select.energywizard_varme", "input_select.spabad".replace("spabad", "energywizard_spabad")]);
+    expect(modes.find((m) => m.entityId.endsWith("spabad"))).toMatchObject({ name: "Spabad", mode: "Eco" });
   });
 });

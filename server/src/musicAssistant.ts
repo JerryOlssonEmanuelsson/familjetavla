@@ -168,6 +168,14 @@ export async function playOn(conn: HaConn, states: Map<string, HaState>, speaker
   if (states.get(player)?.state === "off") await ha.service(conn, "media_player", "turn_on", { entity_id: player }).catch(() => undefined);
   // In order or shuffled – set on the player's queue before it starts.
   if (tile.shuffle !== undefined) await ha.service(conn, "media_player", "shuffle_set", { entity_id: player, shuffle: tile.shuffle }).catch(() => undefined);
-  await ha.service(conn, "music_assistant", "play_media", { entity_id: player, media_id: tile.uri, media_type: tile.type, enqueue: "replace", ...(tile.start ? { start_item: tile.start } : {}) });
+  // Music Assistant väntar upp till 15 s om en annan Spotify-ström fortfarande är öppen (Spotify tillåter en åt gången) och hämtar sedan spellistan: ge det tid
+  // i stället för att ge upp efter 10 s med ett missvisande "Tidsgräns nådd".
+  try {
+    await ha.service(conn, "music_assistant", "play_media", { entity_id: player, media_id: tile.uri, media_type: tile.type, enqueue: "replace", ...(tile.start ? { start_item: tile.start } : {}) }, false, 60_000);
+  } catch (e) {
+    if (/svarade 500/.test((e as Error).message))
+      throw new Error(`${speaker.name} kunde inte spela det. Spotify tillåter bara en ström åt gången – stoppa uppspelningen på någon annan högtalare och försök igen.`);
+    throw e;
+  }
   return player;
 }

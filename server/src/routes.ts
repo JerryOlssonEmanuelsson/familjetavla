@@ -12,7 +12,7 @@ import { duties, dutiesIcs } from "./plan.js";
 import { loadShelf, saveDinner, saveShelf } from "./meals.js";
 import { carActions, carCharging, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
-import { findSmartCharging } from "./smartcharging.js";
+import { findAutoModes, findSmartCharging } from "./smartcharging.js";
 import { haSocket } from "./connectors/haws.js";
 import { energyLive, liveEnergyIds } from "./energy.js";
 import { publishToHa } from "./publisher.js";
@@ -1105,6 +1105,10 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(cfg.entities.deviceCards ?? []).flatMap((c) => c.controls),
     ]);
     const conn = haConnection();
+    if (conn && entityId && op === "select" && !allowed.has(entityId)) {              // lägesväljare (Auto först) som tavlan hittat själv
+      const st = new Map((await cached("ha:states", 5_000, () => ha.states(conn))).map((s) => [s.entity_id, s]));
+      if (findAutoModes(st).some((m) => m.entityId === entityId)) allowed.add(entityId);
+    }
     if (!entityId || !allowed.has(entityId)) return fail(reply, new Error("Okänt reglage"));
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
     const domain = entityId.split(".")[0];

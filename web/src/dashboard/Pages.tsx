@@ -574,6 +574,31 @@ export function LightsPage({ data, actions }: { data: Dashboard; actions: Action
 export function HousePage({ data, actions }: { data: Dashboard; actions: Actions }) {
   return (
     <main className="page-grid">
+      {(data.smartModes ?? []).length > 0 && (
+        <section className="card strong">
+          <span className="muted" style={{ fontWeight: 600 }}>
+            Smart styrning
+          </span>
+          {data.smartModes.map((m) => (
+            <div key={m.entityId} className="stack" style={{ gap: 6 }}>
+              <span>{m.name}</span>
+              <div className="row gap wrap">
+                {m.options.map((o) => (
+                  <button
+                    key={o}
+                    className={`btn small ${m.mode === o ? "selected" : ""}`}
+                    aria-pressed={m.mode === o}
+                    title={/^auto/i.test(o) ? "Följer sitt eget schema, som Home Assistant styr" : undefined}
+                    onClick={() => m.mode !== o && actions.run(`${m.name}: ${o}`, () => api.control(m.entityId, "select", o), { done: `${m.name}: ${o}`, check: (d) => d.smartModes?.find((x) => x.entityId === m.entityId)?.mode === o })}
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
       {data.climates.map((c) => (
         <section className="card strong" key={c.entityId}>
           <span className="muted" style={{ fontWeight: 600 }}>

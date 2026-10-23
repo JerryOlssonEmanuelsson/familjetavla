@@ -593,6 +593,8 @@ export interface Dashboard {
     /** Pumpar, lampor, blåsare m.m. på samma enhet (t.ex. spabadets). */
     controls: Control[];
   }[];
+  /** Lägesväljare för smart styrning (Auto först = följer sitt eget schema), hittade i Home Assistant. */
+  smartModes: { entityId: string; name: string; mode: string; options: string[] }[];
   temps: { name: string; value: string }[];
   deviceCards: {
     index: number;

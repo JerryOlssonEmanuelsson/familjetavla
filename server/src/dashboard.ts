@@ -1,7 +1,7 @@
 import { buildAppliances } from "./appliances.js";
 import { buildRobots, buildSecurity } from "./security.js";
 import { energyLive, energyToday, todaySeries } from "./energy.js";
-import { findSmartCharging } from "./smartcharging.js";
+import { findAutoModes, findSmartCharging } from "./smartcharging.js";
 import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable, versionInfo } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
@@ -397,6 +397,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
         .map(({ id, name, days, time, enabled }) => ({ id, name, days, time, enabled })),
       };
     }),
+    smartModes: findAutoModes(stateMap),
     lights: cfg.entities.lights.map((l) => lamp(stateMap, l.entityId, l.name)),
     music: buildMusic(cfg, stateMap),
     security: buildSecurity(cfg, stateMap),

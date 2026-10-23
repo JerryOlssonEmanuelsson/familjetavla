@@ -90,3 +90,25 @@ export function findSmartCharging(states: Map<string, HaState>, carName: string,
     source: a.source ? String(a.source) : undefined,
   };
 }
+
+export interface AutoMode {
+  entityId: string;
+  name: string;
+  mode: string;
+  options: string[];
+}
+
+/**
+ * Lägesväljare för smart styrning av värme, varmvatten, spabad m.m.: en select/input_select vars FÖRSTA alternativ är Auto
+ * (= följer sitt eget schema, som smartstyrningen i Home Assistant bestämmer). Hittas av sig själva och visas under Hus, så att
+ * man alltid kan lämna tillbaka styrningen till Auto. Bilarnas laddlägen (de visas under Bil) tas inte med.
+ */
+export function findAutoModes(states: Map<string, HaState>, exclude: Set<string> = new Set()): AutoMode[] {
+  const WHAT = /(värme|varme|heat|varmvatten|hotwater|hot_water|water_heater|spa|pool|golv|floor|ladd|charg)/i;
+  return [...states.values()]
+    .filter((s) => /^(input_select|select)\./.test(s.entity_id) && !exclude.has(s.entity_id) && Array.isArray(attrs(s).options))
+    .map((s) => ({ s, options: (attrs(s).options as unknown[]).map(String) }))
+    .filter(({ s, options }) => options.length >= 2 && options.length <= 5 && /^auto/i.test(options[0]) && WHAT.test(s.entity_id) && !/ladd|charg/i.test(s.entity_id))
+    .map(({ s, options }) => ({ entityId: s.entity_id, name: String(s.attributes.friendly_name ?? s.entity_id.split(".")[1]).replace(/\s*läge$/i, ""), mode: s.state, options }))
+    .sort((a, b) => a.name.localeCompare(b.name, "sv"));
+}

@@ -1,5 +1,12 @@
 # Ändringar
 
+## 0.13.0
+
+- **Smart laddning:** har du en smartstyrning som planerar bilens laddning visas **planen** under Bil (band över kommande timmar, blocken, kWh och batteri efter planen), med knapparna **Auto / Ladda nu / Pausa**. Laddknappen ger samma överstyrning som smartstyrningens egen app. Hittas av sig själv om styrningen följer [avtalet](../docs/SMART-LADDNING.md).
+- **Auto för värme, varmvatten och spabad:** väljare vars första alternativ är Auto (följer sitt eget schema) visas under Hus under **Smart styrning**, utan inställningar.
+- **Uppdateras av sig själv med Docker:** `docker compose up -d` startar nu också Watchtower, som hämtar nya versioner av tavlan var sjätte timme. Vill du inte det: ta bort tjänsten `watchtower` i docker-compose.yml.
+- Spellistan startar nu även när Spotify först måste släppa en gammal ström: tavlan väntar upp till en minut i stället för att visa "Tidsgräns nådd", och säger vad som hänt om Spotify nekar.
+
 ## 0.12.0
 
 - **Https med Home Assistants certifikat:** har HA https (Let's Encrypt, DuckDNS …) körs tavlan även på https på port 8443 med samma certifikat. Då kan Chrome installera tavlan som en riktig app, och installera-knappen leder dit. Se README → Väggplattan.
