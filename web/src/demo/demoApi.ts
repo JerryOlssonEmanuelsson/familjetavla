@@ -688,6 +688,10 @@ export const demoApi = {
   spotify: (_op: "playpause" | "next") => wait({}),
   musicLibrary: (shelf: Shelf) => wait({ tiles: demoTiles(shelf) }),
   musicSearch: (q: string) => wait({ tiles: demoTiles("playlists").filter((t) => t.title.toLowerCase().includes(q.toLowerCase())) }),
+  playConnect: (t: Tile, device: string) => {
+    if (d.music?.spotify) Object.assign(d.music.spotify, { playing: true, title: t.title, device });
+    return wait({});
+  },
   playMedia: (t: Tile, speaker: string) => {
     const sp = d.music?.speakers.find((x) => x.entityId === speaker);
     if (sp) Object.assign(sp, { playing: true, station: undefined, title: t.title, playingUrl: undefined });

@@ -221,7 +221,7 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
             </button>
           </div>
         </div>
-        {source === "radio" ? <AllStations m={m} sp={sp} actions={actions} /> : m.assistant ? <Library sp={sp} actions={actions} /> : <AssistantSetup />}
+        {source === "radio" ? <AllStations m={m} sp={sp} actions={actions} /> : m.assistant ? <Library sp={sp} connect={m.spotify?.devices ?? []} actions={actions} /> : <AssistantSetup />}
       </section>
 
       {m.spotify && <SpotifyBox sp={m.spotify} actions={actions} />}
@@ -323,7 +323,11 @@ const SHELF_NAMES: { id: Shelf | "search" | "home"; name: string }[] = [
 ];
 
 /** Shelves on the left, covers on the right; a tap plays the cover on the chosen speaker. */
-function Library({ sp, actions }: { sp: Speaker; actions: Actions }) {
+function Library({ sp, connect, actions }: { sp: Speaker; connect: string[]; actions: Actions }) {
+  // Where it plays: the chosen speaker (via Music Assistant), or a Spotify Connect device (soundbar, Sonos, TV …).
+  const [device, setDevice] = useState<string | null>(null);
+  const others = connect.filter((d) => d.toLowerCase() !== sp.name.toLowerCase());
+  const target = device && others.includes(device) ? device : null;
   const [shelf, setShelf] = useState<Shelf | "search" | "home">("home");
   const [q, setQ] = useState("");
   const [asked, setAsked] = useState("");
@@ -350,6 +354,12 @@ function Library({ sp, actions }: { sp: Speaker; actions: Actions }) {
   const pg = usePages(list.length, `${shelf}|${asked}`);
   const play = (t: Tile) => {
     keep();
+    if (target)
+      return actions.run(t.title, () => api.playConnect(t, target), {
+        done: `${t.title} spelar i ${target}`,
+        check: (d) => Boolean(d.music?.spotify?.playing && d.music.spotify.device === target),
+        slow: `${t.title} är skickad till ${target} – det kan ta en stund att starta.`,
+      });
     return actions.run(t.title, () => api.playMedia(t, sp.entityId), {
       done: `${t.title} spelar i ${sp.name}`,
       check: (d) => Boolean(d.music?.speakers.find((s) => s.entityId === sp.entityId)?.playing),
@@ -359,6 +369,18 @@ function Library({ sp, actions }: { sp: Speaker; actions: Actions }) {
   const empty = shelf === "search" ? (asked.length < 2 ? "Skriv vad du vill lyssna på." : "Inget hittades.") : shelf === "podcasts" ? "Inga poddar i biblioteket än." : "Inget här än – lägg till musiktjänsten i Music Assistant.";
   return (
     <div className="lib">
+      {others.length > 0 && (
+        <div className="seg small lib-targets" role="radiogroup" aria-label="Spela i">
+          <button className={`seg-btn ${!target ? "on" : ""}`} role="radio" aria-checked={!target} onClick={() => setDevice(null)}>
+            <Icon name="speaker" size={16} /> {sp.name}
+          </button>
+          {others.map((d) => (
+            <button key={d} className={`seg-btn ${target === d ? "on" : ""}`} role="radio" aria-checked={target === d} onClick={() => setDevice(d)}>
+              <Icon name="speaker" size={16} /> {d}
+            </button>
+          ))}
+        </div>
+      )}
       <nav className="seg lib-shelves" role="tablist" aria-label="Hyllor">
         {SHELF_NAMES.map((x) => (
           <button key={x.id} className={`seg-btn ${shelf === x.id ? "on" : ""}`} role="tab" aria-selected={shelf === x.id} onClick={() => setShelf(x.id)}>
@@ -381,7 +403,7 @@ function Library({ sp, actions }: { sp: Speaker; actions: Actions }) {
             <Cover key={t.uri} t={t} sp={sp} play={play} />
           ))}
         </div>
-        <Pager pg={pg} hint={`Spelar i ${sp.name}`} />
+        <Pager pg={pg} hint={`Spelar i ${target ?? sp.name}`} />
       </div>
       )}
     </div>

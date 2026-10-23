@@ -46,7 +46,7 @@ export function spotifyPlayer(states: Map<string, HaState>): HaState | undefined
 function spotifyInfo(states: Map<string, HaState>): Music["spotify"] {
   const s = spotifyPlayer(states);
   if (!s) return null;
-  const a = s.attributes as { media_title?: string; media_artist?: string; source?: string };
+  const a = s.attributes as { media_title?: string; media_artist?: string; source?: string; source_list?: string[] };
   const playing = s.state === "playing";
   return {
     entityId: s.entity_id,
@@ -54,6 +54,8 @@ function spotifyInfo(states: Map<string, HaState>): Music["spotify"] {
     title: [a.media_artist, a.media_title].filter(Boolean).join(" – ") || undefined,
     device: a.source || undefined,
     offline: s.state === "unavailable",
+    // Spotify Connect devices the account sees right now (soundbars, Sonos, TVs …) – awake ones only.
+    devices: (a.source_list ?? []).filter((x) => typeof x === "string").slice(0, 20),
   };
 }
 
@@ -263,4 +265,10 @@ export async function findStations(q: string): Promise<StationHit[]> {
   if (!ours.length && !world) throw new Error("Radiokanalerna går inte att hämta just nu.");
   const names = new Set(ours.map((x) => x.name.toLowerCase()));
   return [...ours, ...(world ?? []).filter((x) => !names.has(x.name.toLowerCase()))].slice(0, 12);
+}
+
+/** "spotify://playlist/abc" (Music Assistant) or "spotify:playlist:abc" → the Spotify URI the Spotify integration plays. */
+export function spotifyUri(uri: string): string | undefined {
+  const m = uri.match(/^spotify(?::\/\/|:)(playlist|album|track|artist|show|episode)[/:]([A-Za-z0-9]{10,40})$/);
+  return m ? `spotify:${m[1]}:${m[2]}` : undefined;
 }

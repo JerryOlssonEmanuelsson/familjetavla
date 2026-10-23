@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import type { DashEvent, Dashboard as Dash, TravelChoice, TravelLeg } from "../../../server/src/types";
 import { sameAsLunch } from "../../../server/src/mealwords";
 import { api, isDemo } from "../api";
@@ -32,6 +32,61 @@ const TABS: { id: Tab; label: string; icon: IconName; show: (d: Dash) => boolean
   { id: "security", label: "Säkerhet", icon: "shield", show: (d) => Boolean(d.security) },
   { id: "household", label: "Hushåll", icon: "robot", show: (d) => Boolean(d.robots?.length || d.appliances?.length) },
 ];
+
+/** Phones fit six tabs side by side; the rest sit under "Mer" (tablets show them all). */
+const NARROW = "(max-width: 640px)";
+function TabBar({ tabs, tab, go }: { tabs: typeof TABS; tab: Tab; go: (id: Tab) => void }) {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW).matches);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW);
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const split = narrow && tabs.length > 6;
+  const shown = split ? tabs.slice(0, 5) : tabs;
+  const rest = split ? tabs.slice(5) : [];
+  const inRest = rest.some((t) => t.id === tab);
+  return (
+    <>
+      <nav className="tabbar" aria-label="Flikar">
+        {shown.map((t) => (
+          <button key={t.id} aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.id)}>
+            <Icon name={t.icon} size={24} />
+            {t.label}
+          </button>
+        ))}
+        {split && (
+          <button aria-current={inRest ? "page" : undefined} aria-expanded={more} onClick={() => setMore(true)}>
+            <Icon name="plus" size={24} />
+            {inRest ? rest.find((t) => t.id === tab)!.label : "Mer"}
+          </button>
+        )}
+      </nav>
+      {more &&
+        createPortal(
+          <div className="overlay" onClick={() => setMore(false)}>
+            <div className="sheet more-tabs" role="dialog" aria-modal="true" aria-label="Fler flikar" onClick={(e) => e.stopPropagation()}>
+              {rest.map((t) => (
+                <button
+                  key={t.id}
+                  className={`big-btn ${tab === t.id ? "accent" : ""}`}
+                  onClick={() => {
+                    setMore(false);
+                    go(t.id);
+                  }}
+                >
+                  <Icon name={t.icon} size={24} /> {t.label}
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
 
 const THEME_KEY = "familjetavla.theme";
 
@@ -1135,16 +1190,7 @@ export function Dashboard() {
         )}
       </div>
 
-      {tabs.length > 1 && (
-        <nav className="tabbar" aria-label="Flikar">
-          {tabs.map((t) => (
-            <button key={t.id} aria-current={tab === t.id ? "page" : undefined} onClick={() => goTab(t.id, tabIds)}>
-              <Icon name={t.icon} size={24} />
-              {t.label}
-            </button>
-          ))}
-        </nav>
-      )}
+      {tabs.length > 1 && <TabBar tabs={tabs} tab={tab} go={(id) => goTab(id, tabIds)} />}
 
       {grocery && (
         <GroceryModal

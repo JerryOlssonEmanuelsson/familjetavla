@@ -197,7 +197,13 @@ describe("Spotify", () => {
     expect(buildMusic(cfg, new Map([st("media_player.kok", "idle")]))!.spotify).toBeNull();
   });
   it("shows what plays and where", () => {
-    const m = buildMusic(cfg, new Map([st("media_player.kok", "playing"), st("media_player.spotify_anna", "playing", { media_artist: "Laleh", media_title: "Some Die Young", source: "Kök" })]))!;
-    expect(m.spotify).toEqual({ entityId: "media_player.spotify_anna", playing: true, title: "Laleh – Some Die Young", device: "Kök", offline: false });
+    const m = buildMusic(cfg, new Map([st("media_player.kok", "playing"), st("media_player.spotify_anna", "playing", { media_artist: "Laleh", media_title: "Some Die Young", source: "Kök", source_list: ["Kök", "Q-Series Soundbar"] })]))!;
+    expect(m.spotify).toEqual({ entityId: "media_player.spotify_anna", playing: true, title: "Laleh – Some Die Young", device: "Kök", offline: false, devices: ["Kök", "Q-Series Soundbar"] });
+  });
+  it("turns library links into Spotify URIs", async () => {
+    const { spotifyUri } = await import("./music.js");
+    expect(spotifyUri("spotify://playlist/37i9dQZF1DXcBWIGoYBM5M")).toBe("spotify:playlist:37i9dQZF1DXcBWIGoYBM5M");
+    expect(spotifyUri("spotify:album:4aawyAB9vmqN3uQ7FjRGTy")).toBe("spotify:album:4aawyAB9vmqN3uQ7FjRGTy");
+    expect(spotifyUri("tidal://playlist/1")).toBeUndefined();
   });
 });

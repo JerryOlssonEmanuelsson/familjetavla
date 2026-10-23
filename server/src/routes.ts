@@ -39,7 +39,7 @@ import { addDays, dayKey, hhmm, shortDate, shortWeekday, startOfDay } from "./ti
 import { setSick } from "./sick.js";
 import { makeBackup, restoreBackup } from "./backup.js";
 import { follows } from "./notify.js";
-import { findStations, playCall, spotifyPlayer, swedishStations } from "./music.js";
+import { findStations, playCall, spotifyPlayer, spotifyUri, swedishStations } from "./music.js";
 import { alarmCall, robotCall } from "./security.js";
 import { MEDIA_TYPES, SHELVES, type Shelf, library as maLibrary, playOn as maPlayOn, search as maSearch } from "./musicAssistant.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
@@ -957,6 +957,27 @@ export async function registerRoutes(app: FastifyInstance) {
     const st = await ha.state(conn, robot.entityId).catch(() => undefined);
     const c = robotCall(robot.entityId, body.data.op, Number(st?.attributes.supported_features ?? 0));
     return haCall(reply, robot.name, c.domain, c.service, { entity_id: robot.entityId });
+  });
+
+  // Spotify Connect: play a cover from the library on a device the Spotify account sees (any brand).
+  app.post("/api/music/play-connect", async (req, reply) => {
+    const body = z.object({ uri: z.string().max(300), type: z.enum(MEDIA_TYPES), title: label(80).optional(), device: z.string().min(1).max(80) }).safeParse(req.body);
+    const uri = body.success ? spotifyUri(body.data.uri) : undefined;
+    if (!body.success || !uri) return fail(reply, new Error("Bara Spotify kan spelas på en Spotify Connect-enhet"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const player = spotifyPlayer(new Map((await ha.states(conn)).map((s) => [s.entity_id, s])));
+    const devices = ((player?.attributes as { source_list?: string[] } | undefined)?.source_list ?? []) as string[];
+    if (!player || !devices.includes(body.data.device)) return fail(reply, new Error(`${body.data.device} syns inte i Spotify just nu – väck den (nätverksstandby) och försök igen.`));
+    try {
+      await ha.service(conn, "media_player", "select_source", { entity_id: player.entity_id, source: body.data.device });
+      const kind = uri.split(":")[1];
+      await ha.service(conn, "media_player", "play_media", { entity_id: player.entity_id, media_content_id: uri, media_content_type: kind });
+    } catch (e) {
+      return fail(reply, new Error(`${body.data.device} kunde inte spela ${body.data.title ?? "det"}: ${(e as Error).message}`), 502);
+    }
+    invalidate("ha:states");
+    return { ok: true };
   });
 
   // Settings: try a station before adding it (admin only, any http(s) stream, a known speaker).

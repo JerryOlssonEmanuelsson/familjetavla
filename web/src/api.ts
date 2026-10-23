@@ -214,6 +214,7 @@ const realApi = {
   spotify: (op: "playpause" | "next") => post("music/spotify", { op }),
   musicLibrary: (shelf: Shelf) => request<{ tiles: Tile[] }>(`music/library?shelf=${shelf}`),
   musicSearch: (q: string) => request<{ tiles: Tile[] }>(`music/search?q=${encodeURIComponent(q)}`),
+  playConnect: (t: Tile, device: string) => post("music/play-connect", { uri: t.uri, type: t.type, title: t.title, device }),
   playMedia: (t: Tile, speaker: string) => post("music/play-media", { uri: t.uri, type: t.type, title: t.title, speaker }),
   volume: (speaker: string, pct: number) => post("music/volume", { speaker, pct }),
   searchStations: (q: string) => request<{ stations: StationHit[] }>(`radio/search?q=${encodeURIComponent(q)}`),

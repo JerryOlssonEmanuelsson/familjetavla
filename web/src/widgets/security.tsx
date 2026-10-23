@@ -168,7 +168,7 @@ export function HouseholdPage({ data, actions }: { data: Dashboard; actions: Act
           <h2>Husgeråd</h2>
           <div className="stack" style={{ gap: 12 }}>
             {machines.map((m) => (
-              <div key={m.name} className={`machine ${m.phase}`}>
+              <div key={m.name} className={`machine m-${m.phase}`}>
                 <div className="sec-row">
                   <span className="sec-name">
                     <b>{m.name}</b> <span className={m.phase === "done" ? "ok-text" : m.phase === "error" ? "warn-text" : m.phase === "running" ? "" : "muted"}>{m.label}</span>

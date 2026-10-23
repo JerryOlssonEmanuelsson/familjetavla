@@ -3690,3 +3690,36 @@ marker.pf-buy path {
   height: 100%;
   background: var(--accent);
 }
+.more-tabs {
+  display: grid;
+  gap: 10px;
+  max-width: 460px;
+  width: 100%;
+}
+.more-tabs .big-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 64px;
+}
+/* Säkerhet: the cameras side by side across the page, small enough that the rest fits. */
+.page-grid > .cameras-card {
+  grid-column: 1 / -1;
+}
+.cameras-card .camera-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+}
+.cameras-card .camera-grid.one {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  .cameras-card .camera:not(.big) .camera-img {
+    max-height: 22vh;
+    aspect-ratio: auto;
+    height: 22vh;
+  }
+  .camera.big .camera-img {
+    max-height: calc(100vh - 420px);
+  }
+}
