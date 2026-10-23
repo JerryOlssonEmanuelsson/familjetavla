@@ -1096,6 +1096,27 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // Ändra bilens laddschema (klar kl T med mål %, per veckodag). Skrivs som JSON i smartstyrningens kommandofält i Home Assistant; styrningen sparar det som sitt eget schema, så ändringen slår igenom hos den.
+  app.post("/api/car/:index/schedule", async (req, reply) => {
+    const b = (req.body ?? {}) as { day?: number; time?: string; soc?: number; enabled?: boolean };
+    try {
+      const car = loadConfig().entities.cars[Number((req.params as { index: string }).index)];
+      const conn = haConnection();
+      if (!car || !conn) throw new Error(car ? "Home Assistant är inte anslutet." : "Okänd bil");
+      const day = Number(b.day);
+      const soc = Number(b.soc);
+      if (!Number.isInteger(day) || day < 0 || day > 6 || !/^\d{2}:\d{2}$/.test(String(b.time)) || !Number.isFinite(soc) || soc < 20 || soc > 100) throw new Error("Ogiltigt schema.");
+      const states = new Map((await cached("ha:states", 5_000, () => ha.states(conn))).map((s) => [s.entity_id, s]));
+      const sc = findSmartCharging(states, car.name, { plan: car.plan, mode: car.mode });
+      if (!sc?.scheduleEntity || !sc.scheduleCar) throw new Error("Laddschemat går inte att ändra härifrån – smartstyrningen saknar kommandofält.");
+      await ha.service(conn, "input_text", "set_value", { entity_id: sc.scheduleEntity, value: JSON.stringify({ car: sc.scheduleCar, day, time: b.time, soc: Math.round(soc), enabled: Boolean(b.enabled) }) });
+      invalidate("ha:states");
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
   // ---------- Generic controls on climate/device cards ----------
   app.post("/api/control", async (req, reply) => {
     const { entityId, op, value } = (req.body ?? {}) as { entityId?: string; op?: "toggle" | "select" | "set" | "press"; value?: string | number };

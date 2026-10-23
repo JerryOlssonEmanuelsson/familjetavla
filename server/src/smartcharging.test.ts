@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HaState } from "./connectors/ha.js";
-import { findAutoModes, findSmartCharging, parseSlots } from "./smartcharging.js";
+import { findAutoModes, findSmartCharging, parseSchedule, parseSlots } from "./smartcharging.js";
 
 const st = (id: string, state: string, attributes: Record<string, unknown> = {}): HaState => ({ entity_id: id, state, attributes, last_changed: "2026-10-23T10:00:00Z" });
 const slots = [
@@ -69,5 +69,22 @@ describe("smart charging", () => {
     const modes = findAutoModes(w);
     expect(modes.map((m) => m.entityId)).toEqual(["input_select.energywizard_varme", "input_select.spabad".replace("spabad", "energywizard_spabad")]);
     expect(modes.find((m) => m.entityId.endsWith("spabad"))).toMatchObject({ name: "Spabad", mode: "Eco" });
+  });
+
+  it("reads the weekly charge schedule and the command field for changing it", () => {
+    const sched = Array.from({ length: 7 }, (_, d) => ({ day: d, time: "07:00", soc: 80, enabled: d < 5 }));
+    const w = new Map<string, HaState>(
+      [
+        st("sensor.tesla_model_y_laddplan", "Planerad 23:45", { slots, schedule: sched, schedule_car: "tesla" }),
+        st("input_select.tesla_model_y_laddlage", "Auto", { options: ["Auto", "Ladda nu", "Pausa"] }),
+        st("input_text.energywizard_laddschema_kommando", "", {}),
+      ].map((x) => [x.entity_id, x]),
+    );
+    const c = findSmartCharging(w, "Tesla MY")!;
+    expect(c.schedule).toHaveLength(7);
+    expect(c.schedule![0]).toEqual({ day: 0, time: "07:00", soc: 80, enabled: true });
+    expect(c.scheduleCar).toBe("tesla");
+    expect(c.scheduleEntity).toBe("input_text.energywizard_laddschema_kommando");
+    expect(parseSchedule([{ day: 9, time: "07:00" }, { day: 1, time: "bad" }])).toBeUndefined();
   });
 });

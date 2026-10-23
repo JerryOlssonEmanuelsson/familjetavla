@@ -271,6 +271,47 @@ function PlanBar({ slots }: { slots: Smart["slots"] }) {
   );
 }
 
+const SMART_DAYS = ["Mån", "Tis", "Ons", "Tors", "Fre", "Lör", "Sön"];
+
+/** Veckoschemat ("klar kl T med mål %") som smartstyrningen följer. En ändring här sparas hos smartstyrningen och slår igenom i dess egen app. */
+function SmartScheduleEditor({ index, s, actions }: { index: number; s: Smart; actions: Actions }) {
+  const [rows, setRows] = useState(s.schedule ?? []);
+  useEffect(() => setRows(s.schedule ?? []), [JSON.stringify(s.schedule)]);
+  const editable = Boolean(s.scheduleEntity);
+  const save = (day: number, patch: Partial<NonNullable<Smart["schedule"]>[number]>) => {
+    const next = rows.map((r) => (r.day === day ? { ...r, ...patch } : r));
+    setRows(next);
+    const r = next.find((x) => x.day === day)!;
+    actions.run(`Laddschema ${SMART_DAYS[day]}`, () => api.carSchedule(index, r), { done: `Laddschema ${SMART_DAYS[day]} sparat`, check: (d) => { const x = d.cars[index]?.smart?.schedule?.find((y) => y.day === day); return !!x && x.time === r.time && x.soc === r.soc && x.enabled === r.enabled; }, slow: "Skickat – smartstyrningen sparar det inom några sekunder." });
+  };
+  if (rows.length === 0) return null;
+  return (
+    <details>
+      <summary className="muted" style={{ cursor: "pointer", fontWeight: 600 }}>
+        Laddschema (klar kl) {editable ? "" : "· bara läsning"}
+      </summary>
+      <div className="stack" style={{ gap: 0, marginTop: 6 }}>
+        {rows.map((r) => (
+          <div key={r.day} className="row gap" style={{ padding: "6px 0", borderBottom: "1px solid var(--card-border)", alignItems: "center" }}>
+            <b style={{ width: 38 }}>{SMART_DAYS[r.day]}</b>
+            <button className={`btn small ${r.enabled ? "selected" : ""}`} aria-pressed={r.enabled} disabled={!editable} onClick={() => save(r.day, { enabled: !r.enabled })}>
+              {r.enabled ? "På" : "Av"}
+            </button>
+            <input type="time" value={r.time} disabled={!editable || !r.enabled} onChange={(e) => e.target.value && save(r.day, { time: e.target.value })} style={{ minWidth: 0 }} aria-label={`${SMART_DAYS[r.day]} klar kl`} />
+            <select value={r.soc} disabled={!editable || !r.enabled} onChange={(e) => save(r.day, { soc: Number(e.target.value) })} aria-label={`${SMART_DAYS[r.day]} mål`}>
+              {Array.from(new Set([...[20, 30, 40, 50, 60, 70, 80, 90, 100], r.soc])).sort((a, b) => a - b).map((v) => (
+                <option key={v} value={v}>
+                  {v} %
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 /** Smartstyrd laddning: planen och laddläget (Auto / Ladda nu / Pausa) från bilens smartstyrning i Home Assistant. Laddknappen ger samma överstyrning som smartstyrningens egen app. */
 function SmartChargingCard({ index, car, actions }: { index: number; car: Dashboard["cars"][number]; actions: Actions }) {
   const s = car.smart;
@@ -320,6 +361,7 @@ function SmartChargingCard({ index, car, actions }: { index: number; car: Dashbo
       ) : (
         <p className="muted">Ingen laddning planerad just nu.</p>
       )}
+      <SmartScheduleEditor index={index} s={s} actions={actions} />
     </section>
   );
 }

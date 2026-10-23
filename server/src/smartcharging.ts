@@ -29,6 +29,20 @@ export interface SmartCharging {
   socAfter: number | null;
   plannedKwh: number | null;
   source?: string;
+  /** Veckoschema (klar kl T med mål %) som smartstyrningen följer, om den publicerar det (attributet `schedule`). */
+  schedule?: ScheduleRow[];
+  /** Id som smartstyrningen vill ha tillbaka när schemat ändras (attributet `schedule_car`). */
+  scheduleCar?: string;
+  /** input_text där en ändring skrivs som JSON; smartstyrningen sparar den och kvitterar genom att tömma fältet. Utan den är schemat bara läsbart. */
+  scheduleEntity?: string;
+}
+
+export interface ScheduleRow {
+  /** 0 = måndag … 6 = söndag. */
+  day: number;
+  time: string;
+  soc: number;
+  enabled: boolean;
 }
 
 const NOW = /(ladda nu|charge now|force|tvinga|start now|ladda direkt|max)/i;
@@ -36,6 +50,16 @@ const PAUSE = /(pausa|pause|stopp|stop|hold|vänta|av$|off$)/i;
 const AUTO = /(auto|smart)/i;
 
 const attrs = (s: HaState) => s.attributes as Record<string, unknown>;
+
+export function parseSchedule(raw: unknown): ScheduleRow[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const rows = raw
+    .map((x) => x as Record<string, unknown>)
+    .filter((r) => r && Number.isInteger(Number(r.day)) && Number(r.day) >= 0 && Number(r.day) <= 6 && /^\d{2}:\d{2}/.test(String(r.time)))
+    .map((r) => ({ day: Number(r.day), time: String(r.time).slice(0, 5), soc: Math.max(0, Math.min(100, Number(r.soc) || 0)), enabled: r.enabled === true || r.enabled === "true" }))
+    .sort((a, b) => a.day - b.day);
+  return rows.length ? rows : undefined;
+}
 
 export function parseSlots(raw: unknown): Slot[] {
   if (!Array.isArray(raw)) return [];
@@ -69,11 +93,13 @@ export function findSmartCharging(states: Map<string, HaState>, carName: string,
     if (byFirst.length === 1) return byFirst[0];
     return list.length === 1 && !explicit ? list[0] : undefined;
   };
+  const cmdEnts = all.filter((s) => s.entity_id.startsWith("input_text.") && /laddschema|charge_?schedule|laddplan/i.test(s.entity_id) && /kommando|command|set/i.test(s.entity_id));
   const plan = pick(plans, explicit?.plan);
   const modeS = pick(modes, explicit?.mode);
   if (!plan && !modeS) return undefined;
   const options = modeS ? (attrs(modeS).options as unknown[]).map(String) : [];
   const a = plan ? attrs(plan) : {};
+  const schedule = parseSchedule(a.schedule);
   const num = (v: unknown) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
   return {
     planEntity: plan?.entity_id ?? "",
@@ -88,6 +114,9 @@ export function findSmartCharging(states: Map<string, HaState>, carName: string,
     socAfter: num(a.soc_after_plan),
     plannedKwh: num(a.planned_kwh),
     source: a.source ? String(a.source) : undefined,
+    schedule,
+    scheduleCar: a.schedule_car ? String(a.schedule_car) : undefined,
+    scheduleEntity: schedule && a.schedule_car ? (cmdEnts.length === 1 ? cmdEnts[0] : cmdEnts.find((c) => c.entity_id.includes(first)))?.entity_id : undefined,
   };
 }
 

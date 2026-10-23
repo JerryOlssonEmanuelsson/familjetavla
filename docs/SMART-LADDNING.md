@@ -17,6 +17,9 @@ slots:
   `start` och `end` är ISO 8601 (helst med tidszon), `kw` är valfri.
 - **Valfria attribut:** `soc_after_plan` (batteri i % när planen är klar), `planned_kwh`, `source` (vem som planerat).
 
+- **Valfritt: veckoschema.** Attributet `schedule` = sju rader `{ day: 0–6 (0 = måndag), time: "07:00", soc: 80, enabled: true }` (klar kl `time` med batteri `soc` %), och `schedule_car` = ett id som smartstyrningen vill ha tillbaka. Då visar tavlan schemat under **Laddschema** i Bil-fliken.
+- **Valfritt: ändra schemat från tavlan.** En `input_text` (max 255 tecken) vars id innehåller `laddschema` (eller `charge_schedule`) och `kommando` (eller `command`). Tavlan skriver `{"car": <schedule_car>, "day": 0, "time": "07:00", "soc": 80, "enabled": true}` dit. Smartstyrningen ska spara raden som sitt eget schema (så att det slår igenom i dess egen app) och kvittera genom att tömma fältet.
+
 ## 2. Laddläge: en väljare
 
 - En `select` eller `input_select` vars entitets-id innehåller `ladd` eller `charg` och bilens namn, t.ex. `input_select.tesla_model_y_laddlage`.
