@@ -3905,7 +3905,8 @@ marker.pf-buy path {
   background: #fff;
 }
 @media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
-  .music-tab.vol-drag {
+  .music-tab.vol-drag,
+  .music-card.vol-drag {
     touch-action: none;
   }
 }

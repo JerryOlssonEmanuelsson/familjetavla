@@ -81,17 +81,6 @@ function NowPlaying({ sp, actions, showName }: { sp: Speaker; actions: Actions; 
         {sp.offline ? `${sp.name} svarar inte` : sp.playing ? `${sp.title ?? "Spelar"}${showName ? ` · ${sp.name}` : ""}` : `${sp.name} · tyst`}
       </span>
       <span className="music-ctl">
-        {!sp.offline && vol !== null && (
-          <span className="music-vol">
-            <button className="btn small ghost" aria-label="Sänk volymen" disabled={vol <= 0} onClick={() => void c.volume(vol - 10)}>
-              −
-            </button>
-            <b>{vol}</b>
-            <button className="btn small ghost" aria-label="Höj volymen" disabled={vol >= 100} onClick={() => void c.volume(vol + 10)}>
-              +
-            </button>
-          </span>
-        )}
         {sp.playing && (
           <button className="btn small" onClick={() => void c.stop()}>
             <Icon name="stop" size={16} /> Stopp
@@ -187,8 +176,10 @@ export function Music({ data, actions }: { data: Dashboard; actions: Actions }) 
 function MusicCard({ m, actions }: { m: MusicData; actions: Actions }) {
   const { sp } = useSpeaker(m);
   const c = useControls(sp, actions);
+  const drag = useVolumeDrag(sp, (pct) => c.volume(pct));
   return (
-    <section className="card music-card" style={{ flexGrow: 1 }}>
+    <section className={`card music-card ${drag.active ? "vol-drag" : ""}`} style={{ flexGrow: 1 }} {...drag.handlers}>
+      {drag.overlay}
       <div className="card-head">
         <h2>Musik</h2>
       </div>
