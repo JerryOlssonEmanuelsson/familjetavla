@@ -3737,3 +3737,17 @@ marker.pf-buy path {
     max-height: calc(100vh - 420px);
   }
 }
+.day-span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+.day-span > div {
+  display: flex;
+  flex-direction: column;
+}
+.day-span b {
+  font-size: 32px;
+  font-variant-numeric: tabular-nums;
+}

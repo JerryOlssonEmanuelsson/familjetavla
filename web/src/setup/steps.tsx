@@ -1134,6 +1134,21 @@ export function SchoolStep({ cfg, set, secrets, setSecrets, resp, haOk }: StepPr
   const add = (provider: string) => set({ ...cfg, integrations: [...cfg.integrations, { id: uid("s"), category: "school", provider, settings: {} }] });
   return (
     <div className="stack">
+      {schools.length > 0 && (
+        <section className="card">
+          <h2>Vad tavlan visar</h2>
+          <Select
+            label="Lektioner på sidan Skolan"
+            value={cfg.dashboard.lessons ?? "all"}
+            onChange={(v) => set({ ...cfg, dashboard: { ...cfg.dashboard, lessons: v === "span" ? "span" : "all" } })}
+            options={[
+              { value: "all", label: "Alla lektioner" },
+              { value: "span", label: "Bara när skoldagen börjar och slutar" },
+            ]}
+          />
+          <small className="muted">Idrott (gympapåse), läxor, prov och nyheter visas alltid.</small>
+        </section>
+      )}
       {schools.map((integ) => {
         const meta = resp.providers.find((p) => p.id === integ.provider && p.category === "school")!;
         const names = discovered[integ.id] ?? Object.keys(integ.personMap ?? {});

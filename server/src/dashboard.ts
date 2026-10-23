@@ -377,6 +377,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     schoolFood: todaysFood(family.schoolFood, now),
     schoolDay: buildSchoolDays(all, people, now, (e, day) => visibleOn(e, people, day)),
     school: buildSchoolWeek(all, people, now, (e, day) => visibleOn(e, people, day)),
+    lessonView: cfg.dashboard.lessons ?? "all",
     update: updateAvailable(),
     version: versionInfo(),
     cars: cfg.entities.cars.map((c) => ({

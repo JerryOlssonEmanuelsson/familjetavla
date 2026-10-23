@@ -336,7 +336,7 @@ function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
       <div className="school-grid">
         <section className="card">
           <h2>{today ? "Idag" : "Nästa skoldag"}</h2>
-          <Lessons lessons={(today ?? kid.days.find((d) => d.lessons.length))?.lessons ?? []} />
+          {data.lessonView === "span" ? <DaySpan lessons={(today ?? kid.days.find((d) => d.lessons.length))?.lessons ?? []} /> : <Lessons lessons={(today ?? kid.days.find((d) => d.lessons.length))?.lessons ?? []} />}
         </section>
         <section className="card">
           <h2>Läxor och uppgifter</h2>
@@ -366,7 +366,7 @@ function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
                     {d.lessons[0].start}–{d.lessons[d.lessons.length - 1].end}
                     {d.lessons.some((l) => l.gym) ? " · Idrott" : ""}
                   </small>
-                  <Lessons lessons={d.lessons} compact />
+                  {data.lessonView !== "span" && <Lessons lessons={d.lessons} compact />}
                 </>
               ) : (
                 <small className="muted">Ingen skola</small>
@@ -376,6 +376,25 @@ function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
         </div>
       </section>
       {open && <TaskSheet task={open} child={kid.name} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+/** Only when the school day starts and ends – for families who don't need every lesson. */
+function DaySpan({ lessons }: { lessons: NonNullable<Dashboard["school"]>[number]["days"][number]["lessons"] }) {
+  if (!lessons.length) return <small className="muted">Ingen skola</small>;
+  const gym = lessons.some((l) => l.gym);
+  return (
+    <div className="day-span">
+      <div>
+        <small className="muted">Börjar</small>
+        <b>{lessons[0]!.start}</b>
+      </div>
+      <div>
+        <small className="muted">Slutar</small>
+        <b>{lessons[lessons.length - 1]!.end}</b>
+      </div>
+      {gym && <span className="chip">Idrott – gympapåse</span>}
     </div>
   );
 }

@@ -335,6 +335,8 @@ export interface Config {
     idleMinutes: number;
     /** Solbågen under temperaturen i Nu-rutan (av som standard). */
     sunArc?: boolean;
+    /** Sidan Skolan: "span" visar bara när skoldagen börjar och slutar (och idrott), inte varje lektion. */
+    lessons?: "all" | "span";
   };
 }
 
@@ -534,6 +536,8 @@ export interface Dashboard {
   schoolNews: SchoolNews[];
   /** Sidan Skolan: veckans schema, läxor och uppgifter per barn. */
   school?: SchoolChild[];
+  /** "span": Skolan shows when the day starts and ends, not every lesson. */
+  lessonView?: "all" | "span";
   /** En nyare version finns publicerad. */
   update?: { latest: string; current: string };
   /** Running version, and the published one when known: "v0.10.0 ✓ senaste" or "uppdatera till …" in the header. */
