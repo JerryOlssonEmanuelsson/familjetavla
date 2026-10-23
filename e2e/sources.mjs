@@ -7,7 +7,7 @@
 // Writes a Markdown report to $REPORT (default sources-report.md); exit 1 if anything fails.
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest } from "../server/dist/connectors/waste.js";
+import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest, sthlmSchedule } from "../server/dist/connectors/waste.js";
 import { fetchPrices } from "../server/dist/connectors/elpris.js";
 import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
@@ -138,6 +138,12 @@ async function check(name, fn) {
     problems.push(`**${name} fungerar inte:** ${e.message}`);
   }
 }
+// Stockholm Vatten och Avfall: the test address from hass-stockholm-sopbilen's README.
+await check("Stockholm Vatten och Avfall", async () => {
+  const p = await sthlmSchedule("Daltorpsvägen 28, Vällingby, 16244");
+  if (!p.length) throw new Error("inga kommande hämtningar för testadressen");
+  return `Daltorpsvägen 28, Vällingby → ${[...new Set(p.map((x) => x.type))].join(", ")}, nästa ${day(p[0].date)} ${p[0].type}`;
+});
 await check("Elpris (elprisetjustnu.se)", async () => {
   const p = await fetchPrices("SE3");
   if (!p.length) throw new Error("inga priser");

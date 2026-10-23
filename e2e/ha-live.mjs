@@ -79,6 +79,26 @@ await check("Högtalare (Musik)", async () => {
   return `${players.length} mediaspelare. Föreslås: ${picked.map((p) => `${p.name} = ${kind(players.find((s) => s.entity_id === p.entityId))}`).join("; ") || "-"}. Hoppas över: ${skipped.map(kind).join("; ") || "-"}`;
 });
 
+await check("Spotify (läser bara)", async () => {
+  const sp = byDomain("media_player").find((s) => s.entity_id.startsWith("media_player.spotify"));
+  if (!sp) return "Spotify-integrationen finns inte";
+  // What the account offers to browse – titles and counts only, nothing is played.
+  const browse = (id, type) => sock.call({ type: "media_player/browse_media", entity_id: sp.entity_id, ...(id ? { media_content_id: id, media_content_type: type } : {}) }, 20_000);
+  const root = await browse();
+  const rows = [];
+  for (const c of (root.children ?? []).slice(0, 12)) {
+    let inside = "";
+    if (c.can_expand) {
+      const sub = await browse(c.media_content_id, c.media_content_type).catch((e) => ({ error: e.message }));
+      inside = sub.error ? ` (fel: ${sub.error})` : ` (${(sub.children ?? []).length} st, typ ${[...new Set((sub.children ?? []).map((x) => x.media_class))].join("/")}, med bild: ${(sub.children ?? []).filter((x) => x.thumbnail).length})`;
+    }
+    rows.push(`${c.title} [${c.media_content_type}]${inside}`);
+  }
+  const f = Number(sp.attributes.supported_features ?? 0);
+  const search = Boolean(f & (1 << 22));
+  return `${sp.attributes.friendly_name ?? sp.entity_id}: ${sp.state}, källor (Spotify Connect): ${(sp.attributes.source_list ?? []).length}, sök: ${search ? "ja" : "nej"} · ${rows.join("; ")}`;
+});
+
 await check("Bilar", async () => {
   const cars = found?.cars ?? [];
   if (!cars.length) return "inga bilar hittade";

@@ -1988,6 +1988,11 @@ marker.pf-buy path {
   padding: 4px 4px 24px;
   margin: -4px -4px 0;
 }
+/* Cards in the guide keep their full height and the guide scrolls – a card must never be squeezed
+   and cut off (a long calendar form lost its Testa button on short screens). */
+.wizard-body > * {
+  flex-shrink: 0;
+}
 .wizard-nav {
   flex: none;
   padding: 12px 0 max(14px, env(safe-area-inset-bottom));
@@ -3365,4 +3370,17 @@ marker.pf-buy path {
 }
 .board-header > .grow {
   min-width: 0;
+}
+
+.arrange-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 96px;
+}
+.arrange-box h2 {
+  margin: 0;
+}
+.home-grid > .arrange-box > .edit-bar {
+  margin-bottom: 4px;
 }

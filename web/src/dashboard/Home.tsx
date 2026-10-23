@@ -165,6 +165,16 @@ export function Week({ data, actions, full = false, edit }: { data: Dashboard; a
 }
 
 type HomeId = Dashboard["home"][number]["id"];
+
+/** While arranging, every card is a calm box with its name – everything fits and is easy to move. */
+function ArrangeBox({ title, className = "", edit }: { title: string; className?: string; edit?: EditProps }) {
+  return (
+    <section className={`card arrange-box ${className} ${edit?.className ?? ""}`} {...edit?.handlers}>
+      {edit?.bar}
+      <h2>{title}</h2>
+    </section>
+  );
+}
 interface EditProps {
   className: string;
   handlers: React.HTMLAttributes<HTMLElement>;
@@ -344,7 +354,7 @@ function useArrange(data: Dashboard, actions: Actions) {
     document.body,
   ) : null;
 
-  return { order, editing, edit, bottom, question };
+  return { order, editing, edit, bottom, question, label };
 }
 
 /**
@@ -399,7 +409,7 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
         }}
       >
         {ed.bar}
-        {renderWidget(w.id, data, actions)}
+        {arrange.editing ? <ArrangeBox title={arrange.label(w.id)} /> : renderWidget(w.id, data, actions)}
       </div>
     );
   });
@@ -408,11 +418,24 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
     <>
       {arrange.bottom}
       <main className={`home-grid ${arrange.editing ? "is-arranging" : ""}`}>
-        {nowOn && <NowZone data={data} actions={actions} edit={arrange.edit("now", false)} />}
+        {nowOn &&
+          (arrange.editing ? (
+            <ArrangeBox title={arrange.label("now")} className="strong area-now" edit={arrange.edit("now", false)} />
+          ) : (
+            <NowZone data={data} actions={actions} edit={arrange.edit("now", false)} />
+          ))}
         <Fit className="col area-left" deps={[data, arrange.order]} min={0.8} more={(n) => <MoreButton n={n} what="kort" onClick={() => actions.openPage("kort")} />}>
           {rest.slice(half)}
         </Fit>
-        {weekOn ? <Week data={data} actions={actions} edit={arrange.edit("week", false)} /> : <div className="area-week" />}
+        {weekOn ? (
+          arrange.editing ? (
+            <ArrangeBox title={arrange.label("week")} className="area-week" edit={arrange.edit("week", false)} />
+          ) : (
+            <Week data={data} actions={actions} edit={arrange.edit("week", false)} />
+          )
+        ) : (
+          <div className="area-week" />
+        )}
         <Fit className="col area-side" deps={[data, arrange.order]} min={0.8} more={(n) => <MoreButton n={n} what="kort" onClick={() => actions.openPage("kort")} />}>
           {rest.slice(0, half)}
         </Fit>

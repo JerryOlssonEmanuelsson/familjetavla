@@ -270,6 +270,7 @@ export const configSchema = z
       nightFrom: z.string().regex(/^\d{2}:\d{2}$/),
       nightTo: z.string().regex(/^\d{2}:\d{2}$/),
       idleMinutes: z.number().int().min(0).max(240).default(10),
+      sunArc: z.boolean().optional(),
     }),
   })
   .superRefine((c, ctx) => {

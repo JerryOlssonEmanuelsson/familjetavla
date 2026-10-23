@@ -325,6 +325,8 @@ export interface Config {
     nightTo: string; // "06:00"
     /** Minuter utan beröring innan fotoramen visas. 0 = av. */
     idleMinutes: number;
+    /** Solbågen under temperaturen i Nu-rutan (av som standard). */
+    sunArc?: boolean;
   };
 }
 

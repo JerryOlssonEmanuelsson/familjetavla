@@ -12,7 +12,7 @@ import { Fit } from "./Fit";
 import { DetailPage, PageBar, PAGE_TITLES, type PageId } from "./Detail";
 import { navigate, useHash } from "../route";
 import { InstallHelp, quickAddUrl } from "../InstallHelp";
-import { isInstalled } from "../install";
+import { canPrompt, inIngress, isInstalled, onInstallChange, platform, promptInstall } from "../install";
 import { CarsPage, EnergyPage, GraphsPage, HousePage, LightsPage } from "./Pages";
 import { MusicPage } from "../widgets/music";
 
@@ -613,6 +613,58 @@ function EventSheet({
 
 const SHOW_UPDATE = "familjetavla:visa-uppdatering";
 
+const NUDGE_KEY = "familjetavla.installera";
+/**
+ * "Installera appen" when the board is opened in a browser that can install it: Chrome/Edge/Samsung
+ * offer a real install prompt, Safari on iPad/iPhone gets the share-menu steps. "Inte nu" waits 30 days.
+ */
+function InstallNudge({ onHelp }: { onHelp: () => void }) {
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const off = onInstallChange(() => redraw((n) => n + 1));
+    return () => {
+      off();
+    };
+  }, []);
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return Number(localStorage.getItem(NUDGE_KEY) ?? 0) > Date.now();
+    } catch {
+      return false;
+    }
+  });
+  if (hidden || isInstalled() || inIngress() || !(canPrompt() || platform() === "ios")) return null;
+  const later = () => {
+    setHidden(true);
+    try {
+      localStorage.setItem(NUDGE_KEY, String(Date.now() + 30 * 86_400_000));
+    } catch {
+      /* private mode */
+    }
+  };
+  return (
+    <div className="card update-banner install-nudge" role="status">
+      <div className="row gap wrap" style={{ alignItems: "center" }}>
+        <Icon name="install" size={20} />
+        <b className="grow">Installera Familjetavlan som app – öppnas i helskärm från hemskärmen</b>
+        <button
+          className="btn small primary"
+          onClick={async () => {
+            if (canPrompt()) {
+              if (await promptInstall()) setHidden(true);
+            } else onHelp();
+          }}
+        >
+          Installera
+        </button>
+        <button className="btn small ghost" onClick={later}>
+          Inte nu
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Small, top of the board: which version runs, and whether it is the latest. */
 function VersionBadge({ version, update }: { version: NonNullable<Dash["version"]>; update?: Dash["update"] }) {
   if (update)
@@ -1053,6 +1105,7 @@ export function Dashboard() {
         )}
 
         {data.update && <UpdateBanner update={data.update} />}
+        {!isDemo && <InstallNudge onHelp={() => setInstallOpen(true)} />}
 
         {page ? (
           <DetailPage page={page} data={data} actions={actions} />

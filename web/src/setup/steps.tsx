@@ -219,10 +219,16 @@ function CareEditor({ p, adults, onChange }: { p: Person; adults: Person[]; onCh
     setCare({ weeks: weeks.length ? weeks : undefined, anchorDate: weeks.length ? (care.anchorDate ?? mondayKey()) : undefined });
     setWeek(0);
   };
-  const who = (leg?: TravelChoice["to"]) => (leg?.mode?.startsWith("adult:") ? leg.mode : leg?.mode === "ride" ? "ride" : "");
+  const who = (leg?: TravelChoice["to"]) => (leg?.mode?.startsWith("adult:") || leg?.mode === "ride" || leg?.mode === "self" ? leg.mode : "");
   const setWho = (k: "to" | "home", v: string) =>
     setCare({ travel: { ...care.travel, [k]: v ? { mode: v as NonNullable<TravelChoice["to"]>["mode"] } : undefined } });
-  const whoOptions = [{ value: "", label: "Varierar" }, ...adults.map((a) => ({ value: `adult:${a.id}`, label: a.name || "(namnlös)" })), { value: "ride", label: "Någon annan" }];
+  const whoOptions = (k: "to" | "home") => [
+    { value: "", label: "Varierar" },
+    ...adults.map((a) => ({ value: `adult:${a.id}`, label: a.name || "(namnlös)" })),
+    { value: "ride", label: "Någon annan" },
+    // Older kids walk or cycle on their own: nobody has to pick up, and nobody gets a reminder.
+    { value: "self", label: k === "home" ? "Går/cyklar hem själv" : "Går/cyklar dit själv" },
+  ];
   return (
     <div className="care-box stack">
       <div className="row gap" style={{ alignItems: "flex-end" }}>
@@ -296,8 +302,8 @@ function CareEditor({ p, adults, onChange }: { p: Person; adults: Person[]; onCh
         </div>
       </details>
       <div className="grid-2">
-        <Select label="Brukar lämna" value={who(care.travel?.to)} onChange={(v) => setWho("to", v)} options={whoOptions} />
-        <Select label="Brukar hämta" value={who(care.travel?.home)} onChange={(v) => setWho("home", v)} options={whoOptions} />
+        <Select label="Brukar lämna" value={who(care.travel?.to)} onChange={(v) => setWho("to", v)} options={whoOptions("to")} />
+        <Select label="Brukar hämta" value={who(care.travel?.home)} onChange={(v) => setWho("home", v)} options={whoOptions("home")} />
       </div>
       <small className="faint">
         Tavlan visar lämning och hämtning i Nu, varnar en vecka i förväg för stängda dagar och planeringsdagar, och med Vklass används dagens tider därifrån. Vem som lämnar och hämtar kan ändras per dag på tavlan.
@@ -1767,6 +1773,8 @@ export function DisplayStep({ cfg, set }: StepProps) {
           ni visar få och mer kompakta när ni visar många.
         </p>
         <OrderList items={d.home} labels={WIDGET_LABELS} onChange={(home) => setD({ home })} sizes />
+        <p className="muted" style={{ margin: "8px 0 0" }}>Tips: håll inne en ruta på tavlan för att flytta eller dölja den direkt.</p>
+        <Toggle label="Solbåge vid vädret" help="Soluppgång och solnedgång som en båge under temperaturen i Nu-rutan." checked={Boolean(d.sunArc)} onChange={(v) => setD({ sunArc: v })} />
       </section>
       <section className="card">
         <h2>Flikar</h2>

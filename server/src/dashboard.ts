@@ -332,7 +332,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
       weather: weather ? weatherSummary(weather, now) : undefined,
       sky: weather ? skyNow(weather, now) : undefined,
       tempNow: weather ? tempNow(weather, now) : undefined,
-      sun: weather ? sunToday(weather, now) : undefined,
+      sun: weather && cfg.dashboard.sunArc ? sunToday(weather, now) : undefined,
       phase: phaseOf(now),
     },
     now: buildNow(withCare, people, now, travelCtx),

@@ -91,6 +91,7 @@ for (const [name0, dev, tablet] of DEVICES) {
     if (open === "arrange") {
       // Hold a card: the home screen goes into "Ordna startsidan".
       const card = p.locator(".wsize > .card").first();
+      await card.scrollIntoViewIfNeeded();
       const b = await card.boundingBox();
       await p.mouse.move(b.x + b.width / 2, b.y + 20);
       await p.mouse.down();
