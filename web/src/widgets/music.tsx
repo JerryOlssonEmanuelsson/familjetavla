@@ -186,7 +186,7 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
   const { sp, choose: pick } = useSpeaker(m);
   const c = useControls(sp, actions);
   const [source, setSource] = useState<"radio" | "library">("radio");
-  const libName = m.spotify ? "Spotify" : "Bibliotek";
+  const libName = "Spotify";
 
   return (
     <div className="music-tab">
@@ -481,12 +481,31 @@ function LibraryHome({ sp, play }: { sp: Speaker; play: (t: Tile) => unknown }) 
 const MA_APP = "d5369777_music_assistant";
 const MA_REPO = "https://github.com/music-assistant/home-assistant-addon";
 
-const MA_COMPOSE = `  music-assistant:
+const MA_COMPOSE = `services:
+  music-assistant:
     image: ghcr.io/music-assistant/server:latest
     restart: unless-stopped
     network_mode: host
     volumes:
       - ./music-assistant:/data`;
+
+function CopyButton({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      className="btn small"
+      style={{ marginTop: 6 }}
+      onClick={() =>
+        navigator.clipboard?.writeText(text).then(
+          () => setDone(true),
+          () => setDone(false),
+        )
+      }
+    >
+      {done ? "Kopierat ✓" : "Kopiera texten"}
+    </button>
+  );
+}
 
 /**
  * Without Music Assistant: what it gives and how to get it. Home Assistant OS/Supervised gets a
@@ -523,13 +542,28 @@ function AssistantSetup() {
         </>
       ) : (
         <>
-          <p className="muted" style={{ margin: "0 0 6px" }}>
-            Home Assistant i Docker: lägg till Music Assistant i docker-compose och starta med <code>docker compose up -d music-assistant</code>.
+          <p style={{ margin: "0 0 6px" }}>
+            Home Assistant i Docker har ingen tilläggsbutik, så Music Assistant startas som en egen container. Det går utan terminal:
           </p>
+          <ul className="muted" style={{ margin: "0 0 8px", paddingLeft: 20 }}>
+            <li>
+              <b>Portainer:</b> Stacks → Add stack → klistra in texten → Deploy.
+            </li>
+            <li>
+              <b>Synology:</b> Container Manager → Projekt → Skapa → klistra in texten.
+            </li>
+            <li>
+              <b>Unraid:</b> Apps → sök Music Assistant → Install.
+            </li>
+            <li>
+              <b>Terminal:</b> lägg texten i docker-compose.yml och kör <code>docker compose up -d</code>.
+            </li>
+          </ul>
           <pre className="code-box">{MA_COMPOSE}</pre>
+          <CopyButton text={MA_COMPOSE} />
           <ol className="muted" style={{ margin: "10px 0", paddingLeft: 20 }}>
             <li>Öppna http://&lt;serverns-adress&gt;:8095 och lägg till Spotify under Inställningar → Musikleverantörer.</li>
-            <li>Koppla till Home Assistant med adressen http://&lt;serverns-adress&gt;:8095.</li>
+            <li>Tryck Koppla till Home Assistant och skriv samma adress, t.ex. http://192.168.1.10:8095.</li>
           </ol>
           <a className="btn primary" href={haAddIntegration("music_assistant")} target="_top" rel="noopener">
             <Icon name="plus" size={18} /> Koppla till Home Assistant
