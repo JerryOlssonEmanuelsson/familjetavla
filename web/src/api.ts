@@ -166,6 +166,7 @@ const realApi = {
     request<ConfigResponse>("config", { method: "PUT", body: JSON.stringify({ config, secrets }) }),
   checkPin: () => post<{ ok: boolean }>("auth/check"),
   dashboard: () => request<Dashboard>("dashboard"),
+  secureUrl: () => request<{ url: string | null }>("secure-url"),
   travel: (key: string, choice: TravelChoice | null, forCalendar = false) => post<{ ok: true }>("travel", { key, choice, forCalendar }),
   dinner: (day: string, text: string, shopping?: string) => post<{ ok: true }>("dinner", { day, text, shopping }),
   shelf: (personId: string, items: string[]) => post<{ ok: true }>("shelf", { personId, items }),

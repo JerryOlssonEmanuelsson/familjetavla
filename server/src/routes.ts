@@ -1,3 +1,4 @@
+import { secureUrl } from "./https.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
@@ -342,6 +343,8 @@ const previewEvent = (e: { start: Date; allDay: boolean; title: string }) =>
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/api/health", async () => ({ ok: true, version: VERSION }));
+  // Where the board runs over https (same certificate as Home Assistant), for "Installera som app".
+  app.get("/api/secure-url", async () => ({ url: secureUrl() }));
 
   app.addHook("onRequest", async (req, reply) => {
     const path = req.url.split("?")[0];

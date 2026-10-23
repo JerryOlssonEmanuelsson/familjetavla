@@ -67,8 +67,8 @@ function useControls(sp: Speaker, actions: Actions) {
 }
 
 /**
- * "P4 Jönköping · Kök" with volume and Stopp. While something plays, a long drag up or down on the row
- * turns the volume (the number shows while dragging); a short touch does nothing, so it never fights a tap.
+ * "P4 Jönköping · Kök" with − volume + and Stopp. While something plays, a long swipe up or down also
+ * turns the volume (a bar shows over the page while swiping); a short touch does nothing, so it never fights a tap.
  */
 function NowPlaying({ sp, actions, showName }: { sp: Speaker; actions: Actions; showName: boolean }) {
   const c = useControls(sp, actions);
@@ -81,6 +81,17 @@ function NowPlaying({ sp, actions, showName }: { sp: Speaker; actions: Actions; 
         {sp.offline ? `${sp.name} svarar inte` : sp.playing ? `${sp.title ?? "Spelar"}${showName ? ` · ${sp.name}` : ""}` : `${sp.name} · tyst`}
       </span>
       <span className="music-ctl">
+        {!sp.offline && vol !== null && (
+          <span className="music-vol">
+            <button className="btn small ghost" aria-label="Sänk volymen" disabled={vol <= 0} onClick={() => void c.volume(vol - 10)}>
+              −
+            </button>
+            <b>{vol}</b>
+            <button className="btn small ghost" aria-label="Höj volymen" disabled={vol >= 100} onClick={() => void c.volume(vol + 10)}>
+              +
+            </button>
+          </span>
+        )}
         {sp.playing && (
           <button className="btn small" onClick={() => void c.stop()}>
             <Icon name="stop" size={16} /> Stopp

@@ -9,8 +9,11 @@ services:
     init: true
     ports:
       - "8099:8099"
+      # - "8443:8443"                     # https (kräver certifikatet nedan)
     volumes:
       - ./data:/data
+      # Https med samma certifikat som Home Assistant: mappen med fullchain.pem och privkey.pem.
+      # - /sökväg/till/homeassistant/ssl:/ssl:ro
     environment:
       - TZ=Europe/Stockholm
       # - BROWSER_WS_URL=ws://browserless:3000   # extern webbläsare för Willys (valfritt)

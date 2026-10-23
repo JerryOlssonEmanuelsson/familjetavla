@@ -12,7 +12,7 @@ import { Fit } from "./Fit";
 import { DetailPage, PageBar, PAGE_TITLES, type PageId } from "./Detail";
 import { navigate, useHash } from "../route";
 import { InstallHelp, quickAddUrl } from "../InstallHelp";
-import { canPrompt, inIngress, isInstalled, onInstallChange, platform, promptInstall } from "../install";
+import { canPrompt, inIngress, isInstalled, onInstallChange, platform, promptInstall, useSecureUrl } from "../install";
 import { CarsPage, EnergyPage, GraphsPage, HousePage, LightsPage } from "./Pages";
 import { MusicPage } from "../widgets/music";
 import { HouseholdPage, SecurityPage } from "../widgets/security";
@@ -731,7 +731,8 @@ function InstallNudge({ onHelp }: { onHelp: () => void }) {
       return false;
     }
   });
-  if (hidden || isInstalled() || inIngress() || !(canPrompt() || platform() === "ios")) return null;
+  const secureUrl = useSecureUrl(api);
+  if (hidden || isInstalled() || inIngress() || !(canPrompt() || platform() === "ios" || secureUrl)) return null;
   const later = () => {
     setHidden(true);
     try {
@@ -750,7 +751,8 @@ function InstallNudge({ onHelp }: { onHelp: () => void }) {
           onClick={async () => {
             if (canPrompt()) {
               if (await promptInstall()) setHidden(true);
-            } else onHelp();
+            } else if (secureUrl && platform() !== "ios") location.href = secureUrl;
+            else onHelp();
           }}
         >
           Installera

@@ -2,12 +2,13 @@
 
 ## 0.12.0
 
+- **Https med Home Assistants certifikat:** har HA https (Let's Encrypt, DuckDNS …) körs tavlan även på https på port 8443 med samma certifikat. Då kan Chrome installera tavlan som en riktig app, och installera-knappen leder dit. Se README → Väggplattan.
 - **Fliken Säkerhet** – kameror, lås, larm, garageport/grind och dörrar/fönster, från vilket märke som helst i Home Assistant (Verisure, Yale, Nuki, Reolink, UniFi, Ring, Somfy …). Kamerorna visar en stillbild som uppdateras; tryck för stor bild. Låsa går alltid – **låsa upp från tavlan är avstängt** tills familjen slår på det, och då frågar tavlan först (och efter koden om låset vill ha en). Larmet visar de lägen panelen har.
 - **Fliken Hushåll** – tvättmaskin, torktumlare, diskmaskin och ugn med tid kvar och när de är klara (Miele, Bosch/Siemens, Electrolux, Samsung, LG … eller en vanlig maskin bakom en smart kontakt), och robotdammsugare och robotgräsklippare med Städa/Klipp, Paus och Åk hem.
 - **Notiser från hemmet** till den som är hemma: "Tvätten är klar", "Dammsugaren har fastnat", "Ytterdörren är olåst" kl 22, "Garageporten har stått öppen i en halvtimme" – och larmet till alla. Valbart per vuxen under Påminnelser.
 - **Flikarna syns bara om man väljer dem.** "Hämta från Home Assistant" hittar kameror, lås, maskiner och robotar men kryssar inget i.
 - **Spellistor som i Spotify:** tryck på ett omslag så öppnas spellistan eller albumet med alla låtar, omslag och en stor **Spela**. Tryck på en låt så börjar listan där. Välj **I ordning** eller **Blandat**.
-- **Volym med ett svep:** medan musik spelar, svep uppåt eller nedåt i fliken Musik eller på musikrutan på startsidan (på mobil på raden med det som spelas). En stapel visar volymen mitt på skärmen medan du sveper, som i en videospelare – inga volymknappar som tar plats.
+- **Volym med ett svep:** medan musik spelar, svep uppåt eller nedåt i fliken Musik eller på musikrutan på startsidan (på mobil på raden med det som spelas). En stapel visar volymen mitt på skärmen medan du sveper, som i en videospelare. Knapparna − och + finns kvar.
 - **Minns volymen** som senast valdes för varje högtalare och sätter den när musiken startar där igen.
 - **Kortare kanalvy:** alla kanaler ligger bakom **Fler kanaler ▾** – favoriterna syns direkt.
 - **Utgår:** tryck på en händelse i kalendern och välj **Utgår** – den försvinner från tavlan, Nu och påminnelserna (kalendern ändras inte).
