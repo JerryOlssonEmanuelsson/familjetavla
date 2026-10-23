@@ -82,21 +82,42 @@ await check("Högtalare (Musik)", async () => {
 await check("Spotify (läser bara)", async () => {
   const sp = byDomain("media_player").find((s) => s.entity_id.startsWith("media_player.spotify"));
   if (!sp) return "Spotify-integrationen finns inte";
-  // What the account offers to browse – titles and counts only, nothing is played.
-  const browse = (id, type) => sock.call({ type: "media_player/browse_media", entity_id: sp.entity_id, ...(id ? { media_content_id: id, media_content_type: type } : {}) }, 20_000);
-  const root = await browse();
-  const rows = [];
-  for (const c of (root.children ?? []).slice(0, 12)) {
-    let inside = "";
-    if (c.can_expand) {
-      const sub = await browse(c.media_content_id, c.media_content_type).catch((e) => ({ error: e.message }));
-      inside = sub.error ? ` (fel: ${sub.error})` : ` (${(sub.children ?? []).length} st, typ ${[...new Set((sub.children ?? []).map((x) => x.media_class))].join("/")}, med bild: ${(sub.children ?? []).filter((x) => x.thumbnail).length})`;
-    }
-    rows.push(`${c.title} [${c.media_content_type}]${inside}`);
-  }
   const f = Number(sp.attributes.supported_features ?? 0);
-  const search = Boolean(f & (1 << 22));
-  return `${sp.attributes.friendly_name ?? sp.entity_id}: ${sp.state}, källor (Spotify Connect): ${(sp.attributes.source_list ?? []).length}, sök: ${search ? "ja" : "nej"} · ${rows.join("; ")}`;
+  const head = `${sp.entity_id}: ${sp.state}, funktioner ${f} (bläddra: ${f & (1 << 17) ? "ja" : "nej"}, sök: ${f & (1 << 22) ? "ja" : "nej"}), Spotify Connect-källor: ${(sp.attributes.source_list ?? []).length}`;
+  // What the account offers to browse – titles and counts only, nothing is played.
+  // Spotify's own player only browses while something plays, so the speakers are asked too.
+  const browse = (entity, id, type) => sock.call({ type: "media_player/browse_media", entity_id: entity, ...(id ? { media_content_id: id, media_content_type: type } : {}) }, 20_000);
+  const describe = async (entity, node) => {
+    const rows = [];
+    for (const c of (node.children ?? []).slice(0, 14)) {
+      let inside = "";
+      if (c.can_expand) {
+        const sub = await browse(entity, c.media_content_id, c.media_content_type).catch((e) => ({ error: e.message }));
+        inside = sub.error ? ` (fel: ${sub.error})` : ` (${(sub.children ?? []).length} st, ${[...new Set((sub.children ?? []).map((x) => x.media_class))].join("/")}, bild ${(sub.children ?? []).filter((x) => x.thumbnail).length}, spelbara ${(sub.children ?? []).filter((x) => x.can_play).length}, id-form ${(sub.children ?? [])[0]?.media_content_id?.replace(/[A-Za-z0-9]{12,}/g, "…") ?? "-"} typ ${(sub.children ?? [])[0]?.media_content_type ?? "-"})`;
+      }
+      rows.push(`${c.title} [${c.media_content_type}, ${c.media_content_id?.replace(/[A-Za-z0-9]{12,}/g, "…")}]${inside}`);
+    }
+    return rows.join("; ");
+  };
+  const out = [head];
+  const own = await browse(sp.entity_id).catch((e) => ({ error: e.message }));
+  out.push(`Spotify-spelaren: ${own.error ? `fel: ${own.error}` : await describe(sp.entity_id, own)}`);
+  for (const s of (found?.speakers ?? []).slice(0, 2)) {
+    const root = await browse(s.entityId).catch((e) => ({ error: e.message }));
+    if (root.error) {
+      out.push(`${s.name}: fel: ${root.error}`);
+      continue;
+    }
+    const top = (root.children ?? []).map((c) => c.title).join(", ");
+    const spot = (root.children ?? []).find((c) => /spotify/i.test(c.title ?? "") || /spotify/.test(c.media_content_id ?? ""));
+    let inside = "ingen Spotify-gren";
+    if (spot) {
+      const node = await browse(s.entityId, spot.media_content_id, spot.media_content_type).catch((e) => ({ error: e.message }));
+      inside = node.error ? `fel: ${node.error}` : `Spotify [${spot.media_content_type}, ${spot.media_content_id}] → ${await describe(s.entityId, node)}`;
+    }
+    out.push(`${s.name} (${s.entityId}) toppnivå: ${top} · ${inside}`);
+  }
+  return out.join(" || ");
 });
 
 await check("Bilar", async () => {
