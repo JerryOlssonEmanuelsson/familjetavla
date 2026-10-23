@@ -46,6 +46,12 @@ export const ha = {
   ping: (c: HaConn) => call<{ message: string }>(c, "/"),
   states: (c: HaConn) => call<HaState[]>(c, "/states"),
   services: (c: HaConn) => call<{ domain: string; services: Record<string, unknown> }[]>(c, "/services"),
+  /** A still image from a camera (Home Assistant takes it from the stream when the camera has no snapshot). */
+  async cameraImage(c: HaConn, id: string): Promise<{ type: string; body: Buffer }> {
+    const res = await fetchWithTimeout(`${c.base}/camera_proxy/${encodeURIComponent(id)}`, { timeoutMs: 15_000, headers: { authorization: `Bearer ${c.token}` } });
+    if (!res.ok) throw new Error(`Kameran svarade ${res.status}`);
+    return { type: res.headers.get("content-type") ?? "image/jpeg", body: Buffer.from(await res.arrayBuffer()) };
+  },
   state: (c: HaConn, id: string) => call<HaState>(c, `/states/${encodeURIComponent(id)}`),
   service: (c: HaConn, domain: string, service: string, data: Record<string, unknown>, returnResponse = false) =>
     call<unknown>(c, `/services/${domain}/${service}${returnResponse ? "?return_response" : ""}`, {

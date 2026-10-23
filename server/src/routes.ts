@@ -40,6 +40,7 @@ import { setSick } from "./sick.js";
 import { makeBackup, restoreBackup } from "./backup.js";
 import { follows } from "./notify.js";
 import { findStations, playCall, spotifyPlayer, swedishStations } from "./music.js";
+import { alarmCall, robotCall } from "./security.js";
 import { MEDIA_TYPES, SHELVES, type Shelf, library as maLibrary, playOn as maPlayOn, search as maSearch } from "./musicAssistant.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
@@ -262,12 +263,39 @@ export const configSchema = z
         .array(z.object({ name: label(40), url: z.string().url().max(500).regex(/^https?:\/\//), logo: z.string().url().max(500).regex(/^https:\/\//).optional() }))
         .max(16)
         .optional(),
+      security: z
+        .object({
+          cameras: z.array(z.object({ name: label(40), entityId: entity.regex(/^camera\./) })).max(16),
+          locks: z.array(z.object({ name: label(40), entityId: entity.regex(/^lock\./) })).max(12),
+          alarms: z.array(z.object({ name: label(40), entityId: entity.regex(/^alarm_control_panel\./) })).max(4),
+          covers: z.array(z.object({ name: label(40), entityId: entity.regex(/^cover\./) })).max(8),
+          openings: z.array(z.object({ name: label(40), entityId: entity.regex(/^binary_sensor\./) })).max(40),
+          allowUnlock: z.boolean().optional(),
+        })
+        .optional(),
+      robots: z
+        .array(z.object({ name: label(40), entityId: entity.regex(/^(vacuum|lawn_mower)\./), battery: entity.regex(/^sensor\./).optional() }))
+        .max(8)
+        .optional(),
+      appliances: z
+        .array(
+          z.object({
+            name: label(40),
+            kind: z.enum(["washer", "dryer", "dishwasher", "oven", "other"]),
+            status: entity.optional(),
+            remaining: entity.optional(),
+            progress: entity.optional(),
+            power: entity.optional(),
+          }),
+        )
+        .max(10)
+        .optional(),
     }),
     dashboard: z.object({
       accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
       theme: z.enum(["auto", "dark", "light", "eink", "mirror"]),
       home: z.array(z.object({ id: z.enum(HOME_WIDGETS), on: z.boolean(), size: z.enum(["auto", "s", "m", "l"]).optional() })).max(20),
-      tabs: z.array(z.object({ id: z.enum(TAB_IDS), on: z.boolean() })).max(10),
+      tabs: z.array(z.object({ id: z.enum(TAB_IDS), on: z.boolean() })).max(12),
       nightFrom: z.string().regex(/^\d{2}:\d{2}$/),
       nightTo: z.string().regex(/^\d{2}:\d{2}$/),
       idleMinutes: z.number().int().min(0).max(240).default(10),
@@ -858,6 +886,69 @@ export async function registerRoutes(app: FastifyInstance) {
     }
     invalidate("ha:states");
     return { ok: true };
+  });
+
+  // ---------- Säkerhet och Städ ----------
+  const sec = () => loadConfig().entities.security;
+  const inList = <T extends { entityId: string }>(list: T[] | undefined, id: unknown): T | undefined => (typeof id === "string" ? list?.find((x) => x.entityId === id) : undefined);
+  const haCall = async (reply: FastifyReply, name: string, domain: string, service: string, data: Record<string, unknown>) => {
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      await ha.service(conn, domain, service, data);
+    } catch (e) {
+      return fail(reply, new Error(`${name}: ${(e as Error).message}`), 502);
+    }
+    invalidate("ha:states");
+    return { ok: true };
+  };
+
+  app.get("/api/camera/:id", async (req, reply) => {
+    const cam = inList(sec()?.cameras, (req.params as { id: string }).id);
+    if (!cam) return fail(reply, new Error("Okänd kamera"), 404);
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      const img = await ha.cameraImage(conn, cam.entityId);
+      return reply.header("cache-control", "no-store").type(img.type.startsWith("image/") ? img.type : "image/jpeg").send(img.body);
+    } catch (e) {
+      return fail(reply, e, 502);
+    }
+  });
+
+  app.post("/api/security/lock", async (req, reply) => {
+    const body = z.object({ entityId: entity, op: z.enum(["lock", "unlock", "open"]), code: z.string().max(20).optional() }).safeParse(req.body);
+    const lock = body.success ? inList(sec()?.locks, body.data.entityId) : undefined;
+    if (!body.success || !lock) return fail(reply, new Error("Okänt lås"));
+    // Unlocking from a wall anyone can touch is off unless the family turned it on.
+    if (body.data.op !== "lock" && !sec()?.allowUnlock) return fail(reply, new Error("Upplåsning från tavlan är avstängd (Inställningar → Säkerhet)."), 403);
+    return haCall(reply, lock.name, "lock", body.data.op, { entity_id: lock.entityId, ...(body.data.code ? { code: body.data.code } : {}) });
+  });
+
+  app.post("/api/security/alarm", async (req, reply) => {
+    const body = z.object({ entityId: entity, mode: z.enum(["home", "away", "night", "vacation", "off"]), code: z.string().max(20).optional() }).safeParse(req.body);
+    const alarm = body.success ? inList(sec()?.alarms, body.data.entityId) : undefined;
+    if (!body.success || !alarm) return fail(reply, new Error("Okänt larm"));
+    const c = alarmCall(body.data.mode);
+    return haCall(reply, alarm.name, c.domain, c.service, { entity_id: alarm.entityId, ...(body.data.code ? { code: body.data.code } : {}) });
+  });
+
+  app.post("/api/security/cover", async (req, reply) => {
+    const body = z.object({ entityId: entity, op: z.enum(["open", "close", "stop"]) }).safeParse(req.body);
+    const cover = body.success ? inList(sec()?.covers, body.data.entityId) : undefined;
+    if (!body.success || !cover) return fail(reply, new Error("Okänd port"));
+    return haCall(reply, cover.name, "cover", `${body.data.op}_cover`, { entity_id: cover.entityId });
+  });
+
+  app.post("/api/robots", async (req, reply) => {
+    const body = z.object({ entityId: entity, op: z.enum(["start", "pause", "dock"]) }).safeParse(req.body);
+    const robot = body.success ? inList(loadConfig().entities.robots, body.data.entityId) : undefined;
+    if (!body.success || !robot) return fail(reply, new Error("Okänd robot"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const st = await ha.state(conn, robot.entityId).catch(() => undefined);
+    const c = robotCall(robot.entityId, body.data.op, Number(st?.attributes.supported_features ?? 0));
+    return haCall(reply, robot.name, c.domain, c.service, { entity_id: robot.entityId });
   });
 
   // Settings: try a station before adding it (admin only, any http(s) stream, a known speaker).

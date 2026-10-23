@@ -17,6 +17,7 @@ import type {
 import { api, type CalendarTest, type Discovery } from "../api";
 import { Icon } from "../Icon";
 import { MusicCard } from "./music";
+import { SecurityCard } from "./security";
 import { EntityPicker, MultiEntityPicker, PALETTE, ProviderForm, ProviderTiles, Result, Select, Text, Toggle, Words, uid } from "./parts";
 import type { StepProps } from "./Wizard";
 
@@ -557,6 +558,7 @@ export function DiscoverStep({ cfg, set }: StepProps) {
       r.lightGroups.forEach((_, i) => (p[`lg${i}`] = true));
       r.temps.slice(0, 3).forEach((_, i) => (p[`t${i}`] = true));
       (r.speakers ?? []).slice(0, 4).forEach((_, i) => (p[`sp${i}`] = true));
+      // Säkerhet and Hushåll are tabs the family chooses: found things start unticked.
       p.todo = r.todo.length > 0;
       p.waste = r.calendars.some((c) => c.waste);
       p.price = false;
@@ -588,6 +590,21 @@ export function DiscoverStep({ cfg, set }: StepProps) {
       if (!(cfg.entities.speakers ?? []).length) next.dashboard.home = next.dashboard.home.map((w) => (w.id === "music" ? { ...w, on: true } : w));
       next.entities.speakers = speakers;
     }
+    if (d.security) {
+      const sec = d.security;
+      const picked = {
+        cameras: sec.cameras.filter((_, i) => on(`cam${i}`)).slice(0, 16),
+        locks: sec.locks.filter((_, i) => on(`lock${i}`)).slice(0, 12),
+        alarms: sec.alarms.filter((_, i) => on(`alarm${i}`)).slice(0, 4),
+        covers: sec.covers.filter((_, i) => on(`cover${i}`)).slice(0, 8),
+        openings: on("openings") ? sec.openings.slice(0, 40) : [],
+      };
+      if (Object.values(picked).some((x) => x.length)) next.entities.security = { ...picked, allowUnlock: cfg.entities.security?.allowUnlock ?? false };
+    }
+    const robots = (d.robots ?? []).filter((_, i) => on(`rob${i}`)).slice(0, 8);
+    if (robots.length) next.entities.robots = robots;
+    const appliances = (d.appliances ?? []).filter((_, i) => on(`app${i}`)).slice(0, 10);
+    if (appliances.length) next.entities.appliances = appliances;
     if (on("todo") && d.todo[0]) next.shopping = { ...next.shopping, source: "ha", entityId: d.todo.find((t) => /shop|inköp|handla/i.test(t.entityId + t.name))?.entityId ?? d.todo[0].entityId };
     const wasteCal = d.calendars.find((c) => c.waste);
     if (on("waste") && wasteCal) {
@@ -704,6 +721,41 @@ export function DiscoverStep({ cfg, set }: StepProps) {
               <h2>Högtalare för musik</h2>
               {d.speakers!.map((x, i) => (
                 <Box key={x.entityId} k={`sp${i}`} label={x.name} sub={x.entityId} />
+              ))}
+            </section>
+          )}
+          {d.security && d.security.cameras.length + d.security.locks.length + d.security.alarms.length + d.security.covers.length + d.security.openings.length > 0 && (
+            <section className="card">
+              <h2>Säkerhet</h2>
+              <p className="muted" style={{ margin: "0 0 8px" }}>
+                Kryssa i det som ska synas under fliken Säkerhet.
+              </p>
+              {d.security.cameras.map((x, i) => (
+                <Box key={x.entityId} k={`cam${i}`} label={`Kamera: ${x.name}`} sub={x.entityId} />
+              ))}
+              {d.security.locks.map((x, i) => (
+                <Box key={x.entityId} k={`lock${i}`} label={`Lås: ${x.name}`} sub={x.entityId} />
+              ))}
+              {d.security.alarms.map((x, i) => (
+                <Box key={x.entityId} k={`alarm${i}`} label={`Larm: ${x.name}`} sub={x.entityId} />
+              ))}
+              {d.security.covers.map((x, i) => (
+                <Box key={x.entityId} k={`cover${i}`} label={`Port: ${x.name}`} sub={x.entityId} />
+              ))}
+              {d.security.openings.length > 0 && <Box k="openings" label={`Dörrar och fönster (${d.security.openings.length} st)`} sub={d.security.openings.slice(0, 5).map((x) => x.name).join(", ")} />}
+            </section>
+          )}
+          {(d.robots ?? []).length + (d.appliances ?? []).length > 0 && (
+            <section className="card">
+              <h2>Hushåll</h2>
+              <p className="muted" style={{ margin: "0 0 8px" }}>
+                Kryssa i det som ska synas under fliken Hushåll.
+              </p>
+              {(d.appliances ?? []).map((x, i) => (
+                <Box key={`${x.name}${i}`} k={`app${i}`} label={x.name} sub={[x.status, x.power].filter(Boolean).join(" · ")} />
+              ))}
+              {(d.robots ?? []).map((x, i) => (
+                <Box key={x.entityId} k={`rob${i}`} label={x.name} sub={x.entityId} />
               ))}
             </section>
           )}
@@ -1488,6 +1540,7 @@ export function HouseStep({ cfg, set, saveNow }: StepProps) {
         />
       </section>
       <MusicCard cfg={cfg} set={set} saveNow={saveNow} />
+      <SecurityCard cfg={cfg} set={set} />
       <ListCard
         title="Ljusgrupper"
         help="Visas på fliken Ljus med Tänd alla / Släck alla."

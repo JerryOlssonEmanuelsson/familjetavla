@@ -15,9 +15,10 @@ import { InstallHelp, quickAddUrl } from "../InstallHelp";
 import { canPrompt, inIngress, isInstalled, onInstallChange, platform, promptInstall } from "../install";
 import { CarsPage, EnergyPage, GraphsPage, HousePage, LightsPage } from "./Pages";
 import { MusicPage } from "../widgets/music";
+import { HouseholdPage, SecurityPage } from "../widgets/security";
 
-export type Tab = "home" | "cars" | "lights" | "house" | "energy" | "graphs" | "music";
-const TAB_IDS: Tab[] = ["home", "cars", "lights", "house", "energy", "graphs", "music"];
+export type Tab = "home" | "cars" | "lights" | "house" | "energy" | "graphs" | "music" | "security" | "household";
+const TAB_IDS: Tab[] = ["home", "cars", "lights", "house", "energy", "graphs", "music", "security", "household"];
 const PAGE_IDS = Object.keys(PAGE_TITLES) as PageId[];
 
 const TABS: { id: Tab; label: string; icon: IconName; show: (d: Dash) => boolean }[] = [
@@ -28,6 +29,8 @@ const TABS: { id: Tab; label: string; icon: IconName; show: (d: Dash) => boolean
   { id: "energy", label: "Energi", icon: "bolt", show: (d) => Boolean(d.energy || d.prices) },
   { id: "graphs", label: "Grafer", icon: "graph", show: (d) => d.graphs.length > 0 || Boolean(d.prices) },
   { id: "music", label: "Musik", icon: "music", show: (d) => Boolean(d.music?.speakers.length) },
+  { id: "security", label: "Säkerhet", icon: "shield", show: (d) => Boolean(d.security) },
+  { id: "household", label: "Hushåll", icon: "robot", show: (d) => Boolean(d.robots?.length || d.appliances?.length) },
 ];
 
 const THEME_KEY = "familjetavla.theme";
@@ -1120,6 +1123,8 @@ export function Dashboard() {
             <Fit className="tab-body" deps={[data, tab]}>
               {tab === "cars" && <CarsPage data={data} actions={actions} />}
               {tab === "lights" && <LightsPage data={data} actions={actions} />}
+              {tab === "security" && <SecurityPage data={data} actions={actions} />}
+              {tab === "household" && <HouseholdPage data={data} actions={actions} />}
               {tab === "house" && <HousePage data={data} actions={actions} />}
               {tab === "energy" && <EnergyPage data={data} />}
               {tab === "graphs" && <GraphsPage data={data} />}

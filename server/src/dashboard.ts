@@ -1,3 +1,5 @@
+import { buildAppliances } from "./appliances.js";
+import { buildRobots, buildSecurity } from "./security.js";
 import { energyLive, energyToday, todaySeries } from "./energy.js";
 import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable, versionInfo } from "./updates.js";
@@ -386,6 +388,9 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     })),
     lights: cfg.entities.lights.map((l) => lamp(stateMap, l.entityId, l.name)),
     music: buildMusic(cfg, stateMap),
+    security: buildSecurity(cfg, stateMap),
+    robots: buildRobots(cfg, stateMap),
+    appliances: buildAppliances(cfg, stateMap, now),
     lightGroups: (cfg.entities.lightGroups ?? []).map((g, index) => ({
       index,
       name: g.name,

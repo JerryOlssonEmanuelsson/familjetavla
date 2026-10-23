@@ -1,4 +1,4 @@
-import type { CarEntity, Config, ConfigResponse, Dashboard, Integration, NamedEntity, Schedule, TestResult, TravelChoice } from "../../server/src/types";
+import type { ApplianceEntities, CarEntity, Config, SecurityEntities, ConfigResponse, Dashboard, Integration, NamedEntity, Schedule, TestResult, TravelChoice } from "../../server/src/types";
 
 /** A station in the Musik tab: every Swedish station from the radio directory. */
 export interface DirStation {
@@ -41,6 +41,9 @@ export interface Discovery {
   priceSensors: NamedEntity[];
   buttons: { name: string; entityId: string }[];
   speakers?: NamedEntity[];
+  security?: SecurityEntities;
+  robots?: (NamedEntity & { battery?: string })[];
+  appliances?: ApplianceEntities[];
   summary: string[];
 }
 
@@ -195,6 +198,12 @@ const realApi = {
   toggleLight: (entityId: string) => post("lights/toggle", { entityId }),
   brightness: (entityId: string, pct: number) => post("lights/brightness", { entityId, pct }),
   lightsOff: () => post("lights/off"),
+  lock: (entityId: string, op: "lock" | "unlock" | "open", code?: string) => post("security/lock", { entityId, op, code }),
+  alarm: (entityId: string, mode: "home" | "away" | "night" | "vacation" | "off", code?: string) => post("security/alarm", { entityId, mode, code }),
+  cover: (entityId: string, op: "open" | "close" | "stop") => post("security/cover", { entityId, op }),
+  robot: (entityId: string, op: "start" | "pause" | "dock") => post("robots", { entityId, op }),
+  /** A camera's still image; t makes the browser fetch a new one. */
+  cameraUrl: (entityId: string, t: number) => `api/camera/${encodeURIComponent(entityId)}?t=${t}`,
   saveHomeLayout: (home: { id: string; on: boolean }[]) => post("home-layout", { home }),
   playStation: (index: number, speaker: string) => post("music/play", { index, speaker }),
   stopMusic: (speaker: string) => post("music/stop", { speaker }),

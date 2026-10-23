@@ -649,6 +649,29 @@ export const demoApi = {
     fx.config.config.dashboard.home = d.home;
     return wait({});
   },
+  cameraUrl: (entityId: string, _t: number) => demoCamera(entityId),
+  lock: (entityId: string, op: "lock" | "unlock" | "open", _code?: string) => {
+    const l = d.security?.locks.find((x) => x.entityId === entityId);
+    if (l) l.state = op === "lock" ? "locked" : "unlocked";
+    return wait({});
+  },
+  alarm: (entityId: string, mode: "home" | "away" | "night" | "vacation" | "off", _code?: string) => {
+    const a = d.security?.alarms.find((x) => x.entityId === entityId);
+    const names = { home: "På – hemma", away: "På – borta", night: "På – natt", vacation: "På – semester", off: "Av" };
+    if (a) Object.assign(a, { state: mode === "off" ? "disarmed" : `armed_${mode}`, armed: mode !== "off", label: names[mode] });
+    return wait({});
+  },
+  cover: (entityId: string, op: "open" | "close" | "stop") => {
+    const c = d.security?.covers.find((x) => x.entityId === entityId);
+    if (c && op !== "stop") Object.assign(c, { state: op === "open" ? "open" : "closed", open: op === "open", label: op === "open" ? "Öppen" : "Stängd" });
+    return wait({});
+  },
+  robot: (entityId: string, op: "start" | "pause" | "dock") => {
+    const r = d.robots?.find((x) => x.entityId === entityId);
+    const mower = r?.kind === "mower";
+    if (r) Object.assign(r, op === "start" ? { state: mower ? "mowing" : "cleaning", label: mower ? "Klipper" : "Städar", busy: true, error: false } : op === "pause" ? { state: "paused", label: "Pausad", busy: false } : { state: "returning", label: "Åker hem", busy: true, error: false });
+    return wait({});
+  },
   lightsOff: () => {
     for (const l of d.lights) l.on = false;
     recountGroups();
@@ -776,4 +799,11 @@ const DEMO_LIBRARY: Record<Shelf, [string, string?][]> = {
 function demoTiles(shelf: Shelf): Tile[] {
   const type = shelf === "albums" ? "album" : shelf === "podcasts" ? "podcast" : "playlist";
   return DEMO_LIBRARY[shelf].map(([title, subtitle], i) => ({ uri: `demo://${type}/${i}`, type, title, subtitle, image: cover(title, i) }));
+}
+
+/** Made-up camera pictures for the demo: a sky, a lawn and a house outline – no real camera. */
+function demoCamera(entityId: string) {
+  const hue = entityId.length * 37 % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${hue},45%,70%)"/><stop offset="1" stop-color="hsl(${hue},35%,88%)"/></linearGradient></defs><rect width="320" height="180" fill="url(#s)"/><rect y="120" width="320" height="60" fill="#5c8a4a"/><path d="M110 120V80l50-35 50 35v40z" fill="#c9b79c"/><rect x="148" y="92" width="24" height="28" fill="#6b4f3a"/><text x="8" y="16" font-family="monospace" font-size="11" fill="#fff">${new Date().toLocaleTimeString("sv-SE")}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
