@@ -1791,6 +1791,7 @@ export function DisplayStep({ cfg, set }: StepProps) {
             { value: "dark", label: "Alltid mörkt" },
             { value: "light", label: "Alltid ljust" },
             { value: "eink", label: "E-ink (svart på vitt, inga animationer)" },
+            { value: "mirror", label: "Spegel (vitt på svart, för Magic Mirror bakom glas)" },
           ]}
         />
         <div className="grid-2">

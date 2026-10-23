@@ -3,7 +3,13 @@
 ## 0.10.1
 
 - **Versionen syns högst upp,** smått bredvid veckan: "v0.10.1 ✓ senaste" när ni har den senaste, eller "v0.10.0 · uppdatera till 0.10.1" i gult när en ny finns. Tryck på den gula så står det hur du uppdaterar.
-- **Håll inne en ruta för att ordna startsidan.** Dra den till en ny plats (⠿) eller flytta med ↑ ↓, och tryck Klar. **Dölj** frågar först, och en dold ruta kan tas tillbaka direkt ("+ Musik") eller under Inställningar → Startskärm. Ett vanligt tryck öppnar rutan som förut.
+- **Håll inne en ruta för att ordna startsidan.** Rutorna blir lådor med sina namn: dra dem (⠿) eller flytta med ↑ ↓ och tryck Klar. **Dölj** frågar först, och en dold ruta kan tas tillbaka direkt ("+ Musik") eller under Inställningar → Startskärm. Ett vanligt tryck öppnar rutan som förut.
+- **Går hem själv från fritids.** Under Familjen → barnet: "Brukar hämta" kan vara **Går/cyklar hem själv** (och "Brukar lämna" Går/cyklar dit själv). Ingen behöver hämta, ingen får påminnelse, och tavlan skriver "Går hem själv".
+- **Sophämtning i Stockholm:** Stockholm Vatten och Avfall (villor och radhus) – skriv adressen, så kommer restavfall och matavfall på tavlan.
+- **Spegel-tema** för MagicMirror² och andra speglar: vitt på helsvart, inga rutor eller animationer. Välj under Startskärm, eller för en enda skärm med `?tema=spegel` i adressen (även `?tema=eink`).
+- **"Installera som app"** visas när tavlan öppnas i en webbläsare som kan installera den. Inte nu gömmer den i 30 dagar.
+- **Solbågen** är ett val under Startskärm och av som standard.
+- **Guiden:** långa formulär (t.ex. Svenska lag) kapas inte längre – guiden rullar så att Testa och alla knappar går att nå.
 
 ## 0.10.0
 

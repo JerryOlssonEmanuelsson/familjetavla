@@ -264,7 +264,7 @@ export const configSchema = z
     }),
     dashboard: z.object({
       accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-      theme: z.enum(["auto", "dark", "light", "eink"]),
+      theme: z.enum(["auto", "dark", "light", "eink", "mirror"]),
       home: z.array(z.object({ id: z.enum(HOME_WIDGETS), on: z.boolean(), size: z.enum(["auto", "s", "m", "l"]).optional() })).max(20),
       tabs: z.array(z.object({ id: z.enum(TAB_IDS), on: z.boolean() })).max(10),
       nightFrom: z.string().regex(/^\d{2}:\d{2}$/),

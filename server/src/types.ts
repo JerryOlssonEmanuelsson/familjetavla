@@ -316,7 +316,7 @@ export interface Config {
   };
   dashboard: {
     accent: string;
-    theme: "auto" | "dark" | "light" | "eink";
+    theme: "auto" | "dark" | "light" | "eink" | "mirror";
     /** Startskärmens rutor i ordning; av/på per ruta. */
     home: { id: HomeWidget; on: boolean; size?: WidgetSize }[];
     /** Vilka flikar som visas. */
@@ -579,7 +579,7 @@ export interface Dashboard {
   }[];
   graphs: { index: number; title: string }[];
   accent: string;
-  theme: "auto" | "dark" | "light" | "eink";
+  theme: "auto" | "dark" | "light" | "eink" | "mirror";
   home: { id: HomeWidget; on: boolean; size?: WidgetSize }[];
   tabs: { id: TabId; on: boolean }[];
   /** Dygnsfärger: "day" eller "night" utifrån klockan. */

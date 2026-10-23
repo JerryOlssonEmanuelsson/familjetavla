@@ -3384,3 +3384,63 @@ marker.pf-buy path {
 .home-grid > .arrange-box > .edit-bar {
   margin-bottom: 4px;
 }
+
+/* ---------- Spegel (Magic Mirror): white on pure black, no boxes, nothing that moves ----------
+   Behind two-way glass only bright pixels show, so cards lose their fill and borders and the
+   black background stays black. Set under Startskärm, or per screen with ?tema=spegel. */
+[data-theme="mirror"] {
+  --bg-solid: #000000;
+  --text: #ffffff;
+  --muted: #c8c8c8;
+  --faint: #9a9a9a;
+  --glass: transparent;
+  --glass-strong: transparent;
+  --glass-edge: rgba(255, 255, 255, 0.14);
+  --glass-hi: transparent;
+  --glass-shine: transparent;
+  --shadow: transparent;
+  --blur: 0px;
+  --control: transparent;
+  --control-border: rgba(255, 255, 255, 0.28);
+  --row: rgba(255, 255, 255, 0.06);
+  --chip: rgba(255, 255, 255, 0.1);
+  --bar: rgba(255, 255, 255, 0.3);
+  --accent: #ffffff;
+  --on-accent: #000000;
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --blue: #ffffff;
+  --blue-soft: rgba(255, 255, 255, 0.1);
+  --amber: #ffe08a;
+  --amber-soft: rgba(255, 224, 138, 0.12);
+  --danger: #ffb3c1;
+  --card-border: transparent;
+  --sky-0: #000000;
+  --sky-1: #000000;
+  --sky-2: #000000;
+  --sky-3: #000000;
+  color-scheme: dark;
+}
+[data-theme="mirror"] body {
+  background: #000000;
+}
+[data-theme="mirror"] *,
+[data-theme="mirror"] *::before,
+[data-theme="mirror"] *::after {
+  animation: none !important;
+  transition: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+[data-theme="mirror"] .sky {
+  display: none;
+}
+[data-theme="mirror"] .card,
+[data-theme="mirror"] .tabbar {
+  background: transparent;
+  border-color: transparent;
+}
+[data-theme="mirror"] .sheet {
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.3);
+}
