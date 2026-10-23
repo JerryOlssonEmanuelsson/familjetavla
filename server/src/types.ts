@@ -316,7 +316,7 @@ export interface Config {
   };
   dashboard: {
     accent: string;
-    theme: "auto" | "dark" | "light" | "eink";
+    theme: "auto" | "dark" | "light" | "eink" | "mirror";
     /** Startskärmens rutor i ordning; av/på per ruta. */
     home: { id: HomeWidget; on: boolean; size?: WidgetSize }[];
     /** Vilka flikar som visas. */
@@ -325,6 +325,8 @@ export interface Config {
     nightTo: string; // "06:00"
     /** Minuter utan beröring innan fotoramen visas. 0 = av. */
     idleMinutes: number;
+    /** Solbågen under temperaturen i Nu-rutan (av som standard). */
+    sunArc?: boolean;
   };
 }
 
@@ -526,6 +528,8 @@ export interface Dashboard {
   school?: SchoolChild[];
   /** En nyare version finns publicerad. */
   update?: { latest: string; current: string };
+  /** Running version, and the published one when known: "v0.10.0 ✓ senaste" or "uppdatera till …" in the header. */
+  version?: { current: string; latest?: string };
   /** "Skolan idag": when each child's school day starts and ends (today, or the next school day). */
   schoolDay?: { personId: string; name: string; color: string; dayLabel: string; start: string; end: string; gym: boolean }[];
   /** Veckans mat: skollunch per barn och familjens middag, kommande 7 dagar. */
@@ -575,7 +579,7 @@ export interface Dashboard {
   }[];
   graphs: { index: number; title: string }[];
   accent: string;
-  theme: "auto" | "dark" | "light" | "eink";
+  theme: "auto" | "dark" | "light" | "eink" | "mirror";
   home: { id: HomeWidget; on: boolean; size?: WidgetSize }[];
   tabs: { id: TabId; on: boolean }[];
   /** Dygnsfärger: "day" eller "night" utifrån klockan. */
@@ -632,6 +636,8 @@ export interface Music {
   stations: { index: number; name: string; logo?: string; url: string }[];
   /** Home Assistant's Spotify integration: null when it is not installed (the tab then says how). */
   spotify: { entityId: string; playing: boolean; title?: string; device?: string; offline: boolean } | null;
+  /** Music Assistant is in Home Assistant: the Musik tab shows the library (playlists, albums, podcasts) as covers. */
+  assistant: boolean;
 }
 
 /** One lamp on the board. brightness 1–100 when it is on and can be dimmed. */

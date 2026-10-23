@@ -1,8 +1,9 @@
 // Demo mode (VITE_DEMO=1): the whole app runs in the browser on recorded sample data.
 // Every button works against this in-memory copy; nothing leaves the page.
 import type { Config, ConfigResponse, DashEvent, Dashboard, Integration, PlanItem, Schedule, TestResult, TravelChoice, TravelLeg } from "../../../server/src/types";
-import type { CalendarTest, CarDetails, Discovery, EntityOption, GraphData, GroceryLine, PostcodeInfo } from "../api";
+import type { CalendarTest, CarDetails, Discovery, EntityOption, GraphData, GroceryLine, PostcodeInfo, Shelf, Tile } from "../api";
 import fixtures from "./fixtures.json";
+import pkg from "../../package.json";
 
 const fx = structuredClone(fixtures) as unknown as {
   config: ConfigResponse;
@@ -39,7 +40,10 @@ const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(str
 const d = fx.dashboard;
 // "?tema=eink" shows the demo as on an e-ink screen.
 const forcedTheme = typeof location !== "undefined" ? new URLSearchParams(location.search).get("tema") : null;
+// ?utan-ma shows the Musik tab of a home without Music Assistant (the device check uses it).
+if (typeof location !== "undefined" && new URLSearchParams(location.search).has("utan-ma") && d.music) d.music.assistant = false;
 if (forcedTheme === "eink" || forcedTheme === "light" || forcedTheme === "dark") d.theme = forcedTheme;
+if (forcedTheme === "spegel") d.theme = "mirror";
 
 // ---- Förskola days for Maja in the demo: Emil drops off, Anna picks up – except Thursday, where
 // no one has said they pick up yet (shows the amber "saknar ansvarig" in Planera veckan). ----
@@ -389,6 +393,8 @@ const groupState = new Map<string, boolean>([
   ["light.fonster_vardagsrum", true],
 ]);
 recountGroups();
+// The demo is always the latest version.
+d.version = { current: pkg.version, latest: pkg.version };
 
 function syncDayParts() {
   const h = new Date().getHours() + new Date().getMinutes() / 60;
@@ -637,6 +643,12 @@ export const demoApi = {
     recountGroups();
     return wait({});
   },
+  saveHomeLayout: (home: { id: string; on: boolean }[]) => {
+    const old = new Map(d.home.map((w) => [w.id, w]));
+    d.home = home.map((w) => ({ ...old.get(w.id as never), id: w.id as never, on: w.on }));
+    fx.config.config.dashboard.home = d.home;
+    return wait({});
+  },
   lightsOff: () => {
     for (const l of d.lights) l.on = false;
     recountGroups();
@@ -651,6 +663,13 @@ export const demoApi = {
   tryStation: (_name: string, _url: string, _speaker: string) => wait({}),
   musicStations: () => wait({ stations: DEMO_STATIONS }),
   spotify: (_op: "playpause" | "next") => wait({}),
+  musicLibrary: (shelf: Shelf) => wait({ tiles: demoTiles(shelf) }),
+  musicSearch: (q: string) => wait({ tiles: demoTiles("playlists").filter((t) => t.title.toLowerCase().includes(q.toLowerCase())) }),
+  playMedia: (t: Tile, speaker: string) => {
+    const sp = d.music?.speakers.find((x) => x.entityId === speaker);
+    if (sp) Object.assign(sp, { playing: true, station: undefined, title: t.title, playingUrl: undefined });
+    return wait({});
+  },
   playStationId: (id: string, speaker: string) => {
     const sp = d.music?.speakers.find((x) => x.entityId === speaker);
     const st = DEMO_STATIONS.find((x) => x.id === id);
@@ -740,3 +759,21 @@ export const demoApi = {
     return wait({ ok: true as const }, 150);
   },
 };
+
+
+/** Made-up covers for the demo's library: a coloured square per playlist, no real artwork. */
+const COVER_COLOURS = ["#1db954", "#e8115b", "#509bf5", "#f59b23", "#8d67ab", "#148a08", "#dc148c", "#0d73ec", "#e1118c", "#777777"];
+function cover(title: string, i: number) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${COVER_COLOURS[i % COVER_COLOURS.length]}"/><text x="50" y="60" font-family="sans-serif" font-size="30" font-weight="700" fill="#fff" text-anchor="middle">${title.slice(0, 2).toUpperCase()}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+const DEMO_LIBRARY: Record<Shelf, [string, string?][]> = {
+  recent: [["Fredagsmys"], ["Barnens favoriter"], ["Godnattsagor"], ["Melodifestivalen 2026"], ["Lugnt till middagen"], ["Bilresan"], ["Träning"], ["Julmusik"]],
+  playlists: [["Barnens favoriter"], ["Bilresan"], ["Fredagsmys"], ["Godnattsagor"], ["Julmusik"], ["Lugnt till middagen"], ["Melodifestivalen 2026"], ["Morgonpigg"], ["Städa huset"], ["Sommarhits"], ["Träning"], ["Veckans topplista"]],
+  albums: [["Främling", "Carola"], ["Hello Hello", "Laleh"], ["Vapen & ammunition", "Kent"], ["Arrival", "ABBA"], ["Pippi Långstrump", "Astrid Lindgren"], ["Sånger för barn", "Trazan & Banarne"]],
+  podcasts: [["Sommar i P1", "Sveriges Radio"], ["Barnens nyheter", "Sveriges Radio"], ["Spöktimmen", "Sveriges Radio"], ["Godnattpodden", "Sveriges Radio"]],
+};
+function demoTiles(shelf: Shelf): Tile[] {
+  const type = shelf === "albums" ? "album" : shelf === "podcasts" ? "podcast" : "playlist";
+  return DEMO_LIBRARY[shelf].map(([title, subtitle], i) => ({ uri: `demo://${type}/${i}`, type, title, subtitle, image: cover(title, i) }));
+}

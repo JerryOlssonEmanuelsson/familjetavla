@@ -1,6 +1,6 @@
 import { fetchIcs } from "../connectors/ics.js";
 import { ha, haConnection } from "../connectors/ha.js";
-import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest, type Pickup } from "../connectors/waste.js";
+import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest, sthlmSchedule, type Pickup } from "../connectors/waste.js";
 import { addDays, daysBetween, parseDayKey, shortDate, shortWeekday, startOfDay } from "../time.js";
 import type { ManualPickup } from "../types.js";
 import type { ProviderCtx, WasteProvider } from "./types.js";
@@ -108,6 +108,33 @@ export const wasteSrv: WasteProvider = {
     if (!building) return [];
     const until = addDays(startOfDay(new Date()), 21);
     return (await srvSchedule(building)).filter((p) => p.date < until);
+  },
+};
+
+export const wasteStockholm: WasteProvider = {
+  meta: {
+    id: "stockholm",
+    category: "waste",
+    name: "Stockholm Vatten och Avfall",
+    description: "Villor och radhus i Stockholms stad – restavfall och matavfall.",
+    status: "experimental",
+    fields: [{ key: "address", label: "Adress", type: "text", placeholder: "Daltorpsvägen 28, Vällingby, 16244", help: "Gata och nummer, ort, postnummer – som på stockholmvattenochavfall.se." }],
+    guide: [
+      "Skriv adressen som \"Gata nr, Ort, postnummer\" och tryck Testa.",
+      "Gäller villor och radhus. Bor ni i flerfamiljshus sköter fastighetsägaren hämtningen.",
+    ],
+  },
+  async test(ctx) {
+    const address = ctx.str("address");
+    if (address.length < 5) throw new Error("Skriv adressen, t.ex. Daltorpsvägen 28, Vällingby, 16244.");
+    const pickups = await sthlmSchedule(address);
+    return { ok: true, message: pickups.length ? "Hämtdagar hittade." : "Adressen hittades men inga kommande hämtningar.", preview: pickups.slice(0, 6).map(fmt) };
+  },
+  async fetch(ctx) {
+    const address = ctx.str("address");
+    if (!address) return [];
+    const until = addDays(startOfDay(new Date()), 21);
+    return (await sthlmSchedule(address)).filter((p) => p.date < until);
   },
 };
 

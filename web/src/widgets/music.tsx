@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Dashboard, Music as MusicData } from "../../../server/src/types";
-import { api, type DirStation } from "../api";
+import { api, type DirStation, type Shelf, type Tile } from "../api";
 import { Icon } from "../Icon";
 import type { Actions } from "../dashboard/Dashboard";
 import type { WidgetModule } from "./types";
@@ -185,31 +185,8 @@ export function MusicPage({ data, actions }: { data: Dashboard; actions: Actions
 function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
   const { sp, choose: pick } = useSpeaker(m);
   const c = useControls(sp, actions);
-  const [all, setAll] = useState<DirStation[] | null>(null);
-  const [error, setError] = useState("");
-  const [group, setGroup] = useState<"sr" | "other">("sr");
-  const [q, setQ] = useState("");
-  useEffect(() => {
-    api
-      .musicStations()
-      .then((r) => setAll(r.stations))
-      .catch((e: Error) => setError(e.message));
-  }, []);
-  const favUrls = useMemo(() => m.stations.map((s) => s.url ?? ""), [m.stations]);
-  const isFav = (url: string) => favUrls.some((u) => sameStream(u, url));
-  const shown = useMemo(() => {
-    const words = q.trim().toLowerCase();
-    return (all ?? []).filter((s) => (words ? s.name.toLowerCase().includes(words) : s.group === group));
-  }, [all, group, q]);
-  const pg = usePages(shown.length, `${group}|${q}`);
-  const star = (s: DirStation) => {
-    keep();
-    const on = !isFav(s.url);
-    return actions.run(on ? `${s.name} på startsidan` : `${s.name} borttagen`, () => api.favoriteStation(on ? { id: s.id, on } : { url: m.stations.find((x) => sameStream(x.url, s.url))?.url ?? s.url, on }), {
-      done: on ? `${s.name} ligger nu på startsidan` : `${s.name} är borttagen från startsidan`,
-      check: (d) => (d.music?.stations ?? []).some((x) => sameStream(x.url, s.url)) === on,
-    });
-  };
+  const [source, setSource] = useState<"radio" | "library">("radio");
+  const libName = "Spotify";
 
   return (
     <div className="music-tab">
@@ -235,52 +212,367 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
 
       <section className="card music-all">
         <div className="card-head">
-          <h2>Alla kanaler</h2>
-          <div className="seg small" role="radiogroup" aria-label="Kanaler">
-            <button className={`seg-btn ${!q && group === "sr" ? "on" : ""}`} role="radio" aria-checked={!q && group === "sr"} onClick={() => (setQ(""), setGroup("sr"))}>
-              Sveriges Radio
+          <div className="seg" role="tablist" aria-label="Lyssna på">
+            <button className={`seg-btn ${source === "radio" ? "on" : ""}`} role="tab" aria-selected={source === "radio"} onClick={() => setSource("radio")}>
+              <Icon name="music" size={18} /> Radio
             </button>
-            <button className={`seg-btn ${!q && group === "other" ? "on" : ""}`} role="radio" aria-checked={!q && group === "other"} onClick={() => (setQ(""), setGroup("other"))}>
-              Övriga
+            <button className={`seg-btn ${source === "library" ? "on" : ""}`} role="tab" aria-selected={source === "library"} onClick={() => setSource("library")}>
+              <Icon name="play" size={18} /> {libName}
             </button>
           </div>
         </div>
-        <input className="music-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök, t.ex. Östergötland eller Megapol" aria-label="Sök kanal" maxLength={40} enterKeyHint="search" />
-        {error && <p className="error-text">{error}</p>}
-        {!all && !error && <p className="muted">Hämtar kanaler …</p>}
-        {all && shown.length === 0 && <p className="muted">Ingen kanal heter så.</p>}
-        <div className="station-list" ref={pg.box}>
-          {shown.slice(pg.from, pg.to).map((s) => {
-            const fav = isFav(s.url);
-            return (
-              <div key={s.id} className="station-row">
-                <StationButton name={s.name} logo={s.logo} on={sp.playing && sameStream(sp.playingUrl, s.url)} disabled={sp.offline} onPlay={() => void c.playDir(s)} />
-                <button className={`btn small ghost star ${fav ? "on" : ""}`} aria-pressed={fav} aria-label={fav ? `Ta bort ${s.name} från startsidan` : `Lägg ${s.name} på startsidan`} onClick={() => void star(s)}>
-                  {fav ? "★" : "☆"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <div className="music-pager">
-          <span className="muted music-hint">☆ lägger kanalen på startsidan.</span>
-          {pg.pages > 1 && (
-            <span className="row gap" style={{ alignItems: "center" }}>
-              <button className="btn small" aria-label="Föregående kanaler" disabled={pg.at === 0} onClick={() => pg.setPage(pg.at - 1)}>
-                ‹
-              </button>
-              <span className="muted">
-                {pg.at + 1} av {pg.pages}
-              </span>
-              <button className="btn small" disabled={pg.at >= pg.pages - 1} onClick={() => pg.setPage(pg.at + 1)}>
-                Fler ›
-              </button>
-            </span>
-          )}
-        </div>
+        {source === "radio" ? <AllStations m={m} sp={sp} actions={actions} /> : m.assistant ? <Library sp={sp} actions={actions} /> : <AssistantSetup />}
       </section>
 
-      <SpotifyBox sp={m.spotify} actions={actions} />
+      {m.spotify && <SpotifyBox sp={m.spotify} actions={actions} />}
+    </div>
+  );
+}
+
+function Pager({ pg, hint }: { pg: ReturnType<typeof usePages>; hint?: string }) {
+  return (
+    <div className="music-pager">
+      <span className="muted music-hint">{hint}</span>
+      {pg.pages > 1 && (
+        <span className="row gap" style={{ alignItems: "center" }}>
+          <button className="btn small" aria-label="Föregående sida" disabled={pg.at === 0} onClick={() => pg.setPage(pg.at - 1)}>
+            ‹
+          </button>
+          <span className="muted">
+            {pg.at + 1} av {pg.pages}
+          </span>
+          <button className="btn small" disabled={pg.at >= pg.pages - 1} onClick={() => pg.setPage(pg.at + 1)}>
+            Fler ›
+          </button>
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Every Swedish station: Sveriges Radio or the others, or a search across both. */
+function AllStations({ m, sp, actions }: { m: MusicData; sp: Speaker; actions: Actions }) {
+  const c = useControls(sp, actions);
+  const [all, setAll] = useState<DirStation[] | null>(null);
+  const [error, setError] = useState("");
+  const [group, setGroup] = useState<"sr" | "other">("sr");
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    api
+      .musicStations()
+      .then((r) => setAll(r.stations))
+      .catch((e: Error) => setError(e.message));
+  }, []);
+  const favUrls = useMemo(() => m.stations.map((s) => s.url ?? ""), [m.stations]);
+  const isFav = (url: string) => favUrls.some((u) => sameStream(u, url));
+  const shown = useMemo(() => {
+    const words = q.trim().toLowerCase();
+    return (all ?? []).filter((s) => (words ? s.name.toLowerCase().includes(words) : s.group === group));
+  }, [all, group, q]);
+  const pg = usePages(shown.length, `${group}|${q}`);
+  const star = (s: DirStation) => {
+    keep();
+    const on = !isFav(s.url);
+    return actions.run(on ? `${s.name} på startsidan` : `${s.name} borttagen`, () => api.favoriteStation(on ? { id: s.id, on } : { url: m.stations.find((x) => sameStream(x.url, s.url))?.url ?? s.url, on }), {
+      done: on ? `${s.name} ligger nu på startsidan` : `${s.name} är borttagen från startsidan`,
+      check: (d) => (d.music?.stations ?? []).some((x) => sameStream(x.url, s.url)) === on,
+    });
+  };
+  return (
+    <>
+      <div className="music-filter">
+        <div className="seg small" role="radiogroup" aria-label="Kanaler">
+          <button className={`seg-btn ${!q && group === "sr" ? "on" : ""}`} role="radio" aria-checked={!q && group === "sr"} onClick={() => (setQ(""), setGroup("sr"))}>
+            Sveriges Radio
+          </button>
+          <button className={`seg-btn ${!q && group === "other" ? "on" : ""}`} role="radio" aria-checked={!q && group === "other"} onClick={() => (setQ(""), setGroup("other"))}>
+            Övriga
+          </button>
+        </div>
+        <input className="music-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Sök, t.ex. Östergötland" aria-label="Sök kanal" maxLength={40} enterKeyHint="search" />
+      </div>
+      {error && <p className="error-text">{error}</p>}
+      {!all && !error && <p className="muted">Hämtar kanaler …</p>}
+      {all && shown.length === 0 && <p className="muted">Ingen kanal heter så.</p>}
+      <div className="station-list" ref={pg.box}>
+        {shown.slice(pg.from, pg.to).map((s) => {
+          const fav = isFav(s.url);
+          return (
+            <div key={s.id} className="station-row">
+              <StationButton name={s.name} logo={s.logo} on={sp.playing && sameStream(sp.playingUrl, s.url)} disabled={sp.offline} onPlay={() => void c.playDir(s)} />
+              <button className={`btn small ghost star ${fav ? "on" : ""}`} aria-pressed={fav} aria-label={fav ? `Ta bort ${s.name} från startsidan` : `Lägg ${s.name} på startsidan`} onClick={() => void star(s)}>
+                {fav ? "★" : "☆"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <Pager pg={pg} hint="☆ lägger kanalen på startsidan." />
+    </>
+  );
+}
+
+// ---------- The library: covers like the car's music player ----------
+
+const SHELF_NAMES: { id: Shelf | "search" | "home"; name: string }[] = [
+  { id: "home", name: "Hem" },
+  { id: "playlists", name: "Spellistor" },
+  { id: "albums", name: "Album" },
+  { id: "podcasts", name: "Poddar" },
+  { id: "search", name: "Sök" },
+];
+
+/** Shelves on the left, covers on the right; a tap plays the cover on the chosen speaker. */
+function Library({ sp, actions }: { sp: Speaker; actions: Actions }) {
+  const [shelf, setShelf] = useState<Shelf | "search" | "home">("home");
+  const [q, setQ] = useState("");
+  const [asked, setAsked] = useState("");
+  const [tiles, setTiles] = useState<Tile[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (shelf === "home" || (shelf === "search" && asked.length < 2)) return setTiles([]);
+    let live = true;
+    setTiles(null);
+    setError("");
+    (shelf === "search" ? api.musicSearch(asked) : api.musicLibrary(shelf))
+      .then((r) => live && setTiles(r.tiles))
+      .catch((e: Error) => live && setError(e.message));
+    return () => {
+      live = false;
+    };
+  }, [shelf, asked]);
+  // Searching as you type, a moment after the last key.
+  useEffect(() => {
+    const t = setTimeout(() => setAsked(q.trim()), 450);
+    return () => clearTimeout(t);
+  }, [q]);
+  const list = tiles ?? [];
+  const pg = usePages(list.length, `${shelf}|${asked}`);
+  const play = (t: Tile) => {
+    keep();
+    return actions.run(t.title, () => api.playMedia(t, sp.entityId), {
+      done: `${t.title} spelar i ${sp.name}`,
+      check: (d) => Boolean(d.music?.speakers.find((s) => s.entityId === sp.entityId)?.playing),
+      slow: `${t.title} är skickad till ${sp.name} – det kan ta en stund att starta.`,
+    });
+  };
+  const empty = shelf === "search" ? (asked.length < 2 ? "Skriv vad du vill lyssna på." : "Inget hittades.") : shelf === "podcasts" ? "Inga poddar i biblioteket än." : "Inget här än – lägg till musiktjänsten i Music Assistant.";
+  return (
+    <div className="lib">
+      <nav className="seg lib-shelves" role="tablist" aria-label="Hyllor">
+        {SHELF_NAMES.map((x) => (
+          <button key={x.id} className={`seg-btn ${shelf === x.id ? "on" : ""}`} role="tab" aria-selected={shelf === x.id} onClick={() => setShelf(x.id)}>
+            {x.name}
+          </button>
+        ))}
+      </nav>
+      {shelf === "home" ? (
+        <LibraryHome sp={sp} play={play} />
+      ) : (
+      <div className="lib-main">
+        {shelf === "search" && (
+          <input className="music-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Artist, låt, spellista eller podd" aria-label="Sök musik" maxLength={60} enterKeyHint="search" autoFocus />
+        )}
+        {error && <p className="error-text">{error}</p>}
+        {!tiles && !error && <p className="muted">Hämtar …</p>}
+        {tiles && list.length === 0 && !error && <p className="muted">{empty}</p>}
+        <div className="cover-grid" ref={pg.box}>
+          {list.slice(pg.from, pg.to).map((t) => (
+            <Cover key={t.uri} t={t} sp={sp} play={play} />
+          ))}
+        </div>
+        <Pager pg={pg} hint={`Spelar i ${sp.name}`} />
+      </div>
+      )}
+    </div>
+  );
+}
+
+function Cover({ t, sp, play }: { t: Tile; sp: Speaker; play: (t: Tile) => unknown }) {
+  return (
+    <button className="cover" disabled={sp.offline} onClick={() => void play(t)} aria-label={`Spela ${t.title}${t.subtitle ? ` – ${t.subtitle}` : ""} i ${sp.name}`}>
+      <span className="cover-img">
+        {t.image ? <img src={t.image} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : null}
+        <Icon name={t.type === "podcast" ? "speaker" : "music"} size={28} />
+      </span>
+      <span className="cover-title">{t.title}</span>
+      {t.subtitle && <span className="cover-sub">{t.subtitle}</span>}
+    </button>
+  );
+}
+
+/** A row that shows as many covers as fit across, with ‹ › instead of scrolling sideways. */
+function useRow(count: number) {
+  const box = useRef<HTMLDivElement>(null);
+  const [cols, setCols] = useState(0);
+  const [page, setPage] = useState(0);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => setCols(Math.max(1, getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [count]);
+  const per = cols || count;
+  const pages = Math.max(1, Math.ceil(count / per));
+  const at = Math.min(page, pages - 1);
+  return { box, from: at * per, to: (at + 1) * per, at, pages, setPage };
+}
+
+/** Hem, like the car: what you played last as small rows on top, then your playlists as covers. */
+function LibraryHome({ sp, play }: { sp: Speaker; play: (t: Tile) => unknown }) {
+  const [recent, setRecent] = useState<Tile[] | null>(null);
+  const [lists, setLists] = useState<Tile[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    api.musicLibrary("recent").then((r) => setRecent(r.tiles), (e: Error) => setError(e.message));
+    api.musicLibrary("playlists").then((r) => setLists(r.tiles), (e: Error) => setError(e.message));
+  }, []);
+  const row = useRow(lists?.length ?? 0);
+  if (error) return <p className="error-text">{error}</p>;
+  if (!recent || !lists) return <p className="muted">Hämtar …</p>;
+  if (!recent.length && !lists.length) return <p className="muted">Biblioteket är tomt – lägg till Spotify under Musikleverantörer i Music Assistant.</p>;
+  return (
+    <div className="lib-home">
+      {recent.length > 0 && (
+        <>
+          <h3 className="lib-h">Senast spelat</h3>
+          <div className="chip-grid">
+            {recent.slice(0, 6).map((t) => (
+              <button key={t.uri} className="cover-chip" disabled={sp.offline} onClick={() => void play(t)} aria-label={`Spela ${t.title} i ${sp.name}`}>
+                <span className="cover-img">
+                  {t.image ? <img src={t.image} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : null}
+                  <Icon name="music" size={20} />
+                </span>
+                <span className="cover-title">{t.title}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {lists.length > 0 && (
+        <>
+          <div className="lib-row-head">
+            <h3 className="lib-h">Dina spellistor</h3>
+            {row.pages > 1 && (
+              <span className="row gap" style={{ alignItems: "center" }}>
+                <button className="btn small" aria-label="Föregående spellistor" disabled={row.at === 0} onClick={() => row.setPage(row.at - 1)}>
+                  ‹
+                </button>
+                <button className="btn small" aria-label="Fler spellistor" disabled={row.at >= row.pages - 1} onClick={() => row.setPage(row.at + 1)}>
+                  ›
+                </button>
+              </span>
+            )}
+          </div>
+          <div className="cover-row" ref={row.box}>
+            {lists.slice(row.from, row.to).map((t) => (
+              <Cover key={t.uri} t={t} sp={sp} play={play} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const MA_APP = "d5369777_music_assistant";
+const MA_REPO = "https://github.com/music-assistant/home-assistant-addon";
+
+const MA_COMPOSE = `services:
+  music-assistant:
+    image: ghcr.io/music-assistant/server:latest
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./music-assistant:/data`;
+
+function CopyButton({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      className="btn small"
+      style={{ marginTop: 6 }}
+      onClick={() =>
+        navigator.clipboard?.writeText(text).then(
+          () => setDone(true),
+          () => setDone(false),
+        )
+      }
+    >
+      {done ? "Kopierat ✓" : "Kopiera texten"}
+    </button>
+  );
+}
+
+/**
+ * Without Music Assistant: what it gives and how to get it. Home Assistant OS/Supervised gets a
+ * button to the app store; Home Assistant in Docker (no app store) gets the container to add.
+ */
+function AssistantSetup() {
+  const [store, setStore] = useState<boolean | null>(null);
+  useEffect(() => {
+    api.authStatus().then(
+      (r) => setStore(r.supervisor),
+      () => setStore(false),
+    );
+  }, []);
+  return (
+    <div className="lib-setup">
+      <p style={{ margin: "0 0 10px" }}>
+        För att välja <b>spellistor, album och poddar</b> på tavlan – och spela dem i vilken högtalare som helst – behövs <b>Music Assistant</b> (gratis). Det fungerar med Spotify, YouTube Music, Tidal med flera och med Google/Nest, Sonos, AirPlay och Echo.
+      </p>
+      {store === null ? null : store ? (
+        <>
+          <div className="row gap" style={{ flexWrap: "wrap" }}>
+            <a className="btn primary" href={haMy("supervisor_addon", { addon: MA_APP, repository_url: MA_REPO })} target="_top" rel="noopener">
+              <Icon name="plus" size={18} /> Installera Music Assistant
+            </a>
+            <a className="btn" href={haAddIntegration("music_assistant")} target="_top" rel="noopener">
+              Koppla till Home Assistant
+            </a>
+          </div>
+          <ol className="muted" style={{ margin: "10px 0 0", paddingLeft: 20 }}>
+            <li>Installera och starta tillägget.</li>
+            <li>Öppna Music Assistant, lägg till Spotify under Inställningar → Musikleverantörer och logga in.</li>
+            <li>Home Assistant hittar Music Assistant själv – tryck Konfigurera, eller Koppla till Home Assistant här.</li>
+          </ol>
+        </>
+      ) : (
+        <>
+          <p style={{ margin: "0 0 6px" }}>
+            Home Assistant i Docker har ingen tilläggsbutik, så Music Assistant startas som en egen container. Det går utan terminal:
+          </p>
+          <ul className="muted" style={{ margin: "0 0 8px", paddingLeft: 20 }}>
+            <li>
+              <b>Portainer:</b> Stacks → Add stack → klistra in texten → Deploy.
+            </li>
+            <li>
+              <b>Synology:</b> Container Manager → Projekt → Skapa → klistra in texten.
+            </li>
+            <li>
+              <b>Unraid:</b> Apps → sök Music Assistant → Install.
+            </li>
+            <li>
+              <b>Terminal:</b> lägg texten i docker-compose.yml och kör <code>docker compose up -d</code>.
+            </li>
+          </ul>
+          <pre className="code-box">{MA_COMPOSE}</pre>
+          <CopyButton text={MA_COMPOSE} />
+          <ol className="muted" style={{ margin: "10px 0", paddingLeft: 20 }}>
+            <li>Öppna http://&lt;serverns-adress&gt;:8095 och lägg till Spotify under Inställningar → Musikleverantörer.</li>
+            <li>Tryck Koppla till Home Assistant och skriv samma adress, t.ex. http://192.168.1.10:8095.</li>
+          </ol>
+          <a className="btn primary" href={haAddIntegration("music_assistant")} target="_top" rel="noopener">
+            <Icon name="plus" size={18} /> Koppla till Home Assistant
+          </a>
+        </>
+      )}
+      <p className="muted" style={{ margin: "10px 0 0" }}>
+        Radio fungerar redan utan Music Assistant.
+      </p>
     </div>
   );
 }
@@ -290,8 +582,14 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
  * same window; elsewhere Home Assistant's own My link asks once which Home Assistant is yours.
  */
 export function haAddIntegration(domain: string): string {
+  return haMy("config_flow_start", { domain });
+}
+
+/** A Home Assistant "My" link: straight into this Home Assistant under ingress, else via my.home-assistant.io. */
+export function haMy(path: string, params: Record<string, string>): string {
+  const qs = new URLSearchParams(params).toString();
   const inHa = /\/api\/hassio_ingress\//.test(location.pathname);
-  return inHa ? `${location.origin}/_my_redirect/config_flow_start?domain=${domain}` : `https://my.home-assistant.io/redirect/config_flow_start/?domain=${domain}`;
+  return inHa ? `${location.origin}/_my_redirect/${path}?${qs}` : `https://my.home-assistant.io/redirect/${path}/?${qs}`;
 }
 
 /** Spotify: controls when Home Assistant has the Spotify integration, otherwise how to add it. */

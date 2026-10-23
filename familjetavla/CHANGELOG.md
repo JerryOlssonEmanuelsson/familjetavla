@@ -1,5 +1,18 @@
 # Ändringar
 
+## 0.11.0
+
+- **Spotify på tavlan, som i bilen.** Fliken Musik har nu **Radio** och **Spotify**. Spotify visar Hem (det ni spelat senast och era spellistor som omslag), Spellistor, Album, Poddar och Sök. Ett tryck spelar i vald högtalare – Google/Nest, Sonos, AirPlay, Echo … Plattor bläddrar med ‹ › och rullar aldrig.
+- Spotify-biblioteket kräver **Music Assistant** (gratis). Saknas det visar fliken hur man installerar det: en knapp i Home Assistant OS, och för Home Assistant i Docker en text att klistra in i Portainer, Synology eller Unraid (med Kopiera-knapp). Radion fungerar utan.
+- **Versionen syns högst upp,** smått bredvid veckan: "v0.11.0 ✓ senaste" när ni har den senaste, eller "v0.10.0 · uppdatera till 0.11.0" i gult när en ny finns. Tryck på den gula så står det hur du uppdaterar.
+- **Håll inne en ruta för att ordna startsidan.** Rutorna blir lådor med sina namn: dra dem (⠿) eller flytta med ↑ ↓ och tryck Klar. **Dölj** frågar först, och en dold ruta kan tas tillbaka direkt ("+ Musik") eller under Inställningar → Startskärm. Ett vanligt tryck öppnar rutan som förut.
+- **Går hem själv från fritids.** Under Familjen → barnet: "Brukar hämta" kan vara **Går/cyklar hem själv** (och "Brukar lämna" Går/cyklar dit själv). Ingen behöver hämta, ingen får påminnelse, och tavlan skriver "Går hem själv".
+- **Sophämtning i Stockholm (experimentell):** Stockholm Vatten och Avfall (villor och radhus) – skriv adressen som "Gata nr, Ort, postnummer". Bor du i Stockholm, säg gärna om det fungerar.
+- **Spegel-tema** för MagicMirror² och andra speglar: vitt på helsvart, inga rutor eller animationer. Välj under Startskärm, eller för en enda skärm med `?tema=spegel` i adressen (även `?tema=eink`).
+- **"Installera som app"** visas när tavlan öppnas i en webbläsare som kan installera den. Inte nu gömmer den i 30 dagar.
+- **Solbågen** är ett val under Startskärm och av som standard.
+- **Guiden:** långa formulär (t.ex. Svenska lag) kapas inte längre – guiden rullar så att Testa och alla knappar går att nå.
+
 ## 0.10.0
 
 - **Musik.** Tryck på en radiokanal så spelar den i vald högtalare: Google Home/Nest, Chromecast, Sonos eller annat som finns i Home Assistant. Välj en **förvald högtalare** (t.ex. Google Home i köket) under Inställningar → Huset → Musik, så räcker ett tryck på RIX FM för att det ska spela där.

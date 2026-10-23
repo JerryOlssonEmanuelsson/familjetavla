@@ -7,7 +7,7 @@
 // Writes a Markdown report to $REPORT (default sources-report.md); exit 1 if anything fails.
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest } from "../server/dist/connectors/waste.js";
+import { EDP_PARKED, EDP_PROVIDERS, edpSchedule, edpSearch, srvSchedule, srvSuggest, sthlmSchedule } from "../server/dist/connectors/waste.js";
 import { fetchPrices } from "../server/dist/connectors/elpris.js";
 import { forecast } from "../server/dist/connectors/weather.js";
 import { lookupPostcode } from "../server/dist/connectors/geo.js";
@@ -138,6 +138,17 @@ async function check(name, fn) {
     problems.push(`**${name} fungerar inte:** ${e.message}`);
   }
 }
+// Stockholm Vatten och Avfall (experimental): the address format is checked – a wrong one answers
+// "Invalid address format". Real villa addresses answer an empty list from GitHub's machines in the
+// US (likely only answered from Sweden, like RIX FM), so an empty list is noted, not failed.
+await check("Stockholm Vatten och Avfall", async () => {
+  const p = await sthlmSchedule("Daltorpsvägen 28, Vällingby, 16244").catch((e) => {
+    if (/Hittade ingen hämtning/.test(e.message)) return null;
+    throw e;
+  });
+  if (!p) return "adressformatet godkänns; tom lista från GitHubs maskiner (experimentell, provas av användare i Stockholm)";
+  return `Daltorpsvägen 28, Vällingby → ${[...new Set(p.map((x) => x.type))].join(", ")}, nästa ${day(p[0].date)} ${p[0].type}`;
+});
 await check("Elpris (elprisetjustnu.se)", async () => {
   const p = await fetchPrices("SE3");
   if (!p.length) throw new Error("inga priser");

@@ -12,7 +12,7 @@ import { Fit } from "./Fit";
 import { DetailPage, PageBar, PAGE_TITLES, type PageId } from "./Detail";
 import { navigate, useHash } from "../route";
 import { InstallHelp, quickAddUrl } from "../InstallHelp";
-import { isInstalled } from "../install";
+import { canPrompt, inIngress, isInstalled, onInstallChange, platform, promptInstall } from "../install";
 import { CarsPage, EnergyPage, GraphsPage, HousePage, LightsPage } from "./Pages";
 import { MusicPage } from "../widgets/music";
 
@@ -611,6 +611,81 @@ function EventSheet({
   );
 }
 
+const SHOW_UPDATE = "familjetavla:visa-uppdatering";
+
+const NUDGE_KEY = "familjetavla.installera";
+/**
+ * "Installera appen" when the board is opened in a browser that can install it: Chrome/Edge/Samsung
+ * offer a real install prompt, Safari on iPad/iPhone gets the share-menu steps. "Inte nu" waits 30 days.
+ */
+function InstallNudge({ onHelp }: { onHelp: () => void }) {
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const off = onInstallChange(() => redraw((n) => n + 1));
+    return () => {
+      off();
+    };
+  }, []);
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return Number(localStorage.getItem(NUDGE_KEY) ?? 0) > Date.now();
+    } catch {
+      return false;
+    }
+  });
+  if (hidden || isInstalled() || inIngress() || !(canPrompt() || platform() === "ios")) return null;
+  const later = () => {
+    setHidden(true);
+    try {
+      localStorage.setItem(NUDGE_KEY, String(Date.now() + 30 * 86_400_000));
+    } catch {
+      /* private mode */
+    }
+  };
+  return (
+    <div className="card update-banner install-nudge" role="status">
+      <div className="row gap wrap" style={{ alignItems: "center" }}>
+        <Icon name="install" size={20} />
+        <b className="grow">Installera Familjetavlan som app – öppnas i helskärm från hemskärmen</b>
+        <button
+          className="btn small primary"
+          onClick={async () => {
+            if (canPrompt()) {
+              if (await promptInstall()) setHidden(true);
+            } else onHelp();
+          }}
+        >
+          Installera
+        </button>
+        <button className="btn small ghost" onClick={later}>
+          Inte nu
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Small, top of the board: which version runs, and whether it is the latest. */
+function VersionBadge({ version, update }: { version: NonNullable<Dash["version"]>; update?: Dash["update"] }) {
+  if (update)
+    return (
+      <button className="version-badge old" onClick={() => window.dispatchEvent(new Event(SHOW_UPDATE))} aria-label={`Version ${version.current}. Ny version ${update.latest} finns – visa hur du uppdaterar`}>
+        v{version.current} · uppdatera till {update.latest}
+      </button>
+    );
+  return (
+    <span className={`version-badge ${version.latest ? "ok" : ""}`} title={version.latest ? "Ni har den senaste versionen" : "Kunde inte se om det finns en nyare version"}>
+      v{version.current}
+      {version.latest ? (
+        <>
+          {" ✓"}
+          <span className="badge-long"> senaste</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 /** "Ny version finns": how to update depends on how the board is installed. */
 function UpdateBanner({ update }: { update: NonNullable<Dash["update"]> }) {
   const [open, setOpen] = useState(false);
@@ -622,6 +697,15 @@ function UpdateBanner({ update }: { update: NonNullable<Dash["update"]> }) {
       return false;
     }
   });
+  // The version badge in the header brings the banner back, opened.
+  useEffect(() => {
+    const show = () => {
+      setHidden(false);
+      setOpen(true);
+    };
+    window.addEventListener(SHOW_UPDATE, show);
+    return () => window.removeEventListener(SHOW_UPDATE, show);
+  }, []);
   if (hidden) return null;
   return (
     <div className="card update-banner" role="status">
@@ -807,11 +891,14 @@ export function Dashboard() {
   // Theme: explicit choice (button) wins, else config: auto follows "dygnsfärger" (light dawn/day, dark dusk/night).
   const phase = data?.header.phase ?? "night";
   // E-ink is a property of the screen, so it wins over the light/dark button too.
-  const theme = data?.theme === "eink" ? "eink" : (themeOverride ?? (data?.theme === "auto" || !data ? (phase === "dawn" || phase === "day" ? "light" : "dark") : data.theme));
+  // "?tema=spegel" or "?tema=eink" in the address sets the look for this screen only (a mirror, an e-ink frame).
+  const screenTheme = ({ spegel: "mirror", mirror: "mirror", eink: "eink" } as const)[new URLSearchParams(location.search).get("tema") ?? ""] as "mirror" | "eink" | undefined;
+  const fixed = screenTheme ?? (data?.theme === "eink" || data?.theme === "mirror" ? data.theme : undefined);
+  const theme = fixed ?? themeOverride ?? (data?.theme === "auto" || !data ? (phase === "dawn" || phase === "day" ? "light" : "dark") : data.theme);
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
-    root.dataset.phase = theme === "light" || theme === "eink" ? (phase === "dawn" ? "dawn" : "day") : phase === "dusk" ? "dusk" : "night";
+    root.dataset.phase = theme === "light" || theme === "eink" ? (phase === "dawn" ? "dawn" : "day") : theme === "mirror" ? "night" : phase === "dusk" ? "dusk" : "night";
     root.dataset.sky = data?.header.sky ?? "partly";
   }, [theme, phase, data?.header.sky]);
 
@@ -908,7 +995,7 @@ export function Dashboard() {
   const order = (id: Tab) => (id === "home" ? -1 : data.tabs.findIndex((t) => t.id === id));
   const tabs = TABS.filter((t) => t.show(data) && tabOn(t.id)).sort((a, b) => order(a.id) - order(b.id));
   const clock = now.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
-  const sleeping = data.night && data.theme !== "eink" && Date.now() > awakeUntil;
+  const sleeping = data.night && data.theme !== "eink" && data.theme !== "mirror" && !screenTheme && Date.now() > awakeUntil;
 
   const tabIds = tabs.map((t) => t.id);
 
@@ -971,7 +1058,8 @@ export function Dashboard() {
                   )}
                 </span>
               )}
-              {data.header.weather && <span>· {data.header.weather}</span>}
+              {data.header.weather && <span className="sub-weather">· {data.header.weather}</span>}
+              {data.version && <VersionBadge version={data.version} update={data.update} />}
             </p>
           </div>
           {data.people.length > 0 && (
@@ -1020,6 +1108,7 @@ export function Dashboard() {
         )}
 
         {data.update && <UpdateBanner update={data.update} />}
+        {!isDemo && <InstallNudge onHelp={() => setInstallOpen(true)} />}
 
         {page ? (
           <DetailPage page={page} data={data} actions={actions} />

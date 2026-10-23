@@ -206,3 +206,76 @@ export async function srvSchedule(address: string): Promise<Pickup[]> {
   if (!(data as { results?: unknown[] })?.results?.length) throw new Error(`SRV hittade ingen hämtning för "${address}".`);
   return parseSrvSchedule(data);
 }
+
+/**
+ * Stockholm Vatten och Avfall – "När kommer sopbilen?" for houses. The same open search the website
+ * uses (found via github.com/frossmant/hass-stockholm-sopbilen). Not an official API, so
+ * .github/workflows/sources.yml checks it weekly.
+ *
+ *   GET …/nar-kommer-sopbilen/Search?address=Gata 28, Ort, 12345
+ *     → [{ group: "Restavfall", executionDate: "2026-10-28", weekday: "Onsdag", fetchFrequency: "Varannan vecka" }]
+ */
+export const STHLM_API = "https://www.stockholmvattenochavfall.se/villa-och-radhus/avfallstjanster/nar-kommer-sopbilen/Search";
+
+/** How many weeks between pickups: "Varannan vecka" 2, "Var fjärde vecka" 4, "Varje vecka" 1, a number of weeks as such. */
+export function frequencyWeeks(raw: unknown): number | undefined {
+  if (typeof raw === "number" && raw >= 1 && raw <= 52) return Math.round(raw);
+  const t = String(raw ?? "").toLowerCase();
+  if (!t) return undefined;
+  const n = /(\d+)/.exec(t);
+  if (n) return Math.max(1, Math.min(52, Number(n[1])));
+  if (/varje vecka|en gång i veckan|1 gång/.test(t)) return 1;
+  if (/varannan/.test(t)) return 2;
+  if (/var tredje/.test(t)) return 3;
+  if (/var fjärde/.test(t)) return 4;
+  return undefined;
+}
+
+export function parseSthlmSchedule(data: unknown, now = new Date(), weeksAhead = 8): Pickup[] {
+  const today = startOfDay(now);
+  const list = Array.isArray(data)
+    ? data
+    : data && typeof data === "object"
+      ? Object.entries(data as Record<string, unknown>).map(([group, v]) => ({ group, ...((Array.isArray(v) ? v[0] : v) as object) }))
+      : null;
+  if (!list) throw new Error("Stockholm Vatten och Avfall svarade i ett okänt format.");
+  const until = new Date(today.getTime() + weeksAhead * 7 * 86_400_000);
+  const out: Pickup[] = [];
+  const seen = new Set<string>();
+  for (const e of list as Record<string, unknown>[]) {
+    const type = String(e.group ?? e.Group ?? "Sophämtning").trim() || "Sophämtning";
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(e.executionDate ?? e.ExecutionDate ?? ""));
+    if (!m) continue;
+    let date = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const every = frequencyWeeks(e.fetchFrequency ?? e.FetchFrequency);
+    // The answer has the next pickup; the frequency gives the ones after it.
+    for (let i = 0; i < 60 && date < until; i++) {
+      const key = `${date.toDateString()}|${type}`;
+      if (date >= today && !seen.has(key)) {
+        seen.add(key);
+        out.push({ date: new Date(date), type });
+      }
+      if (!every) break;
+      date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + every * 7);
+    }
+  }
+  return out.sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+export async function sthlmSchedule(address: string): Promise<Pickup[]> {
+  const res = await fetchWithTimeout(`${STHLM_API}?address=${encodeURIComponent(address.trim())}`, { timeoutMs: 30_000, headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error(`Stockholm Vatten och Avfall svarade ${res.status}`);
+  const text = await res.text();
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Stockholm Vatten och Avfall svarade inte med hämtdagar – kontrollera adressen (Gata nr, Ort, postnummer).");
+  }
+  // A badly written address comes back as 200 {"error": …, "message": "Invalid address format"}.
+  if (data && typeof data === "object" && !Array.isArray(data) && "error" in data)
+    throw new Error(`Adressen känns inte igen. Skriv som "Daltorpsvägen 28, Vällingby, 16244" (gata och nummer, ort, postnummer).`);
+  const pickups = parseSthlmSchedule(data);
+  if (!pickups.length && (!Array.isArray(data) || !data.length)) throw new Error(`Hittade ingen hämtning för "${address}". Skriv som "Daltorpsvägen 28, Vällingby, 16244".`);
+  return pickups;
+}

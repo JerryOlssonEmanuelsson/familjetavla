@@ -40,6 +40,7 @@ import { setSick } from "./sick.js";
 import { makeBackup, restoreBackup } from "./backup.js";
 import { follows } from "./notify.js";
 import { findStations, playCall, spotifyPlayer, swedishStations } from "./music.js";
+import { MEDIA_TYPES, SHELVES, type Shelf, library as maLibrary, playOn as maPlayOn, search as maSearch } from "./musicAssistant.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export { VERSION } from "./version.js";
@@ -264,12 +265,13 @@ export const configSchema = z
     }),
     dashboard: z.object({
       accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-      theme: z.enum(["auto", "dark", "light", "eink"]),
+      theme: z.enum(["auto", "dark", "light", "eink", "mirror"]),
       home: z.array(z.object({ id: z.enum(HOME_WIDGETS), on: z.boolean(), size: z.enum(["auto", "s", "m", "l"]).optional() })).max(20),
       tabs: z.array(z.object({ id: z.enum(TAB_IDS), on: z.boolean() })).max(10),
       nightFrom: z.string().regex(/^\d{2}:\d{2}$/),
       nightTo: z.string().regex(/^\d{2}:\d{2}$/),
       idleMinutes: z.number().int().min(0).max(240).default(10),
+      sunArc: z.boolean().optional(),
     }),
   })
   .superRefine((c, ctx) => {
@@ -687,6 +689,21 @@ export async function registerRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  /** Long press on the board: new order of the home cards, or one hidden. Same rights as the settings. */
+  app.post("/api/home-layout", { preHandler: guard }, async (req, reply) => {
+    const body = z.object({ home: z.array(z.object({ id: z.enum(HOME_WIDGETS), on: z.boolean() })).max(20) }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltig ordning"));
+    const cfg = loadConfig();
+    const old = new Map(cfg.dashboard.home.map((w) => [w.id, w]));
+    const seen = new Set<string>();
+    const next = body.data.home.filter((w) => !seen.has(w.id) && seen.add(w.id)).map((w) => ({ ...old.get(w.id), id: w.id, on: w.on }));
+    // Cards the board did not send (none should be missing) keep their place at the end.
+    for (const w of cfg.dashboard.home) if (!seen.has(w.id)) next.push(w);
+    cfg.dashboard.home = next;
+    saveConfig(cfg);
+    return { ok: true, home: next };
+  });
+
   app.post("/api/lights/off", async (_req, reply) => {
     const cfg = loadConfig();
     const conn = haConnection();
@@ -796,6 +813,49 @@ export async function registerRoutes(app: FastifyInstance) {
     const player = spotifyPlayer(new Map((await ha.states(conn)).map((s) => [s.entity_id, s])));
     if (!player) return fail(reply, new Error("Spotify finns inte i Home Assistant."));
     await ha.service(conn, "media_player", body.data.op === "next" ? "media_next_track" : "media_play_pause", { entity_id: player.entity_id });
+    invalidate("ha:states");
+    return { ok: true };
+  });
+
+  // Music Assistant: the library as covers (Spotify playlists, albums, podcasts) and search.
+  const boardSpeakers = () => (loadConfig().entities.speakers ?? []).map((s) => s.entityId);
+  app.get("/api/music/library", async (req, reply) => {
+    const q = z.object({ shelf: z.enum(Object.keys(SHELVES) as [Shelf, ...Shelf[]]), offset: z.coerce.number().int().min(0).max(5000).optional() }).safeParse(req.query);
+    if (!q.success) return fail(reply, new Error("Okänd hylla"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      return { tiles: await maLibrary(conn, boardSpeakers(), q.data.shelf, q.data.offset ?? 0) };
+    } catch (e) {
+      return fail(reply, e, 502);
+    }
+  });
+
+  app.get("/api/music/search", async (req, reply) => {
+    const q = z.object({ q: z.string().trim().min(2).max(60) }).safeParse(req.query);
+    if (!q.success) return { tiles: [] };
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      return { tiles: await maSearch(conn, boardSpeakers(), q.data.q) };
+    } catch (e) {
+      return fail(reply, e, 502);
+    }
+  });
+
+  app.post("/api/music/play-media", async (req, reply) => {
+    const body = z
+      .object({ uri: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i), type: z.enum(MEDIA_TYPES), title: label(80).optional(), speaker: entity })
+      .safeParse(req.body);
+    const sp = body.success ? speakerOf(body.data.speaker) : undefined;
+    if (!body.success || !sp) return fail(reply, new Error("Okänd låt eller högtalare"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      await maPlayOn(conn, new Map((await ha.states(conn)).map((s) => [s.entity_id, s])), sp, body.data);
+    } catch (e) {
+      return fail(reply, new Error(`${sp.name} kunde inte spela ${body.data.title ?? "det"}: ${(e as Error).message}`), 502);
+    }
     invalidate("ha:states");
     return { ok: true };
   });

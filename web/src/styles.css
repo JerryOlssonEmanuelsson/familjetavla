@@ -1988,6 +1988,11 @@ marker.pf-buy path {
   padding: 4px 4px 24px;
   margin: -4px -4px 0;
 }
+/* Cards in the guide keep their full height and the guide scrolls – a card must never be squeezed
+   and cut off (a long calendar form lost its Testa button on short screens). */
+.wizard-body > * {
+  flex-shrink: 0;
+}
 .wizard-nav {
   flex: none;
   padding: 12px 0 max(14px, env(safe-area-inset-bottom));
@@ -3229,6 +3234,148 @@ marker.pf-buy path {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
   }
 }
+/* Radio: Sveriges Radio/Övriga and the search on one row. */
+.music-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.music-filter .music-search {
+  flex: 1 1 200px;
+  width: auto;
+  margin: 0;
+}
+/* The library: shelves and covers, like the car's music player. */
+.lib {
+  display: grid;
+  gap: 12px;
+}
+.lib-main {
+  min-width: 0;
+}
+.cover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 112px), 1fr));
+  gap: 12px;
+  padding: 2px;
+  align-content: start;
+}
+.cover {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.cover:active {
+  transform: scale(0.97);
+}
+.cover:disabled {
+  opacity: 0.5;
+}
+.cover-img {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card-2, rgba(127, 127, 127, 0.15));
+  color: var(--muted);
+}
+.cover-img img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cover-title,
+.cover-sub {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cover-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.cover-sub {
+  font-size: 13px;
+  color: var(--muted);
+}
+.lib-h {
+  margin: 0;
+  font-size: 18px;
+}
+.lib-home {
+  display: grid;
+  gap: 10px;
+}
+.lib-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+/* "Senast spelat": small rows with a cover, like the car's "Good morning". */
+.chip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: 8px;
+}
+.cover-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0 10px 0 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--card-2, rgba(127, 127, 127, 0.15));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+}
+.cover-chip .cover-img {
+  flex: none;
+  width: 56px;
+  border-radius: 0;
+}
+/* One row of covers; ‹ › turns it. */
+.cover-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 112px), 1fr));
+  grid-template-rows: auto;
+  grid-auto-rows: 0;
+  row-gap: 0;
+  column-gap: 12px;
+  overflow: hidden;
+}
+/* Tablets: one page of covers in a box of fixed height – never a scroll. */
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  .cover-grid {
+    height: max(234px, calc(100vh - 790px));
+    overflow: hidden;
+  }
+}
+@media (min-width: 1000px) and (min-height: 600px) {
+  .cover-grid {
+    height: max(200px, calc(100vh - 470px));
+  }
+}
 .spotify-box .guide {
   margin: 0;
 }
@@ -3239,4 +3386,211 @@ marker.pf-buy path {
   overflow: hidden;
   text-overflow: ellipsis;
   overflow-wrap: normal;
+}
+
+/* Version, small at the top: green tick when it is the latest, amber when an update waits. */
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--control-border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.version-badge.ok {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.version-badge.old {
+  color: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+  background: var(--amber-soft);
+  cursor: pointer;
+}
+
+/* ---------- Ordna startsidan (hold a card) ---------- */
+.home-grid .wsize,
+.home-grid > .now,
+.home-grid > .area-week {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.arrange-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 20px;
+  background: var(--bg-solid);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 8px 30px -12px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+}
+.edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.home-grid > .now > .edit-bar,
+.home-grid > .area-week > .edit-bar {
+  grid-column: 1 / -1;
+}
+.arranging > .card,
+.home-grid > .card.arranging {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+}
+.wsize.arranging > .card {
+  animation: arrange-wiggle 1.4s ease-in-out infinite;
+}
+@keyframes arrange-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-0.35deg); }
+  75% { transform: rotate(0.35deg); }
+}
+.wsize.dragging > .card {
+  opacity: 0.5;
+}
+.wsize.drop-here > .card {
+  outline: 3px solid var(--accent);
+}
+.drag-handle {
+  touch-action: none;
+  cursor: grab;
+  font-size: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wsize.arranging > .card {
+    animation: none;
+  }
+}
+/* While arranging, a card and its toolbar stay together as one block. */
+.wsize.arranging {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wsize.arranging > .edit-bar {
+  margin-bottom: 0;
+}
+
+/* Tablets: the line under the date never wraps – the version badge must not make the header taller.
+   The weather gives way (…) and the badge drops the word "senaste" on narrower screens. */
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  .board-header .sub {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .board-header .sub > * {
+    flex-shrink: 0;
+  }
+  .board-header .sub > .sub-weather {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 1100px) {
+  .version-badge .badge-long {
+    display: none;
+  }
+}
+.board-header > .grow {
+  min-width: 0;
+}
+
+.arrange-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 96px;
+}
+.arrange-box h2 {
+  margin: 0;
+}
+.home-grid > .arrange-box > .edit-bar {
+  margin-bottom: 4px;
+}
+
+/* ---------- Spegel (Magic Mirror): white on pure black, no boxes, nothing that moves ----------
+   Behind two-way glass only bright pixels show, so cards lose their fill and borders and the
+   black background stays black. Set under Startskärm, or per screen with ?tema=spegel. */
+[data-theme="mirror"] {
+  --bg-solid: #000000;
+  --text: #ffffff;
+  --muted: #c8c8c8;
+  --faint: #9a9a9a;
+  --glass: transparent;
+  --glass-strong: transparent;
+  --glass-edge: rgba(255, 255, 255, 0.14);
+  --glass-hi: transparent;
+  --glass-shine: transparent;
+  --shadow: transparent;
+  --blur: 0px;
+  --control: transparent;
+  --control-border: rgba(255, 255, 255, 0.28);
+  --row: rgba(255, 255, 255, 0.06);
+  --chip: rgba(255, 255, 255, 0.1);
+  --bar: rgba(255, 255, 255, 0.3);
+  --accent: #ffffff;
+  --on-accent: #000000;
+  --accent-soft: rgba(255, 255, 255, 0.12);
+  --blue: #ffffff;
+  --blue-soft: rgba(255, 255, 255, 0.1);
+  --amber: #ffe08a;
+  --amber-soft: rgba(255, 224, 138, 0.12);
+  --danger: #ffb3c1;
+  --card-border: transparent;
+  --sky-0: #000000;
+  --sky-1: #000000;
+  --sky-2: #000000;
+  --sky-3: #000000;
+  color-scheme: dark;
+}
+[data-theme="mirror"] body {
+  background: #000000;
+}
+[data-theme="mirror"] *,
+[data-theme="mirror"] *::before,
+[data-theme="mirror"] *::after {
+  animation: none !important;
+  transition: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+[data-theme="mirror"] .sky {
+  display: none;
+}
+[data-theme="mirror"] .card,
+[data-theme="mirror"] .tabbar {
+  background: transparent;
+  border-color: transparent;
+}
+[data-theme="mirror"] .sheet {
+  background: #000000;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+/* A short snippet to copy, e.g. docker-compose lines. Wraps instead of scrolling sideways. */
+.code-box {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(127, 127, 127, 0.15);
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
 }

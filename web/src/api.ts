@@ -10,6 +10,16 @@ export interface DirStation {
   quality?: string;
 }
 
+/** A cover in the Musik tab's library (Music Assistant: Spotify playlists, albums, podcasts …). */
+export interface Tile {
+  uri: string;
+  type: "playlist" | "album" | "artist" | "track" | "podcast" | "audiobook" | "radio";
+  title: string;
+  subtitle?: string;
+  image?: string;
+}
+export type Shelf = "recent" | "playlists" | "albums" | "podcasts";
+
 /** A station from the radio directory (Inställningar → Huset → Musik). */
 export interface StationHit {
   name: string;
@@ -185,6 +195,7 @@ const realApi = {
   toggleLight: (entityId: string) => post("lights/toggle", { entityId }),
   brightness: (entityId: string, pct: number) => post("lights/brightness", { entityId, pct }),
   lightsOff: () => post("lights/off"),
+  saveHomeLayout: (home: { id: string; on: boolean }[]) => post("home-layout", { home }),
   playStation: (index: number, speaker: string) => post("music/play", { index, speaker }),
   stopMusic: (speaker: string) => post("music/stop", { speaker }),
   tryStation: (name: string, url: string, speaker: string) => post("music/try", { name, url, speaker }),
@@ -192,6 +203,9 @@ const realApi = {
   playStationId: (id: string, speaker: string) => post("music/play-id", { id, speaker }),
   favoriteStation: (b: { id?: string; url?: string; on: boolean }) => post("music/favorite", b),
   spotify: (op: "playpause" | "next") => post("music/spotify", { op }),
+  musicLibrary: (shelf: Shelf) => request<{ tiles: Tile[] }>(`music/library?shelf=${shelf}`),
+  musicSearch: (q: string) => request<{ tiles: Tile[] }>(`music/search?q=${encodeURIComponent(q)}`),
+  playMedia: (t: Tile, speaker: string) => post("music/play-media", { uri: t.uri, type: t.type, title: t.title, speaker }),
   volume: (speaker: string, pct: number) => post("music/volume", { speaker, pct }),
   searchStations: (q: string) => request<{ stations: StationHit[] }>(`radio/search?q=${encodeURIComponent(q)}`),
   addItem: (name: string) => post("shopping/add", { name }),

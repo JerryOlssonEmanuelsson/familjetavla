@@ -1,5 +1,6 @@
 import type { HaState } from "./connectors/ha.js";
 import { getJson } from "./http.js";
+import { isMaPlayer } from "./musicAssistant.js";
 import type { Config, Music, RadioStation } from "./types.js";
 
 /**
@@ -33,6 +34,7 @@ export function buildMusic(cfg: Config, states: Map<string, HaState>): Music | u
     }),
     stations: stations.map((s, index) => ({ index, name: s.name, logo: s.logo, url: s.url })),
     spotify: spotifyInfo(states),
+    assistant: [...states.values()].some(isMaPlayer),
   };
 }
 
