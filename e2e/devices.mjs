@@ -98,6 +98,8 @@ for (const [name0, dev, tablet] of DEVICES) {
       await p.waitForTimeout(800);
       await p.mouse.up();
       await p.locator(".arrange-bar").waitFor();
+      // On a phone, look at the whole list like a person scrolling down it.
+      if (!tablet) await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     }
     if (open === "otherStations") {
       await p.getByRole("radio", { name: "Övriga" }).click();

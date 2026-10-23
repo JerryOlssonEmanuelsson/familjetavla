@@ -3290,9 +3290,6 @@ marker.pf-buy path {
   background: var(--bg-solid);
   border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
   box-shadow: 0 8px 30px -12px rgba(0, 0, 0, 0.35);
-  position: sticky;
-  top: 8px;
-  z-index: 6;
   flex-shrink: 0;
 }
 .edit-bar {
