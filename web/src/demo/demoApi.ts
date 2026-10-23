@@ -1,7 +1,7 @@
 // Demo mode (VITE_DEMO=1): the whole app runs in the browser on recorded sample data.
 // Every button works against this in-memory copy; nothing leaves the page.
 import type { Config, ConfigResponse, DashEvent, Dashboard, Integration, PlanItem, Schedule, TestResult, TravelChoice, TravelLeg } from "../../../server/src/types";
-import type { CalendarTest, CarDetails, Discovery, EntityOption, GraphData, GroceryLine, PostcodeInfo } from "../api";
+import type { CalendarTest, CarDetails, Discovery, EntityOption, GraphData, GroceryLine, PostcodeInfo, Shelf, Tile } from "../api";
 import fixtures from "./fixtures.json";
 import pkg from "../../package.json";
 
@@ -661,6 +661,13 @@ export const demoApi = {
   tryStation: (_name: string, _url: string, _speaker: string) => wait({}),
   musicStations: () => wait({ stations: DEMO_STATIONS }),
   spotify: (_op: "playpause" | "next") => wait({}),
+  musicLibrary: (shelf: Shelf) => wait({ tiles: demoTiles(shelf) }),
+  musicSearch: (q: string) => wait({ tiles: demoTiles("playlists").filter((t) => t.title.toLowerCase().includes(q.toLowerCase())) }),
+  playMedia: (t: Tile, speaker: string) => {
+    const sp = d.music?.speakers.find((x) => x.entityId === speaker);
+    if (sp) Object.assign(sp, { playing: true, station: undefined, title: t.title, playingUrl: undefined });
+    return wait({});
+  },
   playStationId: (id: string, speaker: string) => {
     const sp = d.music?.speakers.find((x) => x.entityId === speaker);
     const st = DEMO_STATIONS.find((x) => x.id === id);
@@ -750,3 +757,21 @@ export const demoApi = {
     return wait({ ok: true as const }, 150);
   },
 };
+
+
+/** Made-up covers for the demo's library: a coloured square per playlist, no real artwork. */
+const COVER_COLOURS = ["#1db954", "#e8115b", "#509bf5", "#f59b23", "#8d67ab", "#148a08", "#dc148c", "#0d73ec", "#e1118c", "#777777"];
+function cover(title: string, i: number) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${COVER_COLOURS[i % COVER_COLOURS.length]}"/><text x="50" y="60" font-family="sans-serif" font-size="30" font-weight="700" fill="#fff" text-anchor="middle">${title.slice(0, 2).toUpperCase()}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+const DEMO_LIBRARY: Record<Shelf, [string, string?][]> = {
+  recent: [["Fredagsmys"], ["Barnens favoriter"], ["Godnattsagor"], ["Melodifestivalen 2026"], ["Lugnt till middagen"], ["Bilresan"], ["Träning"], ["Julmusik"]],
+  playlists: [["Barnens favoriter"], ["Bilresan"], ["Fredagsmys"], ["Godnattsagor"], ["Julmusik"], ["Lugnt till middagen"], ["Melodifestivalen 2026"], ["Morgonpigg"], ["Städa huset"], ["Sommarhits"], ["Träning"], ["Veckans topplista"]],
+  albums: [["Främling", "Carola"], ["Hello Hello", "Laleh"], ["Vapen & ammunition", "Kent"], ["Arrival", "ABBA"], ["Pippi Långstrump", "Astrid Lindgren"], ["Sånger för barn", "Trazan & Banarne"]],
+  podcasts: [["Sommar i P1", "Sveriges Radio"], ["Barnens nyheter", "Sveriges Radio"], ["Spöktimmen", "Sveriges Radio"], ["Godnattpodden", "Sveriges Radio"]],
+};
+function demoTiles(shelf: Shelf): Tile[] {
+  const type = shelf === "albums" ? "album" : shelf === "podcasts" ? "podcast" : "playlist";
+  return DEMO_LIBRARY[shelf].map(([title, subtitle], i) => ({ uri: `demo://${type}/${i}`, type, title, subtitle, image: cover(title, i) }));
+}

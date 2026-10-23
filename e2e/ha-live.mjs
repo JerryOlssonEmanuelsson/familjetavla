@@ -120,6 +120,23 @@ await check("Spotify (läser bara)", async () => {
   return out.join(" || ");
 });
 
+await check("Music Assistant (läser bara)", async () => {
+  const players = states.filter((s) => s.entity_id.startsWith("media_player.") && s.attributes.mass_player_type !== undefined);
+  if (!players.length) return "inte installerat (inga Music Assistant-spelare)";
+  const entry = await ha.template(conn, `{{ config_entry_id('${players[0].entity_id}') }}`);
+  // Read only: library lists and counts, nothing is played.
+  const lib = async (media_type, order_by) => {
+    const r = await ha.service(conn, "music_assistant", "get_library", { config_entry_id: String(entry).trim(), media_type, order_by, limit: 60 }, true);
+    return r.service_response?.items ?? [];
+  };
+  const rows = [];
+  for (const [name, type, order] of [["senast spelat", "playlist", "last_played_desc"], ["spellistor", "playlist", "name"], ["album", "album", "timestamp_added_desc"], ["poddar", "podcast", "name"]]) {
+    const items = await lib(type, order).catch((e) => ({ error: e.message }));
+    rows.push(items.error ? `${name}: fel ${items.error}` : `${name}: ${items.length} st (bild ${items.filter((x) => x.image).length}, källor ${[...new Set(items.map((x) => String(x.uri).split(":")[0]))].join("/")}): ${items.slice(0, 8).map((x) => x.name).join(", ")}`);
+  }
+  return `${players.length} spelare (${players.map((p) => p.attributes.friendly_name).join(", ")}) · ${rows.join(" · ")}`;
+});
+
 await check("Bilar", async () => {
   const cars = found?.cars ?? [];
   if (!cars.length) return "inga bilar hittade";
