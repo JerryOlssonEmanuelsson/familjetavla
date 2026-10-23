@@ -272,6 +272,9 @@ export async function sthlmSchedule(address: string): Promise<Pickup[]> {
   } catch {
     throw new Error("Stockholm Vatten och Avfall svarade inte med hämtdagar – kontrollera adressen (Gata nr, Ort, postnummer).");
   }
+  // A badly written address comes back as 200 {"error": …, "message": "Invalid address format"}.
+  if (data && typeof data === "object" && !Array.isArray(data) && "error" in data)
+    throw new Error(`Adressen känns inte igen. Skriv som "Daltorpsvägen 28, Vällingby, 16244" (gata och nummer, ort, postnummer).`);
   const pickups = parseSthlmSchedule(data);
   if (!pickups.length && (!Array.isArray(data) || !data.length)) throw new Error(`Hittade ingen hämtning för "${address}". Skriv som "Daltorpsvägen 28, Vällingby, 16244".`);
   return pickups;

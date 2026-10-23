@@ -151,15 +151,19 @@ await check("Stockholm Vatten och Avfall", async () => {
       notes.push(`sidan: ${html.length} tecken, anrop i sidan: ${urls.join(" ") || "-"}`);
       const forms = [...html.matchAll(/<(?:form|input)[^>]*>/g)].map((m) => m[0].replace(/\s+/g, " ")).filter((t) => /sopbil|address|adress|search|sök/i.test(t)).slice(0, 6);
       notes.push(`formulär: ${forms.join(" | ") || "-"}`);
+      const attrs = [...new Set([...html.matchAll(/\sdata-[a-z0-9-]+=["'][^"']*\/[^"']*["']/gi)].map((m) => m[0].trim()))].filter((a) => !/\.(png|jpe?g|svg|webp)/i.test(a)).slice(0, 15);
+      notes.push(`data-attribut med länkar: ${attrs.join(" ") || "-"}`);
       const scripts = [...html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)].map((m) => new URL(m[1], page).href).filter((u) => u.includes("stockholmvattenochavfall")).slice(0, 8);
       for (const js of scripts) {
         const code = await (await fetch(js, { signal: AbortSignal.timeout(15000) })).text().catch(() => "");
-        const hits = [...new Set([...code.matchAll(/["'`]([^"'`\s]{0,80}(?:nar-kommer-sopbilen|[Ss]earch\?|[Ss]uggest|[Aa]utocomplete)[^"'`\s]{0,80})["'`]/g)].map((m) => m[1]))].slice(0, 6);
-        if (hits.length) notes.push(`${new URL(js).pathname}: ${hits.join(" ")}`);
+        const paths = [...new Set([...code.matchAll(/["'`](\/[A-Za-z0-9_\-/.{}$]{3,90})["'`]/g)].map((m) => m[1]))].filter((u) => !/\.(png|jpe?g|svg|css|woff2?)$/i.test(u)).slice(0, 40);
+        const calls = [...code.matchAll(/(?:fetch|axios[.\w]*|\.get|\.post)\(([^)]{0,120})/g)].map((m) => m[1].replace(/\s+/g, " ")).slice(0, 12);
+        notes.push(`${new URL(js).pathname}: sökvägar ${paths.join(" ") || "-"} | anrop ${calls.join(" ¦ ") || "-"}`);
       }
-      for (const q of ["Daltorpsvägen 28", "Daltorpsvägen 28, 16244 Vällingby", "Daltorpsvägen 28 Vällingby"]) {
+      // Real Stockholm villa streets; the API wants "Gata nr, Ort, postnummer".
+      for (const q of ["Klövervägen 5, Bromma, 16754", "Ålstensgatan 20, Bromma, 16765", "Riddersviksvägen 100, Hässelby, 16571", "Gubbängsvägen 50, Farsta, 12245", "Sockenvägen 300, Enskede, 12040", "Daltorpsvägen 28, Vällingby, 162 44", "DALTORPSVÄGEN 28, VÄLLINGBY, 16244"]) {
         const r = await fetch(`${page}Search?address=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(15000) });
-        notes.push(`"${q}" → ${r.status} ${(await r.text()).slice(0, 120).replace(/\s+/g, " ")}`);
+        notes.push(`"${q}" → ${r.status} ${(await r.text()).slice(0, 160).replace(/\s+/g, " ")}`);
       }
     } catch (x) {
       notes.push(`kunde inte läsa sidan: ${x.message}`);
