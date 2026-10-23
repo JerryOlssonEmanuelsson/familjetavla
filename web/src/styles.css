@@ -3265,3 +3265,104 @@ marker.pf-buy path {
   background: var(--amber-soft);
   cursor: pointer;
 }
+
+/* ---------- Ordna startsidan (hold a card) ---------- */
+.home-grid .wsize,
+.home-grid > .now,
+.home-grid > .area-week {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.arrange-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 20px;
+  background: var(--bg-solid);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 8px 30px -12px rgba(0, 0, 0, 0.35);
+  position: sticky;
+  top: 8px;
+  z-index: 6;
+  flex-shrink: 0;
+}
+.edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+.home-grid > .now > .edit-bar,
+.home-grid > .area-week > .edit-bar {
+  grid-column: 1 / -1;
+}
+.arranging > .card,
+.home-grid > .card.arranging {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+}
+.wsize.arranging > .card {
+  animation: arrange-wiggle 1.4s ease-in-out infinite;
+}
+@keyframes arrange-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-0.35deg); }
+  75% { transform: rotate(0.35deg); }
+}
+.wsize.dragging > .card {
+  opacity: 0.5;
+}
+.wsize.drop-here > .card {
+  outline: 3px solid var(--accent);
+}
+.drag-handle {
+  touch-action: none;
+  cursor: grab;
+  font-size: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wsize.arranging > .card {
+    animation: none;
+  }
+}
+/* While arranging, a card and its toolbar stay together as one block. */
+.wsize.arranging {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wsize.arranging > .edit-bar {
+  margin-bottom: 0;
+}
+
+/* Tablets: the line under the date never wraps – the version badge must not make the header taller.
+   The weather gives way (…) and the badge drops the word "senaste" on narrower screens. */
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  .board-header .sub {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .board-header .sub > * {
+    flex-shrink: 0;
+  }
+  .board-header .sub > .sub-weather {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 1100px) {
+  .version-badge .badge-long {
+    display: none;
+  }
+}
+.board-header > .grow {
+  min-width: 0;
+}

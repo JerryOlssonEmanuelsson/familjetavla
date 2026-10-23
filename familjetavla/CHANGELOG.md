@@ -3,6 +3,7 @@
 ## 0.10.1
 
 - **Versionen syns högst upp,** smått bredvid veckan: "v0.10.1 ✓ senaste" när ni har den senaste, eller "v0.10.0 · uppdatera till 0.10.1" i gult när en ny finns. Tryck på den gula så står det hur du uppdaterar.
+- **Håll inne en ruta för att ordna startsidan.** Dra den till en ny plats (⠿) eller flytta med ↑ ↓, och tryck Klar. **Dölj** frågar först, och en dold ruta kan tas tillbaka direkt ("+ Musik") eller under Inställningar → Startskärm. Ett vanligt tryck öppnar rutan som förut.
 
 ## 0.10.0
 

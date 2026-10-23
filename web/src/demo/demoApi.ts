@@ -640,6 +640,12 @@ export const demoApi = {
     recountGroups();
     return wait({});
   },
+  saveHomeLayout: (home: { id: string; on: boolean }[]) => {
+    const old = new Map(d.home.map((w) => [w.id, w]));
+    d.home = home.map((w) => ({ ...old.get(w.id as never), id: w.id as never, on: w.on }));
+    fx.config.config.dashboard.home = d.home;
+    return wait({});
+  },
   lightsOff: () => {
     for (const l of d.lights) l.on = false;
     recountGroups();

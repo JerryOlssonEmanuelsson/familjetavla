@@ -624,7 +624,12 @@ function VersionBadge({ version, update }: { version: NonNullable<Dash["version"
   return (
     <span className={`version-badge ${version.latest ? "ok" : ""}`} title={version.latest ? "Ni har den senaste versionen" : "Kunde inte se om det finns en nyare version"}>
       v{version.current}
-      {version.latest ? " ✓ senaste" : ""}
+      {version.latest ? (
+        <>
+          {" ✓"}
+          <span className="badge-long"> senaste</span>
+        </>
+      ) : null}
     </span>
   );
 }
@@ -998,7 +1003,7 @@ export function Dashboard() {
                   )}
                 </span>
               )}
-              {data.header.weather && <span>· {data.header.weather}</span>}
+              {data.header.weather && <span className="sub-weather">· {data.header.weather}</span>}
               {data.version && <VersionBadge version={data.version} update={data.update} />}
             </p>
           </div>

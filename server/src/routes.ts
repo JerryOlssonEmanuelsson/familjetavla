@@ -687,6 +687,21 @@ export async function registerRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  /** Long press on the board: new order of the home cards, or one hidden. Same rights as the settings. */
+  app.post("/api/home-layout", { preHandler: guard }, async (req, reply) => {
+    const body = z.object({ home: z.array(z.object({ id: z.enum(HOME_WIDGETS), on: z.boolean() })).max(20) }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltig ordning"));
+    const cfg = loadConfig();
+    const old = new Map(cfg.dashboard.home.map((w) => [w.id, w]));
+    const seen = new Set<string>();
+    const next = body.data.home.filter((w) => !seen.has(w.id) && seen.add(w.id)).map((w) => ({ ...old.get(w.id), id: w.id, on: w.on }));
+    // Cards the board did not send (none should be missing) keep their place at the end.
+    for (const w of cfg.dashboard.home) if (!seen.has(w.id)) next.push(w);
+    cfg.dashboard.home = next;
+    saveConfig(cfg);
+    return { ok: true, home: next };
+  });
+
   app.post("/api/lights/off", async (_req, reply) => {
     const cfg = loadConfig();
     const conn = haConnection();

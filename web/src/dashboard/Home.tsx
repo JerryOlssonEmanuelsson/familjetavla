@@ -1,4 +1,7 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { api } from "../api";
+import { WIDGET_LABELS } from "../widgets";
 import type { Dashboard } from "../../../server/src/types";
 import { Fit } from "./Fit";
 import { Icon, type IconName } from "../Icon";
@@ -16,10 +19,11 @@ export function renderWidget(id: Dashboard["home"][number]["id"], data: Dashboar
 }
 
 /** The big "Nu" zone: what happens in the next few hours, readable from across the room. */
-function NowZone({ data, actions }: { data: Dashboard; actions: Actions }) {
+function NowZone({ data, actions, edit }: { data: Dashboard; actions: Actions; edit?: EditProps }) {
   const { now, header } = data;
   return (
-    <section className="card strong now area-now" aria-label="Nu">
+    <section className={`card strong now area-now ${edit?.className ?? ""}`} aria-label="Nu" {...edit?.handlers}>
+      {edit?.bar}
       <div style={{ minWidth: 0 }}>
         <span className="eyebrow">Nu</span>
         <div className="now-headline">{now.headline}</div>
@@ -95,9 +99,10 @@ function MoreButton({ n, what, label, onClick }: { n: number; what: string; labe
   );
 }
 
-export function Week({ data, actions, full = false }: { data: Dashboard; actions: Actions; full?: boolean }) {
+export function Week({ data, actions, full = false, edit }: { data: Dashboard; actions: Actions; full?: boolean; edit?: EditProps }) {
   return (
-    <section className="card area-week week-swipe">
+    <section className={`card area-week week-swipe ${edit?.className ?? ""}`} {...edit?.handlers}>
+      {edit?.bar}
       <div className="card-head" style={{ flexWrap: "wrap" }}>
         {/* On its own page the page title already says it – the room goes to the days. */}
         {full ? <h2 className="sr-only">Kommande 7 dagar</h2> : <h2>Kommande 7 dagar</h2>}
@@ -159,17 +164,203 @@ export function Week({ data, actions, full = false }: { data: Dashboard; actions
   );
 }
 
+type HomeId = Dashboard["home"][number]["id"];
+interface EditProps {
+  className: string;
+  handlers: React.HTMLAttributes<HTMLElement>;
+  bar: React.ReactNode;
+}
+
+const HOLD_MS = 550;
+
+/**
+ * Hold a card (about half a second) to arrange the home screen: drag it by its handle or move it
+ * with the arrows, or hide it. A normal tap still opens the card. "Klar" saves, "Ångra" goes back.
+ */
+function useArrange(data: Dashboard, actions: Actions) {
+  const [order, setOrder] = useState<{ id: HomeId; on: boolean }[] | null>(null);
+  const [asking, setAsking] = useState<HomeId | null>(null);
+  const [drag, setDrag] = useState<{ id: HomeId; over?: HomeId } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const swallow = useRef(false);
+  const editing = order !== null;
+  useEffect(() => {
+    if (!editing) return;
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setOrder(null);
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [editing]);
+
+  const begin = () => {
+    swallow.current = true;
+    navigator.vibrate?.(15);
+    setOrder(data.home.map((w) => ({ id: w.id, on: w.on })));
+  };
+  const cancelHold = () => {
+    clearTimeout(timer.current);
+    start.current = null;
+  };
+  const holdHandlers: React.HTMLAttributes<HTMLElement> = {
+    onPointerDown: (e) => {
+      if (editing || e.button > 0 || (e.target as HTMLElement).closest("input, select, textarea")) return;
+      start.current = { x: e.clientX, y: e.clientY };
+      clearTimeout(timer.current);
+      timer.current = setTimeout(begin, HOLD_MS);
+    },
+    onPointerMove: (e) => {
+      if (start.current && Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > 10) cancelHold();
+    },
+    onPointerUp: cancelHold,
+    onPointerCancel: cancelHold,
+    onPointerLeave: cancelHold,
+    // The finger lifts after the long press: that is not a tap on the card or its buttons.
+    onClickCapture: (e) => {
+      if (swallow.current || editing) {
+        swallow.current = false;
+        if (!(e.target as HTMLElement).closest(".edit-bar")) {
+          e.stopPropagation();
+          e.preventDefault();
+        }
+      }
+    },
+    onContextMenu: (e) => e.preventDefault(),
+  };
+
+  const move = (id: HomeId, to: number) =>
+    setOrder((o) => {
+      if (!o) return o;
+      const from = o.findIndex((w) => w.id === id);
+      if (from < 0 || to < 0 || to >= o.length) return o;
+      const next = [...o];
+      const [x] = next.splice(from, 1);
+      next.splice(to, 0, x!);
+      return next;
+    });
+  /** Up/down among the cards that are shown, skipping hidden ones. */
+  const step = (id: HomeId, dir: -1 | 1) => {
+    if (!order) return;
+    const visible = order.filter((w) => w.on && w.id !== "now" && w.id !== "week");
+    const i = visible.findIndex((w) => w.id === id);
+    const other = visible[i + dir];
+    if (other) move(id, order.findIndex((w) => w.id === other.id));
+  };
+  const hide = (id: HomeId) => setOrder((o) => o && o.map((w) => (w.id === id ? { ...w, on: false } : w)));
+  const show = (id: HomeId) => setOrder((o) => o && o.map((w) => (w.id === id ? { ...w, on: true } : w)));
+  const save = () => {
+    const next = order;
+    setOrder(null);
+    if (next) void actions.run("Startsidan", () => api.saveHomeLayout(next));
+  };
+
+  const handle = (id: HomeId): React.HTMLAttributes<HTMLElement> => ({
+    onPointerDown: (e) => {
+      e.stopPropagation();
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      setDrag({ id });
+    },
+    onPointerMove: (e) => {
+      if (!drag) return;
+      const over = (document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-wid]") as HTMLElement | null)?.dataset.wid as HomeId | undefined;
+      if (over !== drag.over) setDrag({ id: drag.id, over: over && over !== drag.id ? over : undefined });
+    },
+    onPointerUp: () => {
+      if (drag?.over && order) move(drag.id, order.findIndex((w) => w.id === drag.over));
+      setDrag(null);
+    },
+    onPointerCancel: () => setDrag(null),
+  });
+
+  const label = (id: HomeId) => (WIDGET_LABELS[id] ?? id).split(" – ")[0]!;
+  const edit = (id: HomeId, movable: boolean): EditProps => ({
+    className: [editing ? "arranging" : "", drag?.id === id ? "dragging" : "", drag?.over === id ? "drop-here" : ""].join(" "),
+    handlers: holdHandlers,
+    bar: editing ? (
+      <div className="edit-bar no-open" role="toolbar" aria-label={`Ordna ${label(id)}`}>
+        {movable && (
+          <>
+            <button className="btn small drag-handle" aria-label={`Dra ${label(id)}`} {...handle(id)}>
+              ⠿
+            </button>
+            <button className="btn small" aria-label={`Flytta upp ${label(id)}`} onClick={() => step(id, -1)}>
+              ↑
+            </button>
+            <button className="btn small" aria-label={`Flytta ner ${label(id)}`} onClick={() => step(id, 1)}>
+              ↓
+            </button>
+          </>
+        )}
+        <button className="btn small" onClick={() => setAsking(id)}>
+          Dölj
+        </button>
+      </div>
+    ) : null,
+  });
+
+  const bottom = editing ? (
+    <div className="arrange-bar" role="region" aria-label="Ordna startsidan">
+      <span className="grow">
+        <b>Ordna startsidan</b>
+        <small className="muted"> · dra i ⠿ eller använd pilarna</small>
+      </span>
+      {order!
+        .filter((w) => !w.on)
+        .map((w) => (
+          <button key={w.id} className="btn small ghost" onClick={() => show(w.id)} aria-label={`Visa ${label(w.id)} igen`}>
+            + {label(w.id)}
+          </button>
+        ))}
+      <button className="btn small" onClick={() => setOrder(null)}>
+        Ångra
+      </button>
+      <button className="btn small primary" onClick={save}>
+        Klar
+      </button>
+    </div>
+  ) : null;
+
+  // On top of everything (the tab bar too), like the board's other questions.
+  const question = asking ? createPortal(
+    <div className="overlay" onClick={() => setAsking(null)}>
+      <div className="sheet" role="alertdialog" aria-modal="true" aria-label={`Dölja ${label(asking)}?`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+        <h2 style={{ fontSize: 22 }}>Dölja {label(asking)} från startsidan?</h2>
+        <p className="muted">Den kan visas igen här (+ {label(asking)}) eller under Inställningar → Startskärm.</p>
+        <div className="row gap" style={{ justifyContent: "flex-end" }}>
+          <button className="btn" onClick={() => setAsking(null)}>
+            Avbryt
+          </button>
+          <button
+            className="btn primary"
+            onClick={() => {
+              hide(asking);
+              setAsking(null);
+            }}
+          >
+            Dölj
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  ) : null;
+
+  return { order, editing, edit, bottom, question };
+}
+
 /**
  * The home screen is a bento grid built from the user's chosen widgets, in their order:
  * the "Nu" zone across the top, the week in the wide middle, the rest split between the
  * side columns. Each card is a module in web/src/widgets/; one without data is left out.
+ * Hold a card to move or hide it (see useArrange).
  */
 export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
-  const chosen = data.home.filter((w) => w.on);
+  const arrange = useArrange(data, actions);
+  const home = arrange.order ? arrange.order.map((w) => ({ ...data.home.find((x) => x.id === w.id), ...w })) : data.home;
+  const chosen = home.filter((w) => w.on);
   const nowOn = chosen.some((w) => w.id === "now");
   const weekOn = chosen.some((w) => w.id === "week");
   // Which cards have something to show, and roughly how tall they are, before splitting into columns.
-  const size = (id: Dashboard["home"][number]["id"]) => widget(id)?.size(data) ?? 0;
+  const size = (id: HomeId) => widget(id)?.size(data) ?? 0;
   // Size per card: chosen in Startskärm, or "auto" – few cards get bigger, many get more compact.
   const withData = chosen.filter((w) => w.id !== "week" && w.id !== "now" && size(w.id) > 0);
   const autoSize = withData.length <= 2 ? "l" : withData.length <= 5 ? "m" : "s";
@@ -189,34 +380,44 @@ export function Home({ data, actions }: { data: Dashboard; actions: Actions }) {
     if (acc >= total * 0.65) break;
   }
   // A tap anywhere on a card (but not on its buttons, boxes and fields) opens its own page or tab.
-  const open = (id: Dashboard["home"][number]["id"]) => {
+  const open = (id: HomeId) => {
     const to = widget(id)?.opens;
     if (to && "page" in to) actions.openPage(to.page);
     else if (to) actions.openTab(to.tab);
   };
-  const rest = shown.map((w) => (
-    <div
-      className={`wsize wsize-${w.sz} opens`}
-      key={w.id}
-      onClick={(e) => {
-        if ((e.target as HTMLElement).closest("button, input, select, textarea, a, label, .no-open")) return;
-        open(w.id);
-      }}
-    >
-      {renderWidget(w.id, data, actions)}
-    </div>
-  ));
+  const rest = shown.map((w) => {
+    const ed = arrange.edit(w.id, true);
+    return (
+      <div
+        className={`wsize wsize-${w.sz} opens ${ed.className}`}
+        key={w.id}
+        data-wid={w.id}
+        {...ed.handlers}
+        onClick={(e) => {
+          if (arrange.editing || (e.target as HTMLElement).closest("button, input, select, textarea, a, label, .no-open")) return;
+          open(w.id);
+        }}
+      >
+        {ed.bar}
+        {renderWidget(w.id, data, actions)}
+      </div>
+    );
+  });
   const half = cut;
   return (
-    <main className="home-grid">
-      {nowOn && <NowZone data={data} actions={actions} />}
-      <Fit className="col area-left" deps={[data]} min={0.8} more={(n) => <MoreButton n={n} what="kort" onClick={() => actions.openPage("kort")} />}>
-        {rest.slice(half)}
-      </Fit>
-      {weekOn ? <Week data={data} actions={actions} /> : <div className="area-week" />}
-      <Fit className="col area-side" deps={[data]} min={0.8} more={(n) => <MoreButton n={n} what="kort" onClick={() => actions.openPage("kort")} />}>
-        {rest.slice(0, half)}
-      </Fit>
-    </main>
+    <>
+      {arrange.bottom}
+      <main className={`home-grid ${arrange.editing ? "is-arranging" : ""}`}>
+        {nowOn && <NowZone data={data} actions={actions} edit={arrange.edit("now", false)} />}
+        <Fit className="col area-left" deps={[data, arrange.order]} min={0.8} more={(n) => <MoreButton n={n} what="kort" onClick={() => actions.openPage("kort")} />}>
+          {rest.slice(half)}
+        </Fit>
+        {weekOn ? <Week data={data} actions={actions} edit={arrange.edit("week", false)} /> : <div className="area-week" />}
+        <Fit className="col area-side" deps={[data, arrange.order]} min={0.8} more={(n) => <MoreButton n={n} what="kort" onClick={() => actions.openPage("kort")} />}>
+          {rest.slice(0, half)}
+        </Fit>
+      </main>
+      {arrange.question}
+    </>
   );
 }

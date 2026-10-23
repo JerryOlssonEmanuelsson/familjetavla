@@ -185,6 +185,7 @@ const realApi = {
   toggleLight: (entityId: string) => post("lights/toggle", { entityId }),
   brightness: (entityId: string, pct: number) => post("lights/brightness", { entityId, pct }),
   lightsOff: () => post("lights/off"),
+  saveHomeLayout: (home: { id: string; on: boolean }[]) => post("home-layout", { home }),
   playStation: (index: number, speaker: string) => post("music/play", { index, speaker }),
   stopMusic: (speaker: string) => post("music/stop", { speaker }),
   tryStation: (name: string, url: string, speaker: string) => post("music/try", { name, url, speaker }),
