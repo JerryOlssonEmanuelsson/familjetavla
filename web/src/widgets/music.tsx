@@ -481,28 +481,63 @@ function LibraryHome({ sp, play }: { sp: Speaker; play: (t: Tile) => unknown }) 
 const MA_APP = "d5369777_music_assistant";
 const MA_REPO = "https://github.com/music-assistant/home-assistant-addon";
 
-/** Without Music Assistant: what it gives and a button that opens the install page in Home Assistant. */
+const MA_COMPOSE = `  music-assistant:
+    image: ghcr.io/music-assistant/server:latest
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./music-assistant:/data`;
+
+/**
+ * Without Music Assistant: what it gives and how to get it. Home Assistant OS/Supervised gets a
+ * button to the app store; Home Assistant in Docker (no app store) gets the container to add.
+ */
 function AssistantSetup() {
+  const [store, setStore] = useState<boolean | null>(null);
+  useEffect(() => {
+    api.authStatus().then(
+      (r) => setStore(r.supervisor),
+      () => setStore(false),
+    );
+  }, []);
   return (
     <div className="lib-setup">
       <p style={{ margin: "0 0 10px" }}>
-        För att välja <b>spellistor, album och poddar</b> på tavlan – och spela dem i vilken högtalare som helst – behövs <b>Music Assistant</b>, ett gratis tillägg i Home Assistant. Det fungerar med Spotify, YouTube Music, Tidal med flera och med Google/Nest, Sonos, AirPlay och Echo.
+        För att välja <b>spellistor, album och poddar</b> på tavlan – och spela dem i vilken högtalare som helst – behövs <b>Music Assistant</b> (gratis). Det fungerar med Spotify, YouTube Music, Tidal med flera och med Google/Nest, Sonos, AirPlay och Echo.
       </p>
-      <div className="row gap" style={{ flexWrap: "wrap" }}>
-        <a className="btn primary" href={haMy("supervisor_addon", { addon: MA_APP, repository_url: MA_REPO })} target="_top" rel="noopener">
-          <Icon name="plus" size={18} /> Installera Music Assistant
-        </a>
-        <a className="btn" href={haAddIntegration("music_assistant")} target="_top" rel="noopener">
-          Koppla till Home Assistant
-        </a>
-      </div>
-      <ol className="muted" style={{ margin: "10px 0 0", paddingLeft: 20 }}>
-        <li>Installera och starta tillägget.</li>
-        <li>Öppna Music Assistant, lägg till Spotify under Inställningar → Musikleverantörer och logga in.</li>
-        <li>Home Assistant hittar Music Assistant själv – tryck Konfigurera, eller Koppla till Home Assistant här.</li>
-      </ol>
+      {store === null ? null : store ? (
+        <>
+          <div className="row gap" style={{ flexWrap: "wrap" }}>
+            <a className="btn primary" href={haMy("supervisor_addon", { addon: MA_APP, repository_url: MA_REPO })} target="_top" rel="noopener">
+              <Icon name="plus" size={18} /> Installera Music Assistant
+            </a>
+            <a className="btn" href={haAddIntegration("music_assistant")} target="_top" rel="noopener">
+              Koppla till Home Assistant
+            </a>
+          </div>
+          <ol className="muted" style={{ margin: "10px 0 0", paddingLeft: 20 }}>
+            <li>Installera och starta tillägget.</li>
+            <li>Öppna Music Assistant, lägg till Spotify under Inställningar → Musikleverantörer och logga in.</li>
+            <li>Home Assistant hittar Music Assistant själv – tryck Konfigurera, eller Koppla till Home Assistant här.</li>
+          </ol>
+        </>
+      ) : (
+        <>
+          <p className="muted" style={{ margin: "0 0 6px" }}>
+            Home Assistant i Docker: lägg till Music Assistant i docker-compose och starta med <code>docker compose up -d music-assistant</code>.
+          </p>
+          <pre className="code-box">{MA_COMPOSE}</pre>
+          <ol className="muted" style={{ margin: "10px 0", paddingLeft: 20 }}>
+            <li>Öppna http://&lt;serverns-adress&gt;:8095 och lägg till Spotify under Inställningar → Musikleverantörer.</li>
+            <li>Koppla till Home Assistant med adressen http://&lt;serverns-adress&gt;:8095.</li>
+          </ol>
+          <a className="btn primary" href={haAddIntegration("music_assistant")} target="_top" rel="noopener">
+            <Icon name="plus" size={18} /> Koppla till Home Assistant
+          </a>
+        </>
+      )}
       <p className="muted" style={{ margin: "10px 0 0" }}>
-        Radio fungerar redan utan tillägg.
+        Radio fungerar redan utan Music Assistant.
       </p>
     </div>
   );

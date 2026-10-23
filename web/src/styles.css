@@ -3583,3 +3583,14 @@ marker.pf-buy path {
   background: #000000;
   border-color: rgba(255, 255, 255, 0.3);
 }
+/* A short snippet to copy, e.g. docker-compose lines. Wraps instead of scrolling sideways. */
+.code-box {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(127, 127, 127, 0.15);
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: all;
+}

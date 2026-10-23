@@ -40,6 +40,8 @@ const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(str
 const d = fx.dashboard;
 // "?tema=eink" shows the demo as on an e-ink screen.
 const forcedTheme = typeof location !== "undefined" ? new URLSearchParams(location.search).get("tema") : null;
+// ?utan-ma shows the Musik tab of a home without Music Assistant (the device check uses it).
+if (typeof location !== "undefined" && new URLSearchParams(location.search).has("utan-ma") && d.music) d.music.assistant = false;
 if (forcedTheme === "eink" || forcedTheme === "light" || forcedTheme === "dark") d.theme = forcedTheme;
 if (forcedTheme === "spegel") d.theme = "mirror";
 
