@@ -282,7 +282,7 @@ d.schoolNews = [
     seen: true,
   },
 ];
-d.reminders.unshift({ icon: "school", title: "Från skolan: Höstlov på biblioteket", sub: "Ella · läs på Skolan", tone: "blue" });
+d.reminders.unshift({ icon: "school", title: "Från skolan: Höstlov på biblioteket", sub: "Ella · tryck för att läsa", tone: "blue", newsId: "n1" });
 d.reminders = d.reminders.slice(0, 5);
 
 const demoCal = (title: string) => (title.startsWith("F14") ? { id: "ella-sport", name: "Fotboll F14" } : { id: "leo-sim", name: "Simning" });

@@ -45,7 +45,7 @@ export function DetailPage({ page, data, actions }: { page: PageId; data: Dashbo
       <Fit className="detail-body" deps={[data, page]}>
         {page === "maten" && <MealsPage data={data} actions={actions} />}
         {page === "skolan" && <SchoolPage data={data} actions={actions} />}
-        {page === "komihag" && <Reminders items={data.reminders} food={data.schoolFood} />}
+        {page === "komihag" && <Reminders items={data.reminders} food={data.schoolFood} data={data} actions={actions} />}
         {page === "inkop" && <Shopping data={data} actions={actions} />}
         {page === "hososs" && <CustodyPage data={data} />}
         {page === "veckan" && <Week data={data} actions={actions} full />}
@@ -144,7 +144,7 @@ const todayKey = () => {
 };
 
 /** A news item from the school: all the text, pictures shown right in the sheet, and "Lägg i veckan". */
-function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; actions: Actions; onClose: () => void }) {
+export function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; actions: Actions; onClose: () => void }) {
   const [adding, setAdding] = useState(false);
   const kids = data.people.filter((p) => p.kind === "child");
   const [form, setForm] = useState({ date: todayKey(), time: "", end: "", title: n.title.slice(0, 80), who: n.who ?? "" });

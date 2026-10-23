@@ -449,6 +449,8 @@ export interface Reminder {
   tone: "blue" | "amber" | "neutral" | "green";
   /** The child it is about – a grown-up who follows only some children gets only theirs in the phone. */
   personId?: string;
+  /** A news item from the school: a tap opens it to read. */
+  newsId?: string;
 }
 
 export interface PriceBar {

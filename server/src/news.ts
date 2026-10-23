@@ -36,7 +36,7 @@ export function newsReminders(news: SchoolNews[], now: Date): Reminder[] {
   return news
     .filter((n) => !n.seen && (!n.published || Date.parse(n.published) >= week))
     .slice(0, 2)
-    .map((n) => ({ icon: "school" as const, title: `Från skolan: ${n.title}`, sub: `${n.who ? `${n.who} · ` : ""}läs på Skolan`, tone: "blue" as const, personId: n.personId }));
+    .map((n) => ({ icon: "school" as const, title: `Från skolan: ${n.title}`, sub: `${n.who ? `${n.who} · ` : ""}tryck för att läsa`, tone: "blue" as const, personId: n.personId, newsId: n.id }));
 }
 
 // ---------- Utflykt, matsäck … from school news ----------

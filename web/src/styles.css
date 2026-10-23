@@ -3751,3 +3751,17 @@ marker.pf-buy path {
   font-size: 32px;
   font-variant-numeric: tabular-nums;
 }
+/* A reminder you can open (school news): the whole row is the button. */
+.reminder.reminder-link {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.reminder.reminder-link > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}

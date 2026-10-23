@@ -224,7 +224,7 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
         {source === "radio" ? <AllStations m={m} sp={sp} actions={actions} /> : m.assistant ? <Library sp={sp} connect={m.spotify?.devices ?? []} actions={actions} /> : <AssistantSetup />}
       </section>
 
-      {m.spotify && <SpotifyBox sp={m.spotify} actions={actions} />}
+      {source === "library" && m.spotify && <SpotifyBox sp={m.spotify} actions={actions} />}
     </div>
   );
 }

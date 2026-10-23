@@ -9,6 +9,7 @@
 - **Spotify Connect:** Spotify-vyn kan också spela på soundbaren, Sonos, tv:n och andra enheter som ert Spotify-konto ser.
 - **Väcker högtalaren:** en högtalare eller soundbar som står av slås på innan musiken startar.
 - **Mobil:** med många flikar ligger de sista under **Mer**. Sidrubriker får plats mellan Tillbaka och Hem.
+- **Läs skolans nyheter direkt i Kom ihåg:** tryck på "Från skolan: …" så öppnas hela meddelandet med bilder och bilagor – på startsidan och på sidan Kom ihåg.
 - **Skolan utan alla lektioner:** under Skola kan man välja "Bara när skoldagen börjar och slutar" – då visar sidan Skolan börjar/slutar och idrott i stället för varje lektion.
 - **Spegelskärm:** tavlan provas nu även på en stående Full HD-skärm (MagicMirror-stil) innan varje släpp.
 
