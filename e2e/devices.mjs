@@ -117,7 +117,11 @@ for (const [name0, dev, tablet] of DEVICES) {
       await p.locator(".lib-setup .btn").first().waitFor();
       await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     }
-    if (open === "bigCamera") await p.locator(".camera").first().click();
+    if (open === "bigCamera") {
+      await p.locator(".camera").first().click();
+      // On a phone, look at the whole page like a person scrolling down it.
+      if (!tablet) await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    }
     if (open === "task") await p.locator(".task-row", { hasText: "Prov i NO" }).first().click();
     if (open) await p.waitForTimeout(600);
     if (!tablet && !open && !hash.startsWith("#/setup")) await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));

@@ -58,16 +58,21 @@ export function SecurityPage({ data, actions }: { data: Dashboard; actions: Acti
     <main className="page-grid security">
       {s.cameras.length > 0 && (
         <section className="card cameras-card">
-          <h2>Kameror</h2>
+          <h2>{big ? "Kamera" : "Kameror"}</h2>
+          {big && <p className="muted" style={{ margin: "-4px 0 8px" }}>Tryck på bilden för att se alla.</p>}
           <div className={`camera-grid ${big ? "one" : ""}`}>
             {cams.map((c) => (
-              <Camera key={c.entityId} cam={c} big={big === c.entityId} onTap={() => setBig(big ? null : c.entityId)} />
+              <Camera key={c.entityId} cam={c} big={big === c.entityId} onTap={() => {
+                  setBig(big ? null : c.entityId);
+                  // The page gets shorter: start from the top so nothing hides behind the tab bar on phones.
+                  window.scrollTo(0, 0);
+                }} />
             ))}
           </div>
         </section>
       )}
 
-      {s.alarms.map((a) => (
+      {!big && s.alarms.map((a) => (
         <section key={a.entityId} className={`card alarm ${a.triggered ? "triggered" : a.armed ? "armed" : ""}`}>
           <h2>
             <Icon name="shield" size={22} /> {a.name}: {a.label}
@@ -89,7 +94,7 @@ export function SecurityPage({ data, actions }: { data: Dashboard; actions: Acti
         </section>
       ))}
 
-      {s.locks.length > 0 && (
+      {!big && s.locks.length > 0 && (
         <section className="card">
           <h2>Lås</h2>
           <div className="stack" style={{ gap: 10 }}>
@@ -115,7 +120,7 @@ export function SecurityPage({ data, actions }: { data: Dashboard; actions: Acti
         </section>
       )}
 
-      {s.covers.length > 0 && (
+      {!big && s.covers.length > 0 && (
         <section className="card">
           <h2>Portar</h2>
           <div className="stack" style={{ gap: 10 }}>
@@ -134,7 +139,7 @@ export function SecurityPage({ data, actions }: { data: Dashboard; actions: Acti
         </section>
       )}
 
-      {s.openings.length > 0 && (
+      {!big && s.openings.length > 0 && (
         <section className="card">
           <h2>Dörrar och fönster</h2>
           {openNow.length === 0 ? (

@@ -2512,6 +2512,20 @@ marker.pf-buy path {
   font-size: 28px;
   margin: 0;
   text-align: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Phones: room for "Säkerhet" and "Veckans mat" between Tillbaka and Hem. */
+@media (max-width: 480px) {
+  .page-bar h1 {
+    font-size: 22px;
+  }
+  .page-bar .btn {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
 }
 .page-bar .btn {
   min-height: 48px;
