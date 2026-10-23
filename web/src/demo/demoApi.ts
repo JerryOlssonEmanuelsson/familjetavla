@@ -40,6 +40,8 @@ const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(str
 const d = fx.dashboard;
 // "?tema=eink" shows the demo as on an e-ink screen.
 const forcedTheme = typeof location !== "undefined" ? new URLSearchParams(location.search).get("tema") : null;
+// Calendar events in the demo can be struck ("Utgår") like real ones.
+for (const [di, day] of (d.days ?? []).entries()) for (const [ei, ev] of day.events.entries()) if (!ev.ownId && !ev.cancelKey) ev.cancelKey = `demo:${di}:${ei}`;
 // ?lektioner=tider shows Skolan with only when the school day starts and ends.
 if (typeof location !== "undefined" && new URLSearchParams(location.search).get("lektioner") === "tider") d.lessonView = "span";
 // ?utan-ma shows the Musik tab of a home without Music Assistant (the device check uses it).
@@ -690,11 +692,19 @@ export const demoApi = {
   spotify: (_op: "playpause" | "next") => wait({}),
   musicLibrary: (shelf: Shelf) => wait({ tiles: demoTiles(shelf) }),
   musicSearch: (q: string) => wait({ tiles: demoTiles("playlists").filter((t) => t.title.toLowerCase().includes(q.toLowerCase())) }),
+  cancelEvent: (key: string, on: boolean) => {
+    if (on) for (const day of d.days ?? []) day.events = day.events.filter((x) => x.cancelKey !== key);
+    return wait({});
+  },
+  musicItems: (uri: string) => {
+    const songs: [string, string][] = [["Mamma Mu", "Barnens favoriter"], ["Idas sommarvisa", "Astrid Lindgren"], ["Här kommer Pippi Långstrump", "Astrid Lindgren"], ["Små grodorna", "Trazan & Banarne"], ["Bä bä vita lamm", "Barnkören"], ["Imse vimse spindel", "Barnkören"], ["Björnen sover", "Barnkören"], ["Lilla snigel", "Barnkören"], ["Fem små apor", "Trazan & Banarne"], ["Vi är vänner", "Barnens favoriter"], ["Sov du lilla videung", "Astrid Lindgren"], ["Gubben Noak", "Barnkören"], ["Huvud, axlar, knä och tå", "Barnkören"], ["Ekorrn satt i granen", "Barnkören"]];
+    return wait({ title: "", tracks: songs.map(([title, artist], i) => ({ uri: `${uri}/track/${i}`, title, artist, image: cover(title, i + 3) })) });
+  },
   playConnect: (t: Tile, device: string) => {
     if (d.music?.spotify) Object.assign(d.music.spotify, { playing: true, title: t.title, device });
     return wait({});
   },
-  playMedia: (t: Tile, speaker: string) => {
+  playMedia: (t: Tile, speaker: string, _start?: string) => {
     const sp = d.music?.speakers.find((x) => x.entityId === speaker);
     if (sp) Object.assign(sp, { playing: true, station: undefined, title: t.title, playingUrl: undefined });
     return wait({});

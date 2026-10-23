@@ -27,9 +27,11 @@ import {
   loadConfig,
   loadDevices,
   saveDevices,
+  loadLocal,
   loadLocalList,
   photoPath,
   saveConfig,
+  saveLocal,
   saveLocalList,
   savePhoto,
   setSecret,
@@ -41,7 +43,7 @@ import { makeBackup, restoreBackup } from "./backup.js";
 import { follows } from "./notify.js";
 import { findStations, playCall, spotifyPlayer, spotifyUri, swedishStations } from "./music.js";
 import { alarmCall, robotCall } from "./security.js";
-import { MEDIA_TYPES, SHELVES, type Shelf, library as maLibrary, playOn as maPlayOn, search as maSearch } from "./musicAssistant.js";
+import { MEDIA_TYPES, SHELVES, type Shelf, library as maLibrary, playOn as maPlayOn, search as maSearch, tracksOf as maTracks } from "./musicAssistant.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export { VERSION } from "./version.js";
@@ -751,6 +753,11 @@ export async function registerRoutes(app: FastifyInstance) {
   const wake = async (conn: NonNullable<ReturnType<typeof haConnection>>, id: string) => {
     const st = await ha.state(conn, id).catch(() => undefined);
     if (st?.state === "off") await ha.service(conn, "media_player", "turn_on", { entity_id: id }).catch(() => undefined);
+    // The volume last chosen on the board for this speaker, so the kitchen is never suddenly too loud.
+    const last = loadLocal().volumes?.[id];
+    const now = (st?.attributes as { volume_level?: number } | undefined)?.volume_level;
+    if (typeof last === "number" && (typeof now !== "number" || Math.round(now * 100) !== last))
+      await ha.service(conn, "media_player", "volume_set", { entity_id: id, volume_level: last / 100 }).catch(() => undefined);
   };
   const speakerOf = (id: unknown) => (typeof id === "string" ? (loadConfig().entities.speakers ?? []).find((x) => x.entityId === id) : undefined);
 
@@ -792,6 +799,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
     await ha.service(conn, "media_player", "volume_set", { entity_id: body.data.speaker, volume_level: body.data.pct / 100 });
+    saveLocal({ volumes: { ...loadLocal().volumes, [body.data.speaker]: body.data.pct } });
     invalidate("ha:states");
     return { ok: true };
   });
@@ -880,15 +888,29 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // A playlist or album opened like in Spotify: every track.
+  app.get("/api/music/items", async (req, reply) => {
+    const q = z.object({ uri: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i) }).safeParse(req.query);
+    if (!q.success) return fail(reply, new Error("Okänd spellista"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      return await maTracks(conn, boardSpeakers(), q.data.uri);
+    } catch (e) {
+      return fail(reply, e, 502);
+    }
+  });
+
   app.post("/api/music/play-media", async (req, reply) => {
     const body = z
-      .object({ uri: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i), type: z.enum(MEDIA_TYPES), title: label(80).optional(), speaker: entity })
+      .object({ uri: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i), type: z.enum(MEDIA_TYPES), title: label(80).optional(), speaker: entity, start: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i).optional(), shuffle: z.boolean().optional() })
       .safeParse(req.body);
     const sp = body.success ? speakerOf(body.data.speaker) : undefined;
     if (!body.success || !sp) return fail(reply, new Error("Okänd låt eller högtalare"));
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
     try {
+      await wake(conn, sp.entityId);
       await maPlayOn(conn, new Map((await ha.states(conn)).map((s) => [s.entity_id, s])), sp, body.data);
     } catch (e) {
       return fail(reply, new Error(`${sp.name} kunde inte spela ${body.data.title ?? "det"}: ${(e as Error).message}`), 502);
@@ -962,7 +984,7 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Spotify Connect: play a cover from the library on a device the Spotify account sees (any brand).
   app.post("/api/music/play-connect", async (req, reply) => {
-    const body = z.object({ uri: z.string().max(300), type: z.enum(MEDIA_TYPES), title: label(80).optional(), device: z.string().min(1).max(80) }).safeParse(req.body);
+    const body = z.object({ uri: z.string().max(300), type: z.enum(MEDIA_TYPES), title: label(80).optional(), device: z.string().min(1).max(80), shuffle: z.boolean().optional() }).safeParse(req.body);
     const uri = body.success ? spotifyUri(body.data.uri) : undefined;
     if (!body.success || !uri) return fail(reply, new Error("Bara Spotify kan spelas på en Spotify Connect-enhet"));
     const conn = haConnection();
@@ -972,6 +994,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!player || !devices.includes(body.data.device)) return fail(reply, new Error(`${body.data.device} syns inte i Spotify just nu – väck den (nätverksstandby) och försök igen.`));
     try {
       await ha.service(conn, "media_player", "select_source", { entity_id: player.entity_id, source: body.data.device });
+      if (body.data.shuffle !== undefined) await ha.service(conn, "media_player", "shuffle_set", { entity_id: player.entity_id, shuffle: body.data.shuffle }).catch(() => undefined);
       const kind = uri.split(":")[1];
       await ha.service(conn, "media_player", "play_media", { entity_id: player.entity_id, media_content_id: uri, media_content_type: kind });
     } catch (e) {
@@ -1358,6 +1381,21 @@ export async function registerRoutes(app: FastifyInstance) {
     personId: z.string().regex(ID).optional(),
     note: z.string().max(500).optional(),
   });
+  // "Utgår": hide one occurrence on the board (the family's calendar itself is not changed).
+  app.post("/api/events/cancel", async (req, reply) => {
+    const body = z.object({ key: z.string().min(3).max(400), on: z.boolean() }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Okänd händelse"));
+    const today = new Date().toISOString().slice(0, 10);
+    const old = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    // Old ones are forgotten after a month so the list never grows.
+    const next = Object.fromEntries(Object.entries(loadLocal().cancelled ?? {}).filter(([, d]) => d >= old));
+    if (body.data.on) next[body.data.key] = today;
+    else delete next[body.data.key];
+    saveLocal({ cancelled: next });
+    invalidate("dashboard");
+    return { ok: true };
+  });
+
   app.post("/api/own-events", async (req, reply) => {
     const body = ownEventSchema.safeParse(req.body);
     if (!body.success) return fail(reply, new Error("Fyll i dag och vad det gäller."));

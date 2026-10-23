@@ -398,6 +398,8 @@ export interface DashEvent {
   /** Beskrivningen från kalendern (samlingstid, vad som behövs …). */
   /** Egen händelse (tillagd på tavlan) – id för att kunna ta bort den. */
   ownId?: string;
+  /** Händelse från en kalender: nyckeln för "Utgår" (döljs bara på tavlan). */
+  cancelKey?: string;
   /** Barnets händelse: kan markeras sjuk den dagen (on = det här är "Sjuk"-markeringen). */
   sick?: { personId: string; date: string; on: boolean };
   description?: string;

@@ -24,10 +24,10 @@ import {
   type SchoolData,
   type SourcedEvent,
 } from "./sources.js";
-import { listPhotos, loadConfig, loadLocalList } from "./store.js";
+import { listPhotos, loadConfig, loadLocal, loadLocalList } from "./store.js";
 import { buildPlan, careAt, needsAttention } from "./plan.js";
 import { buildMeals, loadDinners, loadShelf, mealFavorites, sameAsLunch } from "./meals.js";
-import { isCare, knownDrivers, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
+import { isCare, knownDrivers, travelKey, loadTravel, resolveTravel, travelOptions, travelSummary, wantsTravel } from "./travel.js";
 import {
   addDays,
   daysBetween,
@@ -169,7 +169,7 @@ function toDash(ev: SourcedEvent, people: Map<string, Person>, travel?: TravelCt
     icon: ev.gym ? "gym" : activityIcon(`${ev.title} ${ev.sourceName ?? ""}`, ev.category),
     location: ev.location,
     description: cleanDescription(ev.description, ev.title),
-    ...(ev.sourceId === "own" && ev.uid ? { ownId: ev.uid } : {}),
+    ...(ev.sourceId === "own" && ev.uid ? { ownId: ev.uid } : ev.sourceId !== "sick" ? { cancelKey: travelKey(ev) } : {}),
     ...(p?.kind === "child" ? { sick: { personId: p.id, date: dayKey(ev.start), on: ev.sourceId === "sick" } } : {}),
   };
 }
@@ -241,8 +241,11 @@ export async function gatherFamily(cfg: Config, now: Date, errors: SourceError[]
   const swapCal = cfg.household.custodyCalendarId;
   const people = new Map(withSwapCalendar(cfg.people, calEvents.filter((e) => e.sourceId === swapCal)).map((p) => [p.id, p]));
   const children = [...people.values()].filter((p) => p.kind === "child");
-  const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events, ...ownCalendarEvents()];
-  const careEvents = buildCareEvents([...people.values()], school.care, all, today, 7);
+  // "Utgår": events the family struck on the board are gone everywhere – week, Nu, reminders, phone.
+  const cancelled = loadLocal().cancelled ?? {};
+  const kept = (e: SourcedEvent) => !cancelled[travelKey(e)];
+  const all = [...calEvents.filter((e) => e.sourceId !== swapCal), ...school.events, ...ownCalendarEvents()].filter(kept);
+  const careEvents = buildCareEvents([...people.values()], school.care, all, today, 7).filter(kept);
   const travelCtx: TravelCtx = { saved: loadTravel(), calendars: new Map([...cfg.calendars.map((c) => [c.id, c] as const), ...careCalendars([...people.values()])]) };
   // A sick child's förskola, lessons and training are struck that day (one "Sjuk" marker instead).
   const sick = loadSick();

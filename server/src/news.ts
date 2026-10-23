@@ -24,7 +24,8 @@ export function buildSchoolNews(news: SchoolData["news"], people: Map<string, Pe
         text: n.text,
         published: n.published,
         date: d ? `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}` : undefined,
-        files: n.files.map((f) => ({ name: f.name, url: `api/school/file?u=${encodeURIComponent(f.url)}` })),
+        // Vklass's own files need the family's login, so the board fetches them; other links open as they are.
+        files: n.files.map((f) => ({ name: f.name, url: /^https:\/\/[a-z0-9.-]*vklass\.se\//i.test(f.url) ? `api/school/file?u=${encodeURIComponent(f.url)}` : f.url })),
         seen: seen.has(n.id),
       };
     });

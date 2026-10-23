@@ -6,6 +6,12 @@
 - **Fliken Hushåll** – tvättmaskin, torktumlare, diskmaskin och ugn med tid kvar och när de är klara (Miele, Bosch/Siemens, Electrolux, Samsung, LG … eller en vanlig maskin bakom en smart kontakt), och robotdammsugare och robotgräsklippare med Städa/Klipp, Paus och Åk hem.
 - **Notiser från hemmet** till den som är hemma: "Tvätten är klar", "Dammsugaren har fastnat", "Ytterdörren är olåst" kl 22, "Garageporten har stått öppen i en halvtimme" – och larmet till alla. Valbart per vuxen under Påminnelser.
 - **Flikarna syns bara om man väljer dem.** "Hämta från Home Assistant" hittar kameror, lås, maskiner och robotar men kryssar inget i.
+- **Spellistor som i Spotify:** tryck på ett omslag så öppnas spellistan eller albumet med alla låtar, omslag och en stor **Spela**. Tryck på en låt så börjar listan där. Välj **I ordning** eller **Blandat**.
+- **Volym genom att dra:** medan musik spelar, dra uppåt eller nedåt i fliken Musik (på mobil på raden med det som spelas) – en stapel visar volymen mitt på skärmen, som i en videospelare.
+- **Minns volymen** som senast valdes för varje högtalare och sätter den när musiken startar där igen.
+- **Kortare kanalvy:** alla kanaler ligger bakom **Fler kanaler ▾** – favoriterna syns direkt.
+- **Utgår:** tryck på en händelse i kalendern och välj **Utgår** – den försvinner från tavlan, Nu och påminnelserna (kalendern ändras inte).
+- **Länkar i Vklass-nyheter** (veckobrev som PDF, anmälningsformulär …) blir knappar att öppna direkt.
 - **Spotify Connect:** Spotify-vyn kan också spela på soundbaren, Sonos, tv:n och andra enheter som ert Spotify-konto ser.
 - **Väcker högtalaren:** en högtalare eller soundbar som står av slås på innan musiken startar.
 - **Mobil:** med många flikar ligger de sista under **Mer**. Sidrubriker får plats mellan Tillbaka och Hem.

@@ -19,6 +19,13 @@ export interface Tile {
   image?: string;
 }
 export type Shelf = "recent" | "playlists" | "albums" | "podcasts";
+/** One song in a playlist or album. */
+export interface Track {
+  uri: string;
+  title: string;
+  artist?: string;
+  image?: string;
+}
 
 /** A station from the radio directory (Inställningar → Huset → Musik). */
 export interface StationHit {
@@ -167,6 +174,7 @@ const realApi = {
   setSick: (personId: string, date: string, sick: boolean) => post<{ ok: true }>("sick", { personId, date, sick }),
   newsSeen: (ids: string[]) => post<{ ok: true }>("news/seen", { ids }),
   addOwnEvent: (e: { date: string; time?: string; end?: string; title: string; personId?: string; note?: string }) => post<{ id: string }>("own-events", e),
+  cancelEvent: (key: string, on: boolean) => post("events/cancel", { key, on }),
   removeOwnEvent: (id: string) => request<{ ok: true }>(`own-events/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   testProvider: (integration: Integration, secrets: Record<string, string>) => post<TestResult>("providers/test", { integration, secrets }),
@@ -214,8 +222,9 @@ const realApi = {
   spotify: (op: "playpause" | "next") => post("music/spotify", { op }),
   musicLibrary: (shelf: Shelf) => request<{ tiles: Tile[] }>(`music/library?shelf=${shelf}`),
   musicSearch: (q: string) => request<{ tiles: Tile[] }>(`music/search?q=${encodeURIComponent(q)}`),
-  playConnect: (t: Tile, device: string) => post("music/play-connect", { uri: t.uri, type: t.type, title: t.title, device }),
-  playMedia: (t: Tile, speaker: string) => post("music/play-media", { uri: t.uri, type: t.type, title: t.title, speaker }),
+  playConnect: (t: Tile, device: string, shuffle?: boolean) => post("music/play-connect", { uri: t.uri, type: t.type, title: t.title, device, ...(shuffle !== undefined ? { shuffle } : {}) }),
+  playMedia: (t: Tile, speaker: string, start?: string, shuffle?: boolean) => post("music/play-media", { uri: t.uri, type: t.type, title: t.title, speaker, ...(start ? { start } : {}), ...(shuffle !== undefined ? { shuffle } : {}) }),
+  musicItems: (uri: string) => request<{ title: string; tracks: Track[] }>(`music/items?uri=${encodeURIComponent(uri)}`),
   volume: (speaker: string, pct: number) => post("music/volume", { speaker, pct }),
   searchStations: (q: string) => request<{ stations: StationHit[] }>(`radio/search?q=${encodeURIComponent(q)}`),
   addItem: (name: string) => post("shopping/add", { name }),

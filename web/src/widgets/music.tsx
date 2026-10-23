@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Dashboard, Music as MusicData } from "../../../server/src/types";
-import { api, type DirStation, type Shelf, type Tile } from "../api";
+import { api, type DirStation, type Shelf, type Tile, type Track } from "../api";
 import { Icon } from "../Icon";
 import type { Actions } from "../dashboard/Dashboard";
 import type { WidgetModule } from "./types";
@@ -66,12 +66,16 @@ function useControls(sp: Speaker, actions: Actions) {
   };
 }
 
-/** "P4 Jönköping · Kök" with volume and Stopp. */
+/**
+ * "P4 Jönköping · Kök" with volume and Stopp. While something plays, a long drag up or down on the row
+ * turns the volume (the number shows while dragging); a short touch does nothing, so it never fights a tap.
+ */
 function NowPlaying({ sp, actions, showName }: { sp: Speaker; actions: Actions; showName: boolean }) {
   const c = useControls(sp, actions);
   const vol = sp.volume ?? null;
+  const canDrag = sp.playing && !sp.offline && vol !== null;
   return (
-    <div className="music-now">
+    <div className={`music-now ${canDrag ? "can-drag" : ""}`}>
       <Icon name="speaker" size={20} />
       <span className="music-title">
         {sp.offline ? `${sp.name} svarar inte` : sp.playing ? `${sp.title ?? "Spelar"}${showName ? ` · ${sp.name}` : ""}` : `${sp.name} · tyst`}
@@ -96,6 +100,70 @@ function NowPlaying({ sp, actions, showName }: { sp: Speaker; actions: Actions; 
       </span>
     </div>
   );
+}
+
+/**
+ * Volume like a video player: a long drag up or down while music plays. On tablets anywhere in the
+ * Musik tab (it never scrolls), on phones on the row with what plays (the page scrolls there).
+ * It takes over only after a clear vertical move, so taps on buttons and covers work as before.
+ */
+function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
+  const [shown, setShown] = useState<number | null>(null);
+  const st = useRef<{ x: number; y: number; from: number; on: boolean; id: number } | null>(null);
+  const swallow = useRef(0);
+  const active = sp.playing && !sp.offline && typeof sp.volume === "number";
+  const handlers = {
+    onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+      if (!active) return;
+      const tablet = window.matchMedia(TABLET).matches;
+      if (!tablet && !(e.target as HTMLElement).closest(".music-now")) return;
+      if ((e.target as HTMLElement).closest("input, textarea")) return;
+      st.current = { x: e.clientX, y: e.clientY, from: sp.volume!, on: false, id: e.pointerId };
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+      const d = st.current;
+      if (!d || d.id !== e.pointerId) return;
+      const dy = d.y - e.clientY;
+      if (!d.on) {
+        if (Math.abs(dy) < 30 || Math.abs(dy) < Math.abs(e.clientX - d.x) * 1.5) return;
+        d.on = true;
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }
+      // 1 % per 4 px after the first 30.
+      setShown(Math.max(0, Math.min(100, d.from + Math.round((dy - Math.sign(dy) * 30) / 4))));
+    },
+    onPointerUp: () => {
+      const d = st.current;
+      st.current = null;
+      if (d?.on) {
+        swallow.current = Date.now();
+        if (shown !== null && shown !== d.from) void set(shown);
+      }
+      setShown(null);
+    },
+    onPointerCancel: () => {
+      st.current = null;
+      setShown(null);
+    },
+    // A drag that started on a button must not also press it.
+    onClickCapture: (e: React.MouseEvent) => {
+      if (Date.now() - swallow.current < 400) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    },
+  };
+  const overlay =
+    shown !== null ? (
+      <div className="vol-overlay" role="status" aria-live="polite">
+        <span className="vol-pct">{shown}%</span>
+        <span className="vol-bar">
+          <span style={{ height: `${shown}%` }} />
+        </span>
+        <span>Volym</span>
+      </div>
+    ) : null;
+  return { handlers, overlay, active };
 }
 
 function StationButton({ name, logo, on, disabled, onPlay }: { name: string; logo?: string; on: boolean; disabled: boolean; onPlay: () => void }) {
@@ -187,9 +255,11 @@ function MusicTab({ m, actions }: { m: MusicData; actions: Actions }) {
   const c = useControls(sp, actions);
   const [source, setSource] = useState<"radio" | "library">("radio");
   const libName = "Spotify";
+  const drag = useVolumeDrag(sp, (pct) => c.volume(pct));
 
   return (
-    <div className="music-tab">
+    <div className={`music-tab ${drag.active ? "vol-drag" : ""}`} {...drag.handlers}>
+      {drag.overlay}
       <section className="card">
         {m.speakers.length > 1 && (
           <div className="seg music-speakers" role="radiogroup" aria-label="Högtalare">
@@ -257,12 +327,15 @@ function AllStations({ m, sp, actions }: { m: MusicData; sp: Speaker; actions: A
   const [error, setError] = useState("");
   const [group, setGroup] = useState<"sr" | "other">("sr");
   const [q, setQ] = useState("");
+  // Every other station hides behind one button: the favourites are what a family taps.
+  const [open, setOpen] = useState(m.stations.length === 0);
   useEffect(() => {
+    if (!open) return;
     api
       .musicStations()
       .then((r) => setAll(r.stations))
       .catch((e: Error) => setError(e.message));
-  }, []);
+  }, [open]);
   const favUrls = useMemo(() => m.stations.map((s) => s.url ?? ""), [m.stations]);
   const isFav = (url: string) => favUrls.some((u) => sameStream(u, url));
   const shown = useMemo(() => {
@@ -278,9 +351,21 @@ function AllStations({ m, sp, actions }: { m: MusicData; sp: Speaker; actions: A
       check: (d) => (d.music?.stations ?? []).some((x) => sameStream(x.url, s.url)) === on,
     });
   };
+  if (!open)
+    return (
+      <div className="more-stations">
+        <button className="btn" onClick={() => setOpen(true)} aria-expanded={false}>
+          Fler kanaler ▾
+        </button>
+        <small className="muted">Alla Sveriges Radios kanaler och de andra svenska – ☆ lägger en kanal bland favoriterna.</small>
+      </div>
+    );
   return (
     <>
       <div className="music-filter">
+        <button className="btn small" onClick={() => setOpen(false)} aria-expanded={true} aria-label="Dölj kanallistan">
+          ▴ Dölj
+        </button>
         <div className="seg small" role="radiogroup" aria-label="Kanaler">
           <button className={`seg-btn ${!q && group === "sr" ? "on" : ""}`} role="radio" aria-checked={!q && group === "sr"} onClick={() => (setQ(""), setGroup("sr"))}>
             Sveriges Radio
@@ -352,16 +437,36 @@ function Library({ sp, connect, actions }: { sp: Speaker; connect: string[]; act
   }, [q]);
   const list = tiles ?? [];
   const pg = usePages(list.length, `${shelf}|${asked}`);
-  const play = (t: Tile) => {
+  const [open, setOpen] = useState<Tile | null>(null);
+  // Playlists and albums open like in Spotify; a song, artist or podcast plays at once.
+  const pick = (t: Tile) => (t.type === "playlist" || t.type === "album" ? setOpen(t) : play(t));
+  const [shuffle, setShuffleState] = useState(() => {
+    try {
+      return localStorage.getItem(SHUFFLE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setShuffle = (v: boolean) => {
+    setShuffleState(v);
+    try {
+      localStorage.setItem(SHUFFLE_KEY, v ? "1" : "0");
+    } catch {
+      /* private window */
+    }
+  };
+  const play = (t: Tile, start?: Track) => {
     keep();
+    // Ordning only matters for a playlist or album; a single song just plays.
+    const mix = t.type === "playlist" || t.type === "album" ? shuffle : undefined;
     if (target)
-      return actions.run(t.title, () => api.playConnect(t, target), {
+      return actions.run(start?.title ?? t.title, () => api.playConnect(start ? { ...t, uri: start.uri, type: "track", title: start.title } : t, target, start ? undefined : mix), {
         done: `${t.title} spelar i ${target}`,
         check: (d) => Boolean(d.music?.spotify?.playing && d.music.spotify.device === target),
         slow: `${t.title} är skickad till ${target} – det kan ta en stund att starta.`,
       });
-    return actions.run(t.title, () => api.playMedia(t, sp.entityId), {
-      done: `${t.title} spelar i ${sp.name}`,
+    return actions.run(start?.title ?? t.title, () => api.playMedia(t, sp.entityId, start?.uri, mix), {
+      done: `${start?.title ?? t.title} spelar i ${sp.name}`,
       check: (d) => Boolean(d.music?.speakers.find((s) => s.entityId === sp.entityId)?.playing),
       slow: `${t.title} är skickad till ${sp.name} – det kan ta en stund att starta.`,
     });
@@ -383,13 +488,15 @@ function Library({ sp, connect, actions }: { sp: Speaker; connect: string[]; act
       )}
       <nav className="seg lib-shelves" role="tablist" aria-label="Hyllor">
         {SHELF_NAMES.map((x) => (
-          <button key={x.id} className={`seg-btn ${shelf === x.id ? "on" : ""}`} role="tab" aria-selected={shelf === x.id} onClick={() => setShelf(x.id)}>
+          <button key={x.id} className={`seg-btn ${shelf === x.id ? "on" : ""}`} role="tab" aria-selected={shelf === x.id} onClick={() => (setShelf(x.id), setOpen(null))}>
             {x.name}
           </button>
         ))}
       </nav>
-      {shelf === "home" ? (
-        <LibraryHome sp={sp} play={play} />
+      {open ? (
+        <TrackList t={open} sp={sp} where={target ?? sp.name} play={play} back={() => setOpen(null)} shuffle={shuffle} setShuffle={setShuffle} />
+      ) : shelf === "home" ? (
+        <LibraryHome sp={sp} play={pick} />
       ) : (
       <div className="lib-main">
         {shelf === "search" && (
@@ -400,7 +507,7 @@ function Library({ sp, connect, actions }: { sp: Speaker; connect: string[]; act
         {tiles && list.length === 0 && !error && <p className="muted">{empty}</p>}
         <div className="cover-grid" ref={pg.box}>
           {list.slice(pg.from, pg.to).map((t) => (
-            <Cover key={t.uri} t={t} sp={sp} play={play} />
+            <Cover key={t.uri} t={t} sp={sp} play={pick} />
           ))}
         </div>
         <Pager pg={pg} hint={`Spelar i ${target ?? sp.name}`} />
@@ -410,9 +517,68 @@ function Library({ sp, connect, actions }: { sp: Speaker; connect: string[]; act
   );
 }
 
+/** A playlist or album opened like in Spotify: cover, Spela and every track – a tap starts from that song. */
+const SHUFFLE_KEY = "familjetavla.blanda";
+
+function TrackList({ t, sp, where, play, back, shuffle, setShuffle }: { t: Tile; sp: Speaker; where: string; play: (t: Tile, start?: Track) => unknown; back: () => void; shuffle: boolean; setShuffle: (v: boolean) => void }) {
+  const [tracks, setTracks] = useState<Track[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    api.musicItems(t.uri).then(
+      (r) => live && setTracks(r.tracks),
+      (e: Error) => live && setError(e.message),
+    );
+    return () => {
+      live = false;
+    };
+  }, [t.uri]);
+  const list = tracks ?? [];
+  const pg = usePages(list.length, t.uri);
+  return (
+    <div className="lib-main track-view">
+      <div className="track-head">
+        <button className="btn small" onClick={back} aria-label="Tillbaka till biblioteket">
+          ‹
+        </button>
+        <span className="cover-img track-cover">{t.image ? <img src={t.image} alt="" /> : <Icon name="music" size={28} />}</span>
+        <span className="track-meta">
+          <b>{t.title}</b>
+          <small className="muted">{[t.subtitle, tracks ? `${tracks.length} låtar` : ""].filter(Boolean).join(" · ")}</small>
+        </span>
+        <button className="btn primary play-all" disabled={sp.offline} onClick={() => void play(t)} aria-label={`Spela ${t.title} i ${where}${shuffle ? ", blandat" : ""}`}>
+          <Icon name="play" size={20} /> Spela
+        </button>
+      </div>
+      <div className="seg small track-order" role="radiogroup" aria-label="Ordning">
+        <button className={`seg-btn ${!shuffle ? "on" : ""}`} role="radio" aria-checked={!shuffle} onClick={() => setShuffle(false)}>
+          I ordning
+        </button>
+        <button className={`seg-btn ${shuffle ? "on" : ""}`} role="radio" aria-checked={shuffle} onClick={() => setShuffle(true)}>
+          Blandat
+        </button>
+      </div>
+      {error && <p className="error-text">{error}</p>}
+      {!tracks && !error && <p className="muted">Hämtar låtarna …</p>}
+      <div className="track-list" ref={pg.box}>
+        {list.slice(pg.from, pg.to).map((x, i) => (
+          <button key={`${x.uri}${i}`} className="track-row" disabled={sp.offline} onClick={() => void play(t, x)} aria-label={`Spela ${x.title}${x.artist ? ` med ${x.artist}` : ""} i ${where}`}>
+            <span className="track-thumb">{x.image ? <img src={x.image} alt="" loading="lazy" /> : <span className="muted">{pg.from + i + 1}</span>}</span>
+            <span className="track-text">
+              <span className="cover-title">{x.title}</span>
+              {x.artist && <span className="cover-sub">{x.artist}</span>}
+            </span>
+          </button>
+        ))}
+      </div>
+      <Pager pg={pg} hint={`Spelar i ${where}`} />
+    </div>
+  );
+}
+
 function Cover({ t, sp, play }: { t: Tile; sp: Speaker; play: (t: Tile) => unknown }) {
   return (
-    <button className="cover" disabled={sp.offline} onClick={() => void play(t)} aria-label={`Spela ${t.title}${t.subtitle ? ` – ${t.subtitle}` : ""} i ${sp.name}`}>
+    <button className="cover" disabled={sp.offline} onClick={() => void play(t)} aria-label={`${t.type === "playlist" || t.type === "album" ? "Öppna" : "Spela"} ${t.title}${t.subtitle ? ` – ${t.subtitle}` : ""}`}>
       <span className="cover-img">
         {t.image ? <img src={t.image} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : null}
         <Icon name={t.type === "podcast" ? "speaker" : "music"} size={28} />
@@ -463,7 +629,7 @@ function LibraryHome({ sp, play }: { sp: Speaker; play: (t: Tile) => unknown }) 
           <h3 className="lib-h">Senast spelat</h3>
           <div className="chip-grid">
             {recent.slice(0, 6).map((t) => (
-              <button key={t.uri} className="cover-chip" disabled={sp.offline} onClick={() => void play(t)} aria-label={`Spela ${t.title} i ${sp.name}`}>
+              <button key={t.uri} className="cover-chip" disabled={sp.offline} onClick={() => void play(t)} aria-label={`${t.type === "playlist" || t.type === "album" ? "Öppna" : "Spela"} ${t.title}`}>
                 <span className="cover-img">
                   {t.image ? <img src={t.image} alt="" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} /> : null}
                   <Icon name="music" size={20} />

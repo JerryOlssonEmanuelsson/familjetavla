@@ -143,6 +143,17 @@ const todayKey = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+const PICTURE = /\.(jpe?g|png|gif|webp|heic|svg)$/i;
+/** A picture is shown in the news; a PDF, a document or a web link is a button to open it. */
+const isPicture = (f: { name: string; url: string }) => PICTURE.test(f.name.trim()) || /^bild$/i.test(f.name.trim()) || f.url.startsWith("data:image/") || PICTURE.test(safeDecode(f.url).split(/[?#]/)[0]!);
+const safeDecode = (u: string) => {
+  try {
+    return decodeURIComponent(u);
+  } catch {
+    return u;
+  }
+};
+
 /** A news item from the school: all the text, pictures shown right in the sheet, and "Lägg i veckan". */
 export function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; actions: Actions; onClose: () => void }) {
   const [adding, setAdding] = useState(false);
@@ -184,9 +195,10 @@ export function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashbo
         </div>
         {n.text ? <div className="news-text">{n.text}</div> : <p className="muted">Ingen text – se bilagan.</p>}
         {n.files.map((f) =>
-          broken.includes(f.url) ? (
+          // PDFs, documents and web links are buttons; pictures show right here.
+          broken.includes(f.url) || !isPicture(f) ? (
             <a key={f.url} className="btn" href={f.url} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start" }}>
-              <Icon name="event" size={18} /> Öppna {f.name}
+              <Icon name={/\.pdf$/i.test(f.name) ? "event" : "link"} size={18} /> Öppna {f.name}
             </a>
           ) : (
             <a key={f.url} href={f.url} target="_blank" rel="noreferrer" className="news-image">

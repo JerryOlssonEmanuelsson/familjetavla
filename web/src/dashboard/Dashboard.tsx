@@ -645,6 +645,7 @@ function EventSheet({
               <Icon name="trashSmall" size={18} /> Ta bort från veckan
             </button>
           )}
+          {e.cancelKey && <CancelEvent e={e} onDone={async () => (await onChanged(), onClose())} />}
         </div>
         {care && t?.calendarId && <ShelfPicker data={data} personId={t.calendarId.slice(5)} onChanged={onChanged} />}
         {t && (
@@ -664,6 +665,45 @@ function EventSheet({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** "Utgår": the training is cancelled, the meeting moved – gone from the board, the calendar itself untouched. */
+function CancelEvent({ e, onDone }: { e: DashEvent; onDone: () => Promise<unknown> }) {
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!ask)
+    return (
+      <button className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setAsk(true)}>
+        <Icon name="x" size={18} /> Utgår
+      </button>
+    );
+  return (
+    <div className="cancel-ask">
+      <span>
+        <b>{e.title}</b> tas bort från tavlan och påminnelserna. Kalendern ändras inte.
+      </span>
+      <div className="row gap">
+        <button
+          className="btn small primary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await api.cancelEvent(e.cancelKey!, true);
+              await onDone();
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Ja, utgår
+        </button>
+        <button className="btn small ghost" onClick={() => setAsk(false)}>
+          Avbryt
+        </button>
       </div>
     </div>
   );
