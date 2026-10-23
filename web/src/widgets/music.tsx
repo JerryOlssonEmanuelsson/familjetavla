@@ -126,7 +126,7 @@ function MusicCard({ m, actions }: { m: MusicData; actions: Actions }) {
       </div>
       <NowPlaying sp={sp} actions={actions} showName={false} />
       {m.stations.length > 0 ? (
-        <div className="grid-2" style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+        <div className="grid-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 160px), 1fr))" }}>
           {m.stations.map((s) => (
             <StationButton key={s.index} name={s.name} logo={s.logo} on={sp.playing && sp.station === s.index} disabled={sp.offline} onPlay={() => void c.playFav(s.index, s.name)} />
           ))}

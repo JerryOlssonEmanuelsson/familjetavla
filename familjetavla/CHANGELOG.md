@@ -1,5 +1,16 @@
 # Ändringar
 
+## 0.12.0
+
+- **Fliken Säkerhet** – kameror, lås, larm, garageport/grind och dörrar/fönster, från vilket märke som helst i Home Assistant (Verisure, Yale, Nuki, Reolink, UniFi, Ring, Somfy …). Kamerorna visar en stillbild som uppdateras; tryck för stor bild. Låsa går alltid – **låsa upp från tavlan är avstängt** tills familjen slår på det, och då frågar tavlan först (och efter koden om låset vill ha en). Larmet visar de lägen panelen har.
+- **Fliken Hushåll** – tvättmaskin, torktumlare, diskmaskin och ugn med tid kvar och när de är klara (Miele, Bosch/Siemens, Electrolux, Samsung, LG … eller en vanlig maskin bakom en smart kontakt), och robotdammsugare och robotgräsklippare med Städa/Klipp, Paus och Åk hem.
+- **Notiser från hemmet** till den som är hemma: "Tvätten är klar", "Dammsugaren har fastnat", "Ytterdörren är olåst" kl 22, "Garageporten har stått öppen i en halvtimme" – och larmet till alla. Valbart per vuxen under Påminnelser.
+- **Flikarna syns bara om man väljer dem.** "Hämta från Home Assistant" hittar kameror, lås, maskiner och robotar men kryssar inget i.
+- **Spotify Connect:** Spotify-vyn kan också spela på soundbaren, Sonos, tv:n och andra enheter som ert Spotify-konto ser.
+- **Väcker högtalaren:** en högtalare eller soundbar som står av slås på innan musiken startar.
+- **Mobil:** med många flikar ligger de sista under **Mer**. Sidrubriker får plats mellan Tillbaka och Hem.
+- **Spegelskärm:** tavlan provas nu även på en stående Full HD-skärm (MagicMirror-stil) innan varje släpp.
+
 ## 0.11.0
 
 - **Spotify på tavlan, som i bilen.** Fliken Musik har nu **Radio** och **Spotify**. Spotify visar Hem (det ni spelat senast och era spellistor som omslag), Spellistor, Album, Poddar och Sök. Ett tryck spelar i vald högtalare – Google/Nest, Sonos, AirPlay, Echo … Plattor bläddrar med ‹ › och rullar aldrig.

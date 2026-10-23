@@ -21,6 +21,8 @@ const LIST = [
   ["iPhone", "iPhone 15 Pro", false],
   ["iPhone SE", "iPhone SE (3rd gen)", false],
   ["iPhone liggande", "iPhone 15 Pro landscape", false],
+  // A MagicMirror-style screen behind glass: Full HD on its side, no touch.
+  ["Spegel 1080×1920", { viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false, userAgent: "Mozilla/5.0 (X11; Linux aarch64) Chrome/130 Safari/537.36" }, true],
 ];
 // PART=1/3 runs every third device (for running in parallel).
 const [partNo, parts] = (process.env.PART ?? "1/1").split("/").map(Number);
@@ -40,7 +42,7 @@ const line = (row) => {
 for (const [theme, clock] of [["ljust", "2026-10-18T16:00:00+02:00"], ["mörkt", "2026-10-18T20:30:00+02:00"]])
 for (const [name0, dev, tablet] of DEVICES) {
   const name = `${name0} ${theme}`;
-  const d = devices[dev];
+  const d = typeof dev === "string" ? devices[dev] : dev;
   // A fresh browser per device keeps memory in check over 300 views.
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   const ctx = await b.newContext({ ...d, locale: "sv-SE", timezoneId: "Europe/Stockholm" });
