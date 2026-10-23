@@ -1,3 +1,4 @@
+import { alertReceivers, homeAlerts, newHomeMemory } from "./homealerts.js";
 import type { FastifyBaseLogger } from "fastify";
 import { ha, haConnection } from "./connectors/ha.js";
 import { buildDashboard, gatherFamily } from "./dashboard.js";
@@ -148,6 +149,7 @@ export function startNotifier(log: FastifyBaseLogger) {
     }
   });
   let lastMinute = "";
+  const homeMem = newHomeMemory();
   const tick = async () => {
     const now = new Date();
     const minute = `${now.toDateString()} ${hhmm(now)}`;
@@ -181,6 +183,18 @@ export function startNotifier(log: FastifyBaseLogger) {
         if (sent.has(m.key)) continue;
         sent.add(m.key);
         await ha.service(conn, "notify", m.service, { title: m.title, message: m.message, ...(m.actions ? { data: { actions: m.actions } } : {}) }).catch((e) => log.warn(`Notis till ${m.service} misslyckades: ${(e as Error).message}`));
+      }
+      // Hemmet: machines, robots, doors, garage, alarm – to the adults at home.
+      const sec = cfg.entities.security;
+      if ((cfg.entities.appliances ?? []).length || (cfg.entities.robots ?? []).length || sec) {
+        const states = new Map((await ha.states(conn)).map((s) => [s.entity_id, s]));
+        for (const alert of homeAlerts(cfg, states, homeMem, now)) {
+          if (sent.has(alert.key)) continue;
+          sent.add(alert.key);
+          for (const a of alertReceivers(adults, states, alert.to)) {
+            await ha.service(conn, "notify", a.notify!.service!, { title: alert.title, message: alert.message }).catch((e) => log.warn(`Notis till ${a.notify!.service} misslyckades: ${(e as Error).message}`));
+          }
+        }
       }
       if (sent.size > 2000) sent.clear();
     } catch (e) {

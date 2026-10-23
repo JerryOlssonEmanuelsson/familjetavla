@@ -56,6 +56,8 @@ export interface NotifySettings {
   morning?: string;
   /** Söndag kl 19: "Planera veckan" om något saknar ansvarig. */
   weekly?: boolean;
+  /** Hemmet: tvätten klar, roboten har fastnat, dörren olåst kl 22, porten öppen, larmet. Saknas = på. */
+  home?: boolean;
 }
 
 export interface CareSchedule {

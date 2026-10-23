@@ -125,6 +125,8 @@ export async function playOn(conn: HaConn, states: Map<string, HaState>, speaker
   const names = new Map([...states.values()].map((x) => [x.entity_id, String((x.attributes as { friendly_name?: string }).friendly_name ?? "")]));
   const player = playerFor(s, speaker, names);
   if (!player) throw new Error(`Music Assistant känner inte igen ${speaker.name}. Lägg till högtalaren i Music Assistant, eller välj dess Music Assistant-spelare under Huset → Musik.`);
+  // A soundbar or speaker in standby: wake it first (any brand that Home Assistant can turn on).
+  if (states.get(player)?.state === "off") await ha.service(conn, "media_player", "turn_on", { entity_id: player }).catch(() => undefined);
   await ha.service(conn, "music_assistant", "play_media", { entity_id: player, media_id: tile.uri, media_type: tile.type, enqueue: "replace" });
   return player;
 }

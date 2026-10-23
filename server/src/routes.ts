@@ -138,6 +138,7 @@ const personSchema = z.object({
       before: z.number().int().min(0).max(240).optional(),
       evening: z.boolean().optional(),
       weekly: z.boolean().optional(),
+      home: z.boolean().optional(),
       morning: z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/)]).optional(),
       children: z.array(z.string().regex(ID)).max(20).optional(),
     })
@@ -745,6 +746,11 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // ---------- Musik ----------
   /** Only speakers on the board can be played on. */
+  /** A speaker or soundbar in standby is turned on before it is asked to play. */
+  const wake = async (conn: NonNullable<ReturnType<typeof haConnection>>, id: string) => {
+    const st = await ha.state(conn, id).catch(() => undefined);
+    if (st?.state === "off") await ha.service(conn, "media_player", "turn_on", { entity_id: id }).catch(() => undefined);
+  };
   const speakerOf = (id: unknown) => (typeof id === "string" ? (loadConfig().entities.speakers ?? []).find((x) => x.entityId === id) : undefined);
 
   app.post("/api/music/play", async (req, reply) => {
@@ -753,6 +759,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!body.success || !station || !speakerOf(body.data.speaker)) return fail(reply, new Error("Okänd kanal eller högtalare"));
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    await wake(conn, body.data.speaker);
     const c = playCall(body.data.speaker, station);
     try {
       await ha.service(conn, c.domain, c.service, c.data);
@@ -804,6 +811,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!station) return fail(reply, new Error("Kanalen finns inte i katalogen längre"));
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    await wake(conn, body.data.speaker);
     const c = playCall(body.data.speaker, station);
     try {
       await ha.service(conn, c.domain, c.service, c.data);

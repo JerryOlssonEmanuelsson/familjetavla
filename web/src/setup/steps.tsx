@@ -2002,6 +2002,14 @@ export function NotifyStep({ cfg, set, resp }: StepProps) {
                 )}
                 <Toggle label="Kvällen innan kl 20 – vad jag ansvarar för imorgon" checked={n.evening ?? true} onChange={(v) => setNotify(a.id, { evening: v })} />
                 <Toggle label="Söndag kl 19 – Planera veckan om något saknar ansvarig" checked={n.weekly ?? true} onChange={(v) => setNotify(a.id, { weekly: v })} />
+                {(cfg.entities.security || (cfg.entities.appliances ?? []).length > 0 || (cfg.entities.robots ?? []).length > 0) && (
+                  <Toggle
+                    label="Hemmet – tvätten klar, roboten har fastnat, dörren olåst kl 22, porten öppen, larmet"
+                    checked={n.home ?? true}
+                    onChange={(v) => setNotify(a.id, { home: v })}
+                    help="Går till den som är hemma (enligt Home Assistants personer), annars till alla. Larmet går alltid till alla."
+                  />
+                )}
               </>
             )}
             <details>
