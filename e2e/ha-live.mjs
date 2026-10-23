@@ -120,6 +120,29 @@ await check("Spotify (läser bara)", async () => {
   return out.join(" || ");
 });
 
+await check("Spotcast (läser bara)", async () => {
+  // Which Spotcast this is (services and their fields), and what its websocket lists – nothing is played.
+  const svc = (await ha.services(conn)).find((d) => d.domain === "spotcast");
+  if (!svc) return "inte installerat";
+  const services = Object.entries(svc.services).map(([n, v]) => `${n}(${Object.keys(v.fields ?? {}).join(",")})`);
+  const out = [`tjänster: ${services.join("; ")}`];
+  const tryWs = async (label, msg) => {
+    const r = await sock.call(msg, 20_000).catch((e) => ({ error: e.message }));
+    if (r?.error) return out.push(`${label}: fel ${r.error}`);
+    const items = r?.items ?? r?.playlists ?? r?.accounts ?? r?.devices ?? r?.categories ?? (Array.isArray(r) ? r : null);
+    const keys = r && typeof r === "object" && !Array.isArray(r) ? Object.keys(r).join(",") : "lista";
+    const first = items?.[0] ?? null;
+    out.push(`${label}: nycklar ${keys}; ${items ? `${items.length} st` : "-"}${first ? `; första har ${Object.keys(first).join(",")}` : ""}${items ? `; namn: ${items.slice(0, 8).map((x) => x.name ?? x.title ?? x.id).join(", ")}` : ""}`);
+  };
+  await tryWs("accounts", { type: "spotcast/accounts" });
+  await tryWs("playlists user", { type: "spotcast/playlists", playlist_type: "user", limit: 20 });
+  await tryWs("playlists (v5)", { type: "spotcast/playlists", category: "user", limit: 20 });
+  await tryWs("categories", { type: "spotcast/categories", limit: 10 });
+  await tryWs("devices", { type: "spotcast/devices" });
+  await tryWs("view", { type: "spotcast/view", url: "views/made-for-x", limit: 10 });
+  return out.join(" || ");
+});
+
 await check("Music Assistant (läser bara)", async () => {
   const players = states.filter((s) => s.entity_id.startsWith("media_player.") && s.attributes.mass_player_type !== undefined);
   if (!players.length) return "inte installerat (inga Music Assistant-spelare)";
