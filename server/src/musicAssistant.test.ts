@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isMaPlayer, playerFor, toTile } from "./musicAssistant.js";
 
 describe("Music Assistant", () => {
-  it("turns library items into covers, https images only", () => {
+  it("turns library items into covers, web images only", () => {
     expect(toTile({ uri: "spotify://playlist/abc", name: "Fredagsmys", media_type: "playlist", image: "https://i.scdn.co/x.jpg" })).toEqual({
       uri: "spotify://playlist/abc",
       type: "playlist",
@@ -10,7 +10,8 @@ describe("Music Assistant", () => {
       subtitle: undefined,
       image: "https://i.scdn.co/x.jpg",
     });
-    expect(toTile({ uri: "spotify://album/1", name: "Hello", media_type: "album", artists: [{ name: "Laleh" }], image: "http://x/y.jpg" })).toMatchObject({ subtitle: "Laleh", image: undefined });
+    expect(toTile({ uri: "spotify://album/1", name: "Hello", media_type: "album", artists: [{ name: "Laleh" }], image: "http://ma.local:8095/imageproxy?x=1" })).toMatchObject({ subtitle: "Laleh", image: "http://ma.local:8095/imageproxy?x=1" });
+    expect(toTile({ uri: "spotify://album/2", name: "x", media_type: "album", image: "file:///etc/passwd" })).toMatchObject({ image: undefined });
     expect(toTile({ uri: "javascript:alert(1)", name: "x", media_type: "track" })).toBeNull();
     expect(toTile({ uri: "spotify://x/1", name: "x", media_type: "folder" })).toBeNull();
   });
@@ -34,5 +35,19 @@ describe("Music Assistant", () => {
     expect(playerFor(setup, { entityId: "media_player.sonos", name: "Vardagsrum" }, names)).toBe("media_player.vardagsrum_ma");
     expect(playerFor(setup, { entityId: "media_player.kok_ma", name: "x" }, names)).toBe("media_player.kok_ma");
     expect(playerFor(setup, { entityId: "media_player.hall", name: "Hall" }, names)).toBeUndefined();
+  });
+});
+
+describe("tracks in a playlist", () => {
+  it("splits Music Assistant's 'Artist - Title' and keeps the cover", async () => {
+    const { toTrack } = await import("./musicAssistant.js");
+    expect(toTrack({ title: "Morgan Wallen - Last Thing You Need", media_content_id: "spotify://track/abc", thumbnail: "https://i.scdn.co/a.jpg" })).toEqual({
+      uri: "spotify://track/abc",
+      title: "Last Thing You Need",
+      artist: "Morgan Wallen",
+      image: "https://i.scdn.co/a.jpg",
+    });
+    expect(toTrack({ title: "Intro", media_content_id: "library://track/1" })).toMatchObject({ title: "Intro", artist: undefined });
+    expect(toTrack({ title: "x", media_content_id: "javascript:alert(1)" })).toBeNull();
   });
 });

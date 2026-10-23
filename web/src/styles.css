@@ -2512,6 +2512,20 @@ marker.pf-buy path {
   font-size: 28px;
   margin: 0;
   text-align: center;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Phones: room for "Säkerhet" and "Veckans mat" between Tillbaka and Hem. */
+@media (max-width: 480px) {
+  .page-bar h1 {
+    font-size: 22px;
+  }
+  .page-bar .btn {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
 }
 .page-bar .btn {
   min-height: 48px;
@@ -3593,4 +3607,313 @@ marker.pf-buy path {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: all;
+}
+
+/* ---------- Säkerhet och Städ ---------- */
+.ok-text {
+  color: var(--accent);
+}
+.warn-text {
+  color: var(--amber);
+}
+.camera-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+}
+.camera-grid.one {
+  grid-template-columns: 1fr;
+}
+.camera {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.camera-img {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+}
+.camera.big .camera-img {
+  max-height: calc(100vh - 330px);
+}
+.camera-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera.big .camera-img img {
+  object-fit: contain;
+}
+.camera-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sec-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+}
+.sec-name {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.code-field {
+  width: 110px;
+  min-height: 44px;
+}
+.card.alarm h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card.alarm.armed {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.card.alarm.triggered,
+.card.robot.error {
+  box-shadow: inset 0 0 0 2px var(--danger);
+}
+.card.alarm .code-field {
+  margin-bottom: 10px;
+}
+.machine-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--control);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.machine-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.more-tabs {
+  display: grid;
+  gap: 10px;
+  max-width: 460px;
+  width: 100%;
+}
+.more-tabs .big-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 64px;
+}
+/* Säkerhet: the cameras side by side across the page, small enough that the rest fits. */
+.page-grid > .cameras-card {
+  grid-column: 1 / -1;
+}
+.cameras-card .camera-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+}
+.cameras-card .camera-grid.one {
+  grid-template-columns: 1fr;
+}
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  .cameras-card .camera:not(.big) .camera-img {
+    max-height: 22vh;
+    aspect-ratio: auto;
+    height: 22vh;
+  }
+  .camera.big .camera-img {
+    max-height: calc(100vh - 420px);
+  }
+}
+.day-span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+.day-span > div {
+  display: flex;
+  flex-direction: column;
+}
+.day-span b {
+  font-size: 32px;
+  font-variant-numeric: tabular-nums;
+}
+/* A reminder you can open (school news): the whole row is the button. */
+.reminder.reminder-link {
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.reminder.reminder-link > div:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+/* A playlist opened like in Spotify: cover and Spela on top, the songs below. */
+.track-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.track-cover {
+  flex: none;
+  width: 72px;
+  height: 72px;
+}
+.track-meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.track-meta b {
+  font-size: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.play-all {
+  flex: none;
+}
+.track-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 6px 14px;
+  align-content: start;
+}
+.track-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 4px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.track-row:active {
+  background: var(--control);
+}
+.track-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--control);
+}
+.track-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.track-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+/* Tablets: at most a screenful of songs, then ‹ › – a short playlist takes only the room it needs. */
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  .track-list {
+    max-height: max(150px, calc(100vh - 860px));
+    overflow: hidden;
+  }
+}
+@media (min-width: 1000px) and (min-height: 600px) {
+  .track-list {
+    max-height: max(150px, calc(100vh - 560px));
+  }
+}
+.track-order {
+  margin-bottom: 10px;
+}
+.more-stations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+/* Volume by dragging on what is playing: no page scroll starts there. */
+.music-now.can-drag {
+  touch-action: none;
+  cursor: ns-resize;
+  user-select: none;
+}
+.drag-hint {
+  font-size: 12px;
+}
+/* Volume while dragging, like a video player: a bar in the middle of the screen. */
+.vol-overlay {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 26px;
+  border-radius: 22px;
+  background: rgba(10, 12, 24, 0.72);
+  color: #fff;
+  font-weight: 650;
+  pointer-events: none;
+}
+.vol-pct {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.vol-bar {
+  position: relative;
+  width: 10px;
+  height: 160px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+.vol-bar > span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+}
+@media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
+  .music-tab.vol-drag,
+  .music-card.vol-drag {
+    touch-action: none;
+  }
+}
+.cancel-ask {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--amber-soft);
 }

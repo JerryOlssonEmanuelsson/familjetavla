@@ -40,6 +40,10 @@ const wait = <T>(v: T, ms = 180) => new Promise<T>((r) => setTimeout(() => r(str
 const d = fx.dashboard;
 // "?tema=eink" shows the demo as on an e-ink screen.
 const forcedTheme = typeof location !== "undefined" ? new URLSearchParams(location.search).get("tema") : null;
+// Calendar events in the demo can be struck ("Utgår") like real ones.
+for (const [di, day] of (d.days ?? []).entries()) for (const [ei, ev] of day.events.entries()) if (!ev.ownId && !ev.cancelKey) ev.cancelKey = `demo:${di}:${ei}`;
+// ?lektioner=tider shows Skolan with only when the school day starts and ends.
+if (typeof location !== "undefined" && new URLSearchParams(location.search).get("lektioner") === "tider") d.lessonView = "span";
 // ?utan-ma shows the Musik tab of a home without Music Assistant (the device check uses it).
 if (typeof location !== "undefined" && new URLSearchParams(location.search).has("utan-ma") && d.music) d.music.assistant = false;
 if (forcedTheme === "eink" || forcedTheme === "light" || forcedTheme === "dark") d.theme = forcedTheme;
@@ -280,7 +284,7 @@ d.schoolNews = [
     seen: true,
   },
 ];
-d.reminders.unshift({ icon: "school", title: "Från skolan: Höstlov på biblioteket", sub: "Ella · läs på Skolan", tone: "blue" });
+d.reminders.unshift({ icon: "school", title: "Från skolan: Höstlov på biblioteket", sub: "Ella · tryck för att läsa", tone: "blue", newsId: "n1" });
 d.reminders = d.reminders.slice(0, 5);
 
 const demoCal = (title: string) => (title.startsWith("F14") ? { id: "ella-sport", name: "Fotboll F14" } : { id: "leo-sim", name: "Simning" });
@@ -649,6 +653,29 @@ export const demoApi = {
     fx.config.config.dashboard.home = d.home;
     return wait({});
   },
+  cameraUrl: (entityId: string, _t: number) => demoCamera(entityId),
+  lock: (entityId: string, op: "lock" | "unlock" | "open", _code?: string) => {
+    const l = d.security?.locks.find((x) => x.entityId === entityId);
+    if (l) l.state = op === "lock" ? "locked" : "unlocked";
+    return wait({});
+  },
+  alarm: (entityId: string, mode: "home" | "away" | "night" | "vacation" | "off", _code?: string) => {
+    const a = d.security?.alarms.find((x) => x.entityId === entityId);
+    const names = { home: "På – hemma", away: "På – borta", night: "På – natt", vacation: "På – semester", off: "Av" };
+    if (a) Object.assign(a, { state: mode === "off" ? "disarmed" : `armed_${mode}`, armed: mode !== "off", label: names[mode] });
+    return wait({});
+  },
+  cover: (entityId: string, op: "open" | "close" | "stop") => {
+    const c = d.security?.covers.find((x) => x.entityId === entityId);
+    if (c && op !== "stop") Object.assign(c, { state: op === "open" ? "open" : "closed", open: op === "open", label: op === "open" ? "Öppen" : "Stängd" });
+    return wait({});
+  },
+  robot: (entityId: string, op: "start" | "pause" | "dock") => {
+    const r = d.robots?.find((x) => x.entityId === entityId);
+    const mower = r?.kind === "mower";
+    if (r) Object.assign(r, op === "start" ? { state: mower ? "mowing" : "cleaning", label: mower ? "Klipper" : "Städar", busy: true, error: false } : op === "pause" ? { state: "paused", label: "Pausad", busy: false } : { state: "returning", label: "Åker hem", busy: true, error: false });
+    return wait({});
+  },
   lightsOff: () => {
     for (const l of d.lights) l.on = false;
     recountGroups();
@@ -665,7 +692,19 @@ export const demoApi = {
   spotify: (_op: "playpause" | "next") => wait({}),
   musicLibrary: (shelf: Shelf) => wait({ tiles: demoTiles(shelf) }),
   musicSearch: (q: string) => wait({ tiles: demoTiles("playlists").filter((t) => t.title.toLowerCase().includes(q.toLowerCase())) }),
-  playMedia: (t: Tile, speaker: string) => {
+  cancelEvent: (key: string, on: boolean) => {
+    if (on) for (const day of d.days ?? []) day.events = day.events.filter((x) => x.cancelKey !== key);
+    return wait({});
+  },
+  musicItems: (uri: string) => {
+    const songs: [string, string][] = [["Mamma Mu", "Barnens favoriter"], ["Idas sommarvisa", "Astrid Lindgren"], ["Här kommer Pippi Långstrump", "Astrid Lindgren"], ["Små grodorna", "Trazan & Banarne"], ["Bä bä vita lamm", "Barnkören"], ["Imse vimse spindel", "Barnkören"], ["Björnen sover", "Barnkören"], ["Lilla snigel", "Barnkören"], ["Fem små apor", "Trazan & Banarne"], ["Vi är vänner", "Barnens favoriter"], ["Sov du lilla videung", "Astrid Lindgren"], ["Gubben Noak", "Barnkören"], ["Huvud, axlar, knä och tå", "Barnkören"], ["Ekorrn satt i granen", "Barnkören"]];
+    return wait({ title: "", tracks: songs.map(([title, artist], i) => ({ uri: `${uri}/track/${i}`, title, artist, image: cover(title, i + 3) })) });
+  },
+  playConnect: (t: Tile, device: string) => {
+    if (d.music?.spotify) Object.assign(d.music.spotify, { playing: true, title: t.title, device });
+    return wait({});
+  },
+  playMedia: (t: Tile, speaker: string, _start?: string) => {
     const sp = d.music?.speakers.find((x) => x.entityId === speaker);
     if (sp) Object.assign(sp, { playing: true, station: undefined, title: t.title, playingUrl: undefined });
     return wait({});
@@ -776,4 +815,11 @@ const DEMO_LIBRARY: Record<Shelf, [string, string?][]> = {
 function demoTiles(shelf: Shelf): Tile[] {
   const type = shelf === "albums" ? "album" : shelf === "podcasts" ? "podcast" : "playlist";
   return DEMO_LIBRARY[shelf].map(([title, subtitle], i) => ({ uri: `demo://${type}/${i}`, type, title, subtitle, image: cover(title, i) }));
+}
+
+/** Made-up camera pictures for the demo: a sky, a lawn and a house outline – no real camera. */
+function demoCamera(entityId: string) {
+  const hue = entityId.length * 37 % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${hue},45%,70%)"/><stop offset="1" stop-color="hsl(${hue},35%,88%)"/></linearGradient></defs><rect width="320" height="180" fill="url(#s)"/><rect y="120" width="320" height="60" fill="#5c8a4a"/><path d="M110 120V80l50-35 50 35v40z" fill="#c9b79c"/><rect x="148" y="92" width="24" height="28" fill="#6b4f3a"/><text x="8" y="16" font-family="monospace" font-size="11" fill="#fff">${new Date().toLocaleTimeString("sv-SE")}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }

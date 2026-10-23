@@ -1,3 +1,4 @@
+import { secureUrl } from "./https.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
@@ -27,9 +28,11 @@ import {
   loadConfig,
   loadDevices,
   saveDevices,
+  loadLocal,
   loadLocalList,
   photoPath,
   saveConfig,
+  saveLocal,
   saveLocalList,
   savePhoto,
   setSecret,
@@ -39,8 +42,9 @@ import { addDays, dayKey, hhmm, shortDate, shortWeekday, startOfDay } from "./ti
 import { setSick } from "./sick.js";
 import { makeBackup, restoreBackup } from "./backup.js";
 import { follows } from "./notify.js";
-import { findStations, playCall, spotifyPlayer, swedishStations } from "./music.js";
-import { MEDIA_TYPES, SHELVES, type Shelf, library as maLibrary, playOn as maPlayOn, search as maSearch } from "./musicAssistant.js";
+import { findStations, playCall, spotifyPlayer, spotifyUri, swedishStations } from "./music.js";
+import { alarmCall, robotCall } from "./security.js";
+import { MEDIA_TYPES, SHELVES, type Shelf, library as maLibrary, playOn as maPlayOn, search as maSearch, tracksOf as maTracks } from "./musicAssistant.js";
 import { HOME_WIDGETS, TAB_IDS, type Config, type ConfigResponse, type Integration, type IntegrationCategory, type Schedule, type SecretKey } from "./types.js";
 
 export { VERSION } from "./version.js";
@@ -137,6 +141,7 @@ const personSchema = z.object({
       before: z.number().int().min(0).max(240).optional(),
       evening: z.boolean().optional(),
       weekly: z.boolean().optional(),
+      home: z.boolean().optional(),
       morning: z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/)]).optional(),
       children: z.array(z.string().regex(ID)).max(20).optional(),
     })
@@ -262,16 +267,44 @@ export const configSchema = z
         .array(z.object({ name: label(40), url: z.string().url().max(500).regex(/^https?:\/\//), logo: z.string().url().max(500).regex(/^https:\/\//).optional() }))
         .max(16)
         .optional(),
+      security: z
+        .object({
+          cameras: z.array(z.object({ name: label(40), entityId: entity.regex(/^camera\./) })).max(16),
+          locks: z.array(z.object({ name: label(40), entityId: entity.regex(/^lock\./) })).max(12),
+          alarms: z.array(z.object({ name: label(40), entityId: entity.regex(/^alarm_control_panel\./) })).max(4),
+          covers: z.array(z.object({ name: label(40), entityId: entity.regex(/^cover\./) })).max(8),
+          openings: z.array(z.object({ name: label(40), entityId: entity.regex(/^binary_sensor\./) })).max(40),
+          allowUnlock: z.boolean().optional(),
+        })
+        .optional(),
+      robots: z
+        .array(z.object({ name: label(40), entityId: entity.regex(/^(vacuum|lawn_mower)\./), battery: entity.regex(/^sensor\./).optional() }))
+        .max(8)
+        .optional(),
+      appliances: z
+        .array(
+          z.object({
+            name: label(40),
+            kind: z.enum(["washer", "dryer", "dishwasher", "oven", "other"]),
+            status: entity.optional(),
+            remaining: entity.optional(),
+            progress: entity.optional(),
+            power: entity.optional(),
+          }),
+        )
+        .max(10)
+        .optional(),
     }),
     dashboard: z.object({
       accent: z.string().regex(/^#[0-9a-fA-F]{6}$/),
       theme: z.enum(["auto", "dark", "light", "eink", "mirror"]),
       home: z.array(z.object({ id: z.enum(HOME_WIDGETS), on: z.boolean(), size: z.enum(["auto", "s", "m", "l"]).optional() })).max(20),
-      tabs: z.array(z.object({ id: z.enum(TAB_IDS), on: z.boolean() })).max(10),
+      tabs: z.array(z.object({ id: z.enum(TAB_IDS), on: z.boolean() })).max(12),
       nightFrom: z.string().regex(/^\d{2}:\d{2}$/),
       nightTo: z.string().regex(/^\d{2}:\d{2}$/),
       idleMinutes: z.number().int().min(0).max(240).default(10),
       sunArc: z.boolean().optional(),
+      lessons: z.enum(["all", "span"]).optional(),
     }),
   })
   .superRefine((c, ctx) => {
@@ -310,6 +343,8 @@ const previewEvent = (e: { start: Date; allDay: boolean; title: string }) =>
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/api/health", async () => ({ ok: true, version: VERSION }));
+  // Where the board runs over https (same certificate as Home Assistant), for "Installera som app".
+  app.get("/api/secure-url", async () => ({ url: secureUrl() }));
 
   app.addHook("onRequest", async (req, reply) => {
     const path = req.url.split("?")[0];
@@ -717,6 +752,16 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // ---------- Musik ----------
   /** Only speakers on the board can be played on. */
+  /** A speaker or soundbar in standby is turned on before it is asked to play. */
+  const wake = async (conn: NonNullable<ReturnType<typeof haConnection>>, id: string) => {
+    const st = await ha.state(conn, id).catch(() => undefined);
+    if (st?.state === "off") await ha.service(conn, "media_player", "turn_on", { entity_id: id }).catch(() => undefined);
+    // The volume last chosen on the board for this speaker, so the kitchen is never suddenly too loud.
+    const last = loadLocal().volumes?.[id];
+    const now = (st?.attributes as { volume_level?: number } | undefined)?.volume_level;
+    if (typeof last === "number" && (typeof now !== "number" || Math.round(now * 100) !== last))
+      await ha.service(conn, "media_player", "volume_set", { entity_id: id, volume_level: last / 100 }).catch(() => undefined);
+  };
   const speakerOf = (id: unknown) => (typeof id === "string" ? (loadConfig().entities.speakers ?? []).find((x) => x.entityId === id) : undefined);
 
   app.post("/api/music/play", async (req, reply) => {
@@ -725,6 +770,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!body.success || !station || !speakerOf(body.data.speaker)) return fail(reply, new Error("Okänd kanal eller högtalare"));
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    await wake(conn, body.data.speaker);
     const c = playCall(body.data.speaker, station);
     try {
       await ha.service(conn, c.domain, c.service, c.data);
@@ -756,6 +802,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
     await ha.service(conn, "media_player", "volume_set", { entity_id: body.data.speaker, volume_level: body.data.pct / 100 });
+    saveLocal({ volumes: { ...loadLocal().volumes, [body.data.speaker]: body.data.pct } });
     invalidate("ha:states");
     return { ok: true };
   });
@@ -776,6 +823,7 @@ export async function registerRoutes(app: FastifyInstance) {
     if (!station) return fail(reply, new Error("Kanalen finns inte i katalogen längre"));
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    await wake(conn, body.data.speaker);
     const c = playCall(body.data.speaker, station);
     try {
       await ha.service(conn, c.domain, c.service, c.data);
@@ -843,18 +891,117 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // A playlist or album opened like in Spotify: every track.
+  app.get("/api/music/items", async (req, reply) => {
+    const q = z.object({ uri: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i) }).safeParse(req.query);
+    if (!q.success) return fail(reply, new Error("Okänd spellista"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      return await maTracks(conn, boardSpeakers(), q.data.uri);
+    } catch (e) {
+      return fail(reply, e, 502);
+    }
+  });
+
   app.post("/api/music/play-media", async (req, reply) => {
     const body = z
-      .object({ uri: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i), type: z.enum(MEDIA_TYPES), title: label(80).optional(), speaker: entity })
+      .object({ uri: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i), type: z.enum(MEDIA_TYPES), title: label(80).optional(), speaker: entity, start: z.string().max(300).regex(/^[a-z0-9_-]+:\/\/\S+$/i).optional(), shuffle: z.boolean().optional() })
       .safeParse(req.body);
     const sp = body.success ? speakerOf(body.data.speaker) : undefined;
     if (!body.success || !sp) return fail(reply, new Error("Okänd låt eller högtalare"));
     const conn = haConnection();
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
     try {
+      await wake(conn, sp.entityId);
       await maPlayOn(conn, new Map((await ha.states(conn)).map((s) => [s.entity_id, s])), sp, body.data);
     } catch (e) {
       return fail(reply, new Error(`${sp.name} kunde inte spela ${body.data.title ?? "det"}: ${(e as Error).message}`), 502);
+    }
+    invalidate("ha:states");
+    return { ok: true };
+  });
+
+  // ---------- Säkerhet och Städ ----------
+  const sec = () => loadConfig().entities.security;
+  const inList = <T extends { entityId: string }>(list: T[] | undefined, id: unknown): T | undefined => (typeof id === "string" ? list?.find((x) => x.entityId === id) : undefined);
+  const haCall = async (reply: FastifyReply, name: string, domain: string, service: string, data: Record<string, unknown>) => {
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      await ha.service(conn, domain, service, data);
+    } catch (e) {
+      return fail(reply, new Error(`${name}: ${(e as Error).message}`), 502);
+    }
+    invalidate("ha:states");
+    return { ok: true };
+  };
+
+  app.get("/api/camera/:id", async (req, reply) => {
+    const cam = inList(sec()?.cameras, (req.params as { id: string }).id);
+    if (!cam) return fail(reply, new Error("Okänd kamera"), 404);
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    try {
+      const img = await ha.cameraImage(conn, cam.entityId);
+      return reply.header("cache-control", "no-store").type(img.type.startsWith("image/") ? img.type : "image/jpeg").send(img.body);
+    } catch (e) {
+      return fail(reply, e, 502);
+    }
+  });
+
+  app.post("/api/security/lock", async (req, reply) => {
+    const body = z.object({ entityId: entity, op: z.enum(["lock", "unlock", "open"]), code: z.string().max(20).optional() }).safeParse(req.body);
+    const lock = body.success ? inList(sec()?.locks, body.data.entityId) : undefined;
+    if (!body.success || !lock) return fail(reply, new Error("Okänt lås"));
+    // Unlocking from a wall anyone can touch is off unless the family turned it on.
+    if (body.data.op !== "lock" && !sec()?.allowUnlock) return fail(reply, new Error("Upplåsning från tavlan är avstängd (Inställningar → Säkerhet)."), 403);
+    return haCall(reply, lock.name, "lock", body.data.op, { entity_id: lock.entityId, ...(body.data.code ? { code: body.data.code } : {}) });
+  });
+
+  app.post("/api/security/alarm", async (req, reply) => {
+    const body = z.object({ entityId: entity, mode: z.enum(["home", "away", "night", "vacation", "off"]), code: z.string().max(20).optional() }).safeParse(req.body);
+    const alarm = body.success ? inList(sec()?.alarms, body.data.entityId) : undefined;
+    if (!body.success || !alarm) return fail(reply, new Error("Okänt larm"));
+    const c = alarmCall(body.data.mode);
+    return haCall(reply, alarm.name, c.domain, c.service, { entity_id: alarm.entityId, ...(body.data.code ? { code: body.data.code } : {}) });
+  });
+
+  app.post("/api/security/cover", async (req, reply) => {
+    const body = z.object({ entityId: entity, op: z.enum(["open", "close", "stop"]) }).safeParse(req.body);
+    const cover = body.success ? inList(sec()?.covers, body.data.entityId) : undefined;
+    if (!body.success || !cover) return fail(reply, new Error("Okänd port"));
+    return haCall(reply, cover.name, "cover", `${body.data.op}_cover`, { entity_id: cover.entityId });
+  });
+
+  app.post("/api/robots", async (req, reply) => {
+    const body = z.object({ entityId: entity, op: z.enum(["start", "pause", "dock"]) }).safeParse(req.body);
+    const robot = body.success ? inList(loadConfig().entities.robots, body.data.entityId) : undefined;
+    if (!body.success || !robot) return fail(reply, new Error("Okänd robot"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const st = await ha.state(conn, robot.entityId).catch(() => undefined);
+    const c = robotCall(robot.entityId, body.data.op, Number(st?.attributes.supported_features ?? 0));
+    return haCall(reply, robot.name, c.domain, c.service, { entity_id: robot.entityId });
+  });
+
+  // Spotify Connect: play a cover from the library on a device the Spotify account sees (any brand).
+  app.post("/api/music/play-connect", async (req, reply) => {
+    const body = z.object({ uri: z.string().max(300), type: z.enum(MEDIA_TYPES), title: label(80).optional(), device: z.string().min(1).max(80), shuffle: z.boolean().optional() }).safeParse(req.body);
+    const uri = body.success ? spotifyUri(body.data.uri) : undefined;
+    if (!body.success || !uri) return fail(reply, new Error("Bara Spotify kan spelas på en Spotify Connect-enhet"));
+    const conn = haConnection();
+    if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
+    const player = spotifyPlayer(new Map((await ha.states(conn)).map((s) => [s.entity_id, s])));
+    const devices = ((player?.attributes as { source_list?: string[] } | undefined)?.source_list ?? []) as string[];
+    if (!player || !devices.includes(body.data.device)) return fail(reply, new Error(`${body.data.device} syns inte i Spotify just nu – väck den (nätverksstandby) och försök igen.`));
+    try {
+      await ha.service(conn, "media_player", "select_source", { entity_id: player.entity_id, source: body.data.device });
+      if (body.data.shuffle !== undefined) await ha.service(conn, "media_player", "shuffle_set", { entity_id: player.entity_id, shuffle: body.data.shuffle }).catch(() => undefined);
+      const kind = uri.split(":")[1];
+      await ha.service(conn, "media_player", "play_media", { entity_id: player.entity_id, media_content_id: uri, media_content_type: kind });
+    } catch (e) {
+      return fail(reply, new Error(`${body.data.device} kunde inte spela ${body.data.title ?? "det"}: ${(e as Error).message}`), 502);
     }
     invalidate("ha:states");
     return { ok: true };
@@ -1237,6 +1384,21 @@ export async function registerRoutes(app: FastifyInstance) {
     personId: z.string().regex(ID).optional(),
     note: z.string().max(500).optional(),
   });
+  // "Utgår": hide one occurrence on the board (the family's calendar itself is not changed).
+  app.post("/api/events/cancel", async (req, reply) => {
+    const body = z.object({ key: z.string().min(3).max(400), on: z.boolean() }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Okänd händelse"));
+    const today = new Date().toISOString().slice(0, 10);
+    const old = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+    // Old ones are forgotten after a month so the list never grows.
+    const next = Object.fromEntries(Object.entries(loadLocal().cancelled ?? {}).filter(([, d]) => d >= old));
+    if (body.data.on) next[body.data.key] = today;
+    else delete next[body.data.key];
+    saveLocal({ cancelled: next });
+    invalidate("dashboard");
+    return { ok: true };
+  });
+
   app.post("/api/own-events", async (req, reply) => {
     const body = ownEventSchema.safeParse(req.body);
     if (!body.success) return fail(reply, new Error("Fyll i dag och vad det gäller."));

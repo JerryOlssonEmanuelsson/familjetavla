@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import type { DashEvent, Dashboard as Dash, TravelChoice, TravelLeg } from "../../../server/src/types";
 import { sameAsLunch } from "../../../server/src/mealwords";
 import { api, isDemo } from "../api";
@@ -12,12 +12,13 @@ import { Fit } from "./Fit";
 import { DetailPage, PageBar, PAGE_TITLES, type PageId } from "./Detail";
 import { navigate, useHash } from "../route";
 import { InstallHelp, quickAddUrl } from "../InstallHelp";
-import { canPrompt, inIngress, isInstalled, onInstallChange, platform, promptInstall } from "../install";
+import { canPrompt, inIngress, isInstalled, onInstallChange, platform, promptInstall, useSecureUrl } from "../install";
 import { CarsPage, EnergyPage, GraphsPage, HousePage, LightsPage } from "./Pages";
 import { MusicPage } from "../widgets/music";
+import { HouseholdPage, SecurityPage } from "../widgets/security";
 
-export type Tab = "home" | "cars" | "lights" | "house" | "energy" | "graphs" | "music";
-const TAB_IDS: Tab[] = ["home", "cars", "lights", "house", "energy", "graphs", "music"];
+export type Tab = "home" | "cars" | "lights" | "house" | "energy" | "graphs" | "music" | "security" | "household";
+const TAB_IDS: Tab[] = ["home", "cars", "lights", "house", "energy", "graphs", "music", "security", "household"];
 const PAGE_IDS = Object.keys(PAGE_TITLES) as PageId[];
 
 const TABS: { id: Tab; label: string; icon: IconName; show: (d: Dash) => boolean }[] = [
@@ -28,7 +29,64 @@ const TABS: { id: Tab; label: string; icon: IconName; show: (d: Dash) => boolean
   { id: "energy", label: "Energi", icon: "bolt", show: (d) => Boolean(d.energy || d.prices) },
   { id: "graphs", label: "Grafer", icon: "graph", show: (d) => d.graphs.length > 0 || Boolean(d.prices) },
   { id: "music", label: "Musik", icon: "music", show: (d) => Boolean(d.music?.speakers.length) },
+  { id: "security", label: "Säkerhet", icon: "shield", show: (d) => Boolean(d.security) },
+  { id: "household", label: "Hushåll", icon: "robot", show: (d) => Boolean(d.robots?.length || d.appliances?.length) },
 ];
+
+/** Phones fit six tabs side by side; the rest sit under "Mer" (tablets show them all). */
+const NARROW = "(max-width: 640px)";
+function TabBar({ tabs, tab, go }: { tabs: typeof TABS; tab: Tab; go: (id: Tab) => void }) {
+  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW).matches);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW);
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const split = narrow && tabs.length > 6;
+  const shown = split ? tabs.slice(0, 5) : tabs;
+  const rest = split ? tabs.slice(5) : [];
+  const inRest = rest.some((t) => t.id === tab);
+  return (
+    <>
+      <nav className="tabbar" aria-label="Flikar">
+        {shown.map((t) => (
+          <button key={t.id} aria-current={tab === t.id ? "page" : undefined} onClick={() => go(t.id)}>
+            <Icon name={t.icon} size={24} />
+            {t.label}
+          </button>
+        ))}
+        {split && (
+          <button aria-current={inRest ? "page" : undefined} aria-expanded={more} onClick={() => setMore(true)}>
+            <Icon name="plus" size={24} />
+            {inRest ? rest.find((t) => t.id === tab)!.label : "Mer"}
+          </button>
+        )}
+      </nav>
+      {more &&
+        createPortal(
+          <div className="overlay" onClick={() => setMore(false)}>
+            <div className="sheet more-tabs" role="dialog" aria-modal="true" aria-label="Fler flikar" onClick={(e) => e.stopPropagation()}>
+              {rest.map((t) => (
+                <button
+                  key={t.id}
+                  className={`big-btn ${tab === t.id ? "accent" : ""}`}
+                  onClick={() => {
+                    setMore(false);
+                    go(t.id);
+                  }}
+                >
+                  <Icon name={t.icon} size={24} /> {t.label}
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
 
 const THEME_KEY = "familjetavla.theme";
 
@@ -587,6 +645,7 @@ function EventSheet({
               <Icon name="trashSmall" size={18} /> Ta bort från veckan
             </button>
           )}
+          {e.cancelKey && <CancelEvent e={e} onDone={async () => (await onChanged(), onClose())} />}
         </div>
         {care && t?.calendarId && <ShelfPicker data={data} personId={t.calendarId.slice(5)} onChanged={onChanged} />}
         {t && (
@@ -606,6 +665,45 @@ function EventSheet({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** "Utgår": the training is cancelled, the meeting moved – gone from the board, the calendar itself untouched. */
+function CancelEvent({ e, onDone }: { e: DashEvent; onDone: () => Promise<unknown> }) {
+  const [ask, setAsk] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!ask)
+    return (
+      <button className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => setAsk(true)}>
+        <Icon name="x" size={18} /> Utgår
+      </button>
+    );
+  return (
+    <div className="cancel-ask">
+      <span>
+        <b>{e.title}</b> tas bort från tavlan och påminnelserna. Kalendern ändras inte.
+      </span>
+      <div className="row gap">
+        <button
+          className="btn small primary"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              await api.cancelEvent(e.cancelKey!, true);
+              await onDone();
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Ja, utgår
+        </button>
+        <button className="btn small ghost" onClick={() => setAsk(false)}>
+          Avbryt
+        </button>
       </div>
     </div>
   );
@@ -633,7 +731,8 @@ function InstallNudge({ onHelp }: { onHelp: () => void }) {
       return false;
     }
   });
-  if (hidden || isInstalled() || inIngress() || !(canPrompt() || platform() === "ios")) return null;
+  const secureUrl = useSecureUrl(api);
+  if (hidden || isInstalled() || inIngress() || !(canPrompt() || platform() === "ios" || secureUrl)) return null;
   const later = () => {
     setHidden(true);
     try {
@@ -652,7 +751,8 @@ function InstallNudge({ onHelp }: { onHelp: () => void }) {
           onClick={async () => {
             if (canPrompt()) {
               if (await promptInstall()) setHidden(true);
-            } else onHelp();
+            } else if (secureUrl && platform() !== "ios") location.href = secureUrl;
+            else onHelp();
           }}
         >
           Installera
@@ -1120,6 +1220,8 @@ export function Dashboard() {
             <Fit className="tab-body" deps={[data, tab]}>
               {tab === "cars" && <CarsPage data={data} actions={actions} />}
               {tab === "lights" && <LightsPage data={data} actions={actions} />}
+              {tab === "security" && <SecurityPage data={data} actions={actions} />}
+              {tab === "household" && <HouseholdPage data={data} actions={actions} />}
               {tab === "house" && <HousePage data={data} actions={actions} />}
               {tab === "energy" && <EnergyPage data={data} />}
               {tab === "graphs" && <GraphsPage data={data} />}
@@ -1130,16 +1232,7 @@ export function Dashboard() {
         )}
       </div>
 
-      {tabs.length > 1 && (
-        <nav className="tabbar" aria-label="Flikar">
-          {tabs.map((t) => (
-            <button key={t.id} aria-current={tab === t.id ? "page" : undefined} onClick={() => goTab(t.id, tabIds)}>
-              <Icon name={t.icon} size={24} />
-              {t.label}
-            </button>
-          ))}
-        </nav>
-      )}
+      {tabs.length > 1 && <TabBar tabs={tabs} tab={tab} go={(id) => goTab(id, tabIds)} />}
 
       {grocery && (
         <GroceryModal

@@ -222,6 +222,10 @@ export interface LocalFile {
   dinners?: Record<string, string>;
   /** Hur ofta en middag valts (för favoriter) och vad man brukar handla till den. */
   dinnerStats?: Record<string, { count: number; shopping?: string; last: string }>;
+  /** Händelser som utgår (bara på tavlan): travelKey → dagen (YYYY-MM-DD), för att rensa gamla. */
+  cancelled?: Record<string, string>;
+  /** Musik: the volume last chosen on the board per speaker (0–100), used again when music starts there. */
+  volumes?: Record<string, number>;
   /** "Saknas på hyllan" per barn: ["Blöjor", "Extrakläder"]. */
   shelf?: Record<string, string[]>;
   /** Dit/hem-val per händelse, nyckel = travelKey(). */

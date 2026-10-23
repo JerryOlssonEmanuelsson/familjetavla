@@ -212,7 +212,11 @@ export function parseVklassNewsData(html: string): VklassNews[] {
       const files = [
         ...(a.imagePath ? [{ name: "Bild", url: a.imagePath }] : []),
         ...(a.files ?? []).filter((f) => f?.url).map((f) => ({ name: f.nameWithExtension || f.name || f.fileName || "Bilaga", url: f.url! })),
-      ].map((f) => ({ name: f.name, url: new URL(f.url, CUSTODIAN).toString() }));
+        // Links written in the text itself ("Ladda ner veckobrevet", a PDF, a form) – kept as files to open.
+        ...textLinks(`${a.introText ?? ""} ${a.text ?? ""}`),
+      ]
+        .map((f) => ({ name: f.name, url: new URL(f.url, CUSTODIAN).toString() }))
+        .filter((f, i, all) => all.findIndex((x) => x.url === f.url) === i);
       const text = [a.introText, a.text].map((t) => htmlText(t ?? "")).filter(Boolean);
       const published = a.publishDate && !Number.isNaN(Date.parse(a.publishDate)) ? new Date(a.publishDate).toISOString() : undefined;
       return {
@@ -225,6 +229,26 @@ export function parseVklassNewsData(html: string): VklassNews[] {
         files: files.slice(0, 10),
       };
     });
+}
+
+/** Links in a news text's HTML: their text (or the file name) and where they go. */
+export function textLinks(html: string): { name: string; url: string }[] {
+  if (!/<a\s/i.test(html)) return [];
+  const $ = cheerio.load(html);
+  const out: { name: string; url: string }[] = [];
+  $("a[href]").each((_, a) => {
+    const href = ($(a).attr("href") ?? "").trim();
+    if (!/^(https?:\/\/|\/)/i.test(href)) return;
+    let file = href.split(/[?#]/)[0]!.split("/").pop() ?? "";
+    try {
+      file = decodeURIComponent(file);
+    } catch {
+      /* keep it as written */
+    }
+    const name = $(a).text().replace(/\s+/g, " ").trim() || file || "Länk";
+    out.push({ name: name.slice(0, 80), url: href });
+  });
+  return out.slice(0, 10);
 }
 
 function tagNames(tags: unknown): string[] {

@@ -1,4 +1,4 @@
-import type { CarEntity, Config, ConfigResponse, Dashboard, Integration, NamedEntity, Schedule, TestResult, TravelChoice } from "../../server/src/types";
+import type { ApplianceEntities, CarEntity, Config, SecurityEntities, ConfigResponse, Dashboard, Integration, NamedEntity, Schedule, TestResult, TravelChoice } from "../../server/src/types";
 
 /** A station in the Musik tab: every Swedish station from the radio directory. */
 export interface DirStation {
@@ -19,6 +19,13 @@ export interface Tile {
   image?: string;
 }
 export type Shelf = "recent" | "playlists" | "albums" | "podcasts";
+/** One song in a playlist or album. */
+export interface Track {
+  uri: string;
+  title: string;
+  artist?: string;
+  image?: string;
+}
 
 /** A station from the radio directory (Inställningar → Huset → Musik). */
 export interface StationHit {
@@ -41,6 +48,9 @@ export interface Discovery {
   priceSensors: NamedEntity[];
   buttons: { name: string; entityId: string }[];
   speakers?: NamedEntity[];
+  security?: SecurityEntities;
+  robots?: (NamedEntity & { battery?: string })[];
+  appliances?: ApplianceEntities[];
   summary: string[];
 }
 
@@ -156,6 +166,7 @@ const realApi = {
     request<ConfigResponse>("config", { method: "PUT", body: JSON.stringify({ config, secrets }) }),
   checkPin: () => post<{ ok: boolean }>("auth/check"),
   dashboard: () => request<Dashboard>("dashboard"),
+  secureUrl: () => request<{ url: string | null }>("secure-url"),
   travel: (key: string, choice: TravelChoice | null, forCalendar = false) => post<{ ok: true }>("travel", { key, choice, forCalendar }),
   dinner: (day: string, text: string, shopping?: string) => post<{ ok: true }>("dinner", { day, text, shopping }),
   shelf: (personId: string, items: string[]) => post<{ ok: true }>("shelf", { personId, items }),
@@ -164,6 +175,7 @@ const realApi = {
   setSick: (personId: string, date: string, sick: boolean) => post<{ ok: true }>("sick", { personId, date, sick }),
   newsSeen: (ids: string[]) => post<{ ok: true }>("news/seen", { ids }),
   addOwnEvent: (e: { date: string; time?: string; end?: string; title: string; personId?: string; note?: string }) => post<{ id: string }>("own-events", e),
+  cancelEvent: (key: string, on: boolean) => post("events/cancel", { key, on }),
   removeOwnEvent: (id: string) => request<{ ok: true }>(`own-events/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   testProvider: (integration: Integration, secrets: Record<string, string>) => post<TestResult>("providers/test", { integration, secrets }),
@@ -195,6 +207,12 @@ const realApi = {
   toggleLight: (entityId: string) => post("lights/toggle", { entityId }),
   brightness: (entityId: string, pct: number) => post("lights/brightness", { entityId, pct }),
   lightsOff: () => post("lights/off"),
+  lock: (entityId: string, op: "lock" | "unlock" | "open", code?: string) => post("security/lock", { entityId, op, code }),
+  alarm: (entityId: string, mode: "home" | "away" | "night" | "vacation" | "off", code?: string) => post("security/alarm", { entityId, mode, code }),
+  cover: (entityId: string, op: "open" | "close" | "stop") => post("security/cover", { entityId, op }),
+  robot: (entityId: string, op: "start" | "pause" | "dock") => post("robots", { entityId, op }),
+  /** A camera's still image; t makes the browser fetch a new one. */
+  cameraUrl: (entityId: string, t: number) => `api/camera/${encodeURIComponent(entityId)}?t=${t}`,
   saveHomeLayout: (home: { id: string; on: boolean }[]) => post("home-layout", { home }),
   playStation: (index: number, speaker: string) => post("music/play", { index, speaker }),
   stopMusic: (speaker: string) => post("music/stop", { speaker }),
@@ -205,7 +223,9 @@ const realApi = {
   spotify: (op: "playpause" | "next") => post("music/spotify", { op }),
   musicLibrary: (shelf: Shelf) => request<{ tiles: Tile[] }>(`music/library?shelf=${shelf}`),
   musicSearch: (q: string) => request<{ tiles: Tile[] }>(`music/search?q=${encodeURIComponent(q)}`),
-  playMedia: (t: Tile, speaker: string) => post("music/play-media", { uri: t.uri, type: t.type, title: t.title, speaker }),
+  playConnect: (t: Tile, device: string, shuffle?: boolean) => post("music/play-connect", { uri: t.uri, type: t.type, title: t.title, device, ...(shuffle !== undefined ? { shuffle } : {}) }),
+  playMedia: (t: Tile, speaker: string, start?: string, shuffle?: boolean) => post("music/play-media", { uri: t.uri, type: t.type, title: t.title, speaker, ...(start ? { start } : {}), ...(shuffle !== undefined ? { shuffle } : {}) }),
+  musicItems: (uri: string) => request<{ title: string; tracks: Track[] }>(`music/items?uri=${encodeURIComponent(uri)}`),
   volume: (speaker: string, pct: number) => post("music/volume", { speaker, pct }),
   searchStations: (q: string) => request<{ stations: StationHit[] }>(`radio/search?q=${encodeURIComponent(q)}`),
   addItem: (name: string) => post("shopping/add", { name }),

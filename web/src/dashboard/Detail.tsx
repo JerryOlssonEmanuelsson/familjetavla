@@ -45,7 +45,7 @@ export function DetailPage({ page, data, actions }: { page: PageId; data: Dashbo
       <Fit className="detail-body" deps={[data, page]}>
         {page === "maten" && <MealsPage data={data} actions={actions} />}
         {page === "skolan" && <SchoolPage data={data} actions={actions} />}
-        {page === "komihag" && <Reminders items={data.reminders} food={data.schoolFood} />}
+        {page === "komihag" && <Reminders items={data.reminders} food={data.schoolFood} data={data} actions={actions} />}
         {page === "inkop" && <Shopping data={data} actions={actions} />}
         {page === "hososs" && <CustodyPage data={data} />}
         {page === "veckan" && <Week data={data} actions={actions} full />}
@@ -143,8 +143,19 @@ const todayKey = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+const PICTURE = /\.(jpe?g|png|gif|webp|heic|svg)$/i;
+/** A picture is shown in the news; a PDF, a document or a web link is a button to open it. */
+const isPicture = (f: { name: string; url: string }) => PICTURE.test(f.name.trim()) || /^bild$/i.test(f.name.trim()) || f.url.startsWith("data:image/") || PICTURE.test(safeDecode(f.url).split(/[?#]/)[0]!);
+const safeDecode = (u: string) => {
+  try {
+    return decodeURIComponent(u);
+  } catch {
+    return u;
+  }
+};
+
 /** A news item from the school: all the text, pictures shown right in the sheet, and "Lägg i veckan". */
-function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; actions: Actions; onClose: () => void }) {
+export function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; actions: Actions; onClose: () => void }) {
   const [adding, setAdding] = useState(false);
   const kids = data.people.filter((p) => p.kind === "child");
   const [form, setForm] = useState({ date: todayKey(), time: "", end: "", title: n.title.slice(0, 80), who: n.who ?? "" });
@@ -184,9 +195,10 @@ function NewsSheet({ n, data, actions, onClose }: { n: News; data: Dashboard; ac
         </div>
         {n.text ? <div className="news-text">{n.text}</div> : <p className="muted">Ingen text – se bilagan.</p>}
         {n.files.map((f) =>
-          broken.includes(f.url) ? (
+          // PDFs, documents and web links are buttons; pictures show right here.
+          broken.includes(f.url) || !isPicture(f) ? (
             <a key={f.url} className="btn" href={f.url} target="_blank" rel="noreferrer" style={{ alignSelf: "flex-start" }}>
-              <Icon name="event" size={18} /> Öppna {f.name}
+              <Icon name={/\.pdf$/i.test(f.name) ? "event" : "link"} size={18} /> Öppna {f.name}
             </a>
           ) : (
             <a key={f.url} href={f.url} target="_blank" rel="noreferrer" className="news-image">
@@ -336,7 +348,7 @@ function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
       <div className="school-grid">
         <section className="card">
           <h2>{today ? "Idag" : "Nästa skoldag"}</h2>
-          <Lessons lessons={(today ?? kid.days.find((d) => d.lessons.length))?.lessons ?? []} />
+          {data.lessonView === "span" ? <DaySpan lessons={(today ?? kid.days.find((d) => d.lessons.length))?.lessons ?? []} /> : <Lessons lessons={(today ?? kid.days.find((d) => d.lessons.length))?.lessons ?? []} />}
         </section>
         <section className="card">
           <h2>Läxor och uppgifter</h2>
@@ -366,7 +378,7 @@ function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
                     {d.lessons[0].start}–{d.lessons[d.lessons.length - 1].end}
                     {d.lessons.some((l) => l.gym) ? " · Idrott" : ""}
                   </small>
-                  <Lessons lessons={d.lessons} compact />
+                  {data.lessonView !== "span" && <Lessons lessons={d.lessons} compact />}
                 </>
               ) : (
                 <small className="muted">Ingen skola</small>
@@ -376,6 +388,25 @@ function SchoolPage({ data, actions }: { data: Dashboard; actions: Actions }) {
         </div>
       </section>
       {open && <TaskSheet task={open} child={kid.name} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+/** Only when the school day starts and ends – for families who don't need every lesson. */
+function DaySpan({ lessons }: { lessons: NonNullable<Dashboard["school"]>[number]["days"][number]["lessons"] }) {
+  if (!lessons.length) return <small className="muted">Ingen skola</small>;
+  const gym = lessons.some((l) => l.gym);
+  return (
+    <div className="day-span">
+      <div>
+        <small className="muted">Börjar</small>
+        <b>{lessons[0]!.start}</b>
+      </div>
+      <div>
+        <small className="muted">Slutar</small>
+        <b>{lessons[lessons.length - 1]!.end}</b>
+      </div>
+      {gym && <span className="chip">Idrott – gympapåse</span>}
     </div>
   );
 }

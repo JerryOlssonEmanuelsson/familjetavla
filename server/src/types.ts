@@ -56,6 +56,8 @@ export interface NotifySettings {
   morning?: string;
   /** Söndag kl 19: "Planera veckan" om något saknar ansvarig. */
   weekly?: boolean;
+  /** Hemmet: tvätten klar, roboten har fastnat, dörren olåst kl 22, porten öppen, larmet. Saknas = på. */
+  home?: boolean;
 }
 
 export interface CareSchedule {
@@ -122,7 +124,7 @@ export const HOME_WIDGETS = ["now", "meals", "schoolday", "reminders", "custody"
 export type HomeWidget = (typeof HOME_WIDGETS)[number];
 /** Startskärmens rutor: "auto" följer hur många rutor som visas, annars liten/normal/stor. */
 export type WidgetSize = "auto" | "s" | "m" | "l";
-export const TAB_IDS = ["cars", "lights", "house", "energy", "graphs", "music"] as const;
+export const TAB_IDS = ["cars", "lights", "house", "energy", "graphs", "music", "security", "household"] as const;
 export type TabId = (typeof TAB_IDS)[number];
 
 // ---------- Leverantörsmoduler (skola, mataffär, sopor, elpris) ----------
@@ -313,6 +315,12 @@ export interface Config {
     speakers?: NamedEntity[];
     /** Musik: favoritkanaler, t.ex. P4 Jönköping eller RIX FM. */
     stations?: RadioStation[];
+    /** Säkerhet: kameror, lås, larm, portar och dörr-/fönstersensorer – vilket märke som helst i Home Assistant. */
+    security?: SecurityEntities;
+    /** Städ: robotdammsugare (vacuum.*) och robotgräsklippare (lawn_mower.*). */
+    robots?: (NamedEntity & { battery?: string })[];
+    /** Husgeråd: tvättmaskin, torktumlare, diskmaskin, ugn … */
+    appliances?: ApplianceEntities[];
   };
   dashboard: {
     accent: string;
@@ -327,6 +335,8 @@ export interface Config {
     idleMinutes: number;
     /** Solbågen under temperaturen i Nu-rutan (av som standard). */
     sunArc?: boolean;
+    /** Sidan Skolan: "span" visar bara när skoldagen börjar och slutar (och idrott), inte varje lektion. */
+    lessons?: "all" | "span";
   };
 }
 
@@ -388,6 +398,8 @@ export interface DashEvent {
   /** Beskrivningen från kalendern (samlingstid, vad som behövs …). */
   /** Egen händelse (tillagd på tavlan) – id för att kunna ta bort den. */
   ownId?: string;
+  /** Händelse från en kalender: nyckeln för "Utgår" (döljs bara på tavlan). */
+  cancelKey?: string;
   /** Barnets händelse: kan markeras sjuk den dagen (on = det här är "Sjuk"-markeringen). */
   sick?: { personId: string; date: string; on: boolean };
   description?: string;
@@ -439,6 +451,8 @@ export interface Reminder {
   tone: "blue" | "amber" | "neutral" | "green";
   /** The child it is about – a grown-up who follows only some children gets only theirs in the phone. */
   personId?: string;
+  /** A news item from the school: a tap opens it to read. */
+  newsId?: string;
 }
 
 export interface PriceBar {
@@ -526,6 +540,8 @@ export interface Dashboard {
   schoolNews: SchoolNews[];
   /** Sidan Skolan: veckans schema, läxor och uppgifter per barn. */
   school?: SchoolChild[];
+  /** "span": Skolan shows when the day starts and ends, not every lesson. */
+  lessonView?: "all" | "span";
   /** En nyare version finns publicerad. */
   update?: { latest: string; current: string };
   /** Running version, and the published one when known: "v0.10.0 ✓ senaste" or "uppdatera till …" in the header. */
@@ -554,6 +570,9 @@ export interface Dashboard {
   }[];
   lights: Lamp[];
   music?: Music;
+  security?: Security;
+  robots?: Robot[];
+  appliances?: ApplianceView[];
   lightGroups: { index: number; name: string; on: number; total: number; offline: string[]; lamps: Lamp[] }[];
   buttons: { entityId: string; name: string; style: "accent" | "blue" | "amber" | "plain" }[];
   climates: {
@@ -635,7 +654,7 @@ export interface Music {
   }[];
   stations: { index: number; name: string; logo?: string; url: string }[];
   /** Home Assistant's Spotify integration: null when it is not installed (the tab then says how). */
-  spotify: { entityId: string; playing: boolean; title?: string; device?: string; offline: boolean } | null;
+  spotify: { entityId: string; playing: boolean; title?: string; device?: string; offline: boolean; devices: string[] } | null;
   /** Music Assistant is in Home Assistant: the Musik tab shows the library (playlists, albums, podcasts) as covers. */
   assistant: boolean;
 }
@@ -665,4 +684,68 @@ export interface SchoolNews {
   /** Bilagor hämtas via tavlan: `url` är en adress på tavlan, inte i Vklass. */
   files: { name: string; url: string }[];
   seen: boolean;
+}
+
+export interface SecurityEntities {
+  cameras: NamedEntity[];
+  locks: NamedEntity[];
+  alarms: NamedEntity[];
+  /** Garage doors and gates (cover.*). */
+  covers: NamedEntity[];
+  /** Doors and windows (binary_sensor.* door/window/garage_door/opening). */
+  openings: NamedEntity[];
+  /** Unlocking from the board is off unless the family turns it on. */
+  allowUnlock?: boolean;
+}
+
+export type LockState = "locked" | "unlocked" | "locking" | "unlocking" | "jammed" | "open" | "opening" | "unknown";
+export type AlarmMode = "home" | "away" | "night" | "vacation";
+
+/** The Säkerhet tab. */
+export interface Security {
+  cameras: { entityId: string; name: string; offline: boolean }[];
+  locks: { entityId: string; name: string; state: LockState; offline: boolean; needsCode: boolean; canOpen: boolean }[];
+  alarms: { entityId: string; name: string; state: string; label: string; armed: boolean; triggered: boolean; offline: boolean; modes: AlarmMode[]; needsCode: boolean }[];
+  covers: { entityId: string; name: string; state: string; label: string; open: boolean; offline: boolean }[];
+  openings: { entityId: string; name: string; open: boolean; offline: boolean }[];
+  allowUnlock: boolean;
+}
+
+/** The Städ tab: one robot vacuum or mower. */
+export interface Robot {
+  entityId: string;
+  name: string;
+  kind: "vacuum" | "mower";
+  state: string;
+  /** In Swedish, e.g. "Städar", "Laddar", "Har fastnat". */
+  label: string;
+  busy: boolean;
+  error: boolean;
+  offline: boolean;
+  battery?: number;
+  canStart: boolean;
+  canPause: boolean;
+  canDock: boolean;
+}
+
+/** One machine: its state sensor and/or a power plug, with time left and progress when it has them. */
+export interface ApplianceEntities {
+  name: string;
+  kind: "washer" | "dryer" | "dishwasher" | "oven" | "other";
+  status?: string;
+  remaining?: string;
+  progress?: string;
+  power?: string;
+}
+
+export interface ApplianceView {
+  name: string;
+  kind: ApplianceEntities["kind"];
+  phase: "running" | "paused" | "done" | "idle" | "error" | "offline";
+  /** "Tvättar – 42 min kvar", "Klar", "Av". */
+  label: string;
+  minutesLeft?: number;
+  /** "11:20". */
+  endsAt?: string;
+  progress?: number;
 }

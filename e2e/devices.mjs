@@ -21,6 +21,8 @@ const LIST = [
   ["iPhone", "iPhone 15 Pro", false],
   ["iPhone SE", "iPhone SE (3rd gen)", false],
   ["iPhone liggande", "iPhone 15 Pro landscape", false],
+  // A MagicMirror-style screen behind glass: Full HD on its side, no touch.
+  ["Spegel 1080×1920", { viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false, userAgent: "Mozilla/5.0 (X11; Linux aarch64) Chrome/130 Safari/537.36" }, true],
 ];
 // PART=1/3 runs every third device (for running in parallel).
 const [partNo, parts] = (process.env.PART ?? "1/1").split("/").map(Number);
@@ -28,8 +30,8 @@ const only = process.env.ONLY ? new RegExp(process.env.ONLY, "i") : null;
 const DEVICES = LIST.filter((_, i) => i % parts === partNo - 1).filter(([n]) => !only || only.test(n));
 const ROUTES = [
   ["guide-hem", "#/setup/hem"], ["guide-familj", "#/setup/familj"], ["guide-kalendrar", "#/setup/kalendrar"], ["guide-omsorg", "#/setup/familj", "care4"], ["guide-skola", "#/setup/skola"], ["guide-huset", "#/setup/huset"], ["guide-musik", "#/setup/huset", "radio"], ["guide-edlevo", "#/setup/skola", "edlevo"], ["guide-startskarm", "#/setup/visning"], ["guide-klart", "#/setup/klart"],
-  ["planera", "", "plan"], ["handelse", "", "event"], ["skjuts", "#/sida/veckan", "sport"], ["uppgift", "#/sida/skolan", "task"], ["nyhet", "#/sida/skolan", "news"], ["nyhet-vecka", "#/sida/skolan", "newsadd"], ["lagg-till", "#/lagg-till"],
-  ["start", ""], ["ordna", "", "arrange"], ["veckan", "#/sida/veckan"], ["kort", "#/sida/kort"], ["maten", "#/sida/maten"], ["skolan", "#/sida/skolan"], ["komihag", "#/sida/komihag"], ["inkop", "#/sida/inkop"], ["hososs", "#/sida/hososs"], ["energi", "#/flik/energy"], ["bil", "#/flik/cars"], ["ljus", "#/flik/lights"], ["musik", "#/flik/music"], ["musik-ovriga", "#/flik/music", "otherStations"], ["musik-spotify", "#/flik/music", "library"], ["musik-poddar", "#/flik/music", "podcasts"], ["musik-utan-ma", "?utan-ma#/flik/music", "noAssistant"], ["eink-start", "?tema=eink"], ["eink-veckan", "?tema=eink#/sida/veckan"], ["eink-ljus", "?tema=eink#/flik/lights"], ["spegel-start", "?tema=spegel"]];
+  ["planera", "", "plan"], ["handelse", "", "event"], ["handelse-utgar", "", "eventCancel"], ["skjuts", "#/sida/veckan", "sport"], ["uppgift", "#/sida/skolan", "task"], ["nyhet", "#/sida/skolan", "news"], ["nyhet-vecka", "#/sida/skolan", "newsadd"], ["lagg-till", "#/lagg-till"],
+  ["start", ""], ["ordna", "", "arrange"], ["veckan", "#/sida/veckan"], ["kort", "#/sida/kort"], ["maten", "#/sida/maten"], ["skolan", "#/sida/skolan"], ["skolan-tider", "?lektioner=tider#/sida/skolan"], ["komihag", "#/sida/komihag"], ["komihag-nyhet", "#/sida/komihag", "reminderNews"], ["inkop", "#/sida/inkop"], ["hososs", "#/sida/hososs"], ["energi", "#/flik/energy"], ["bil", "#/flik/cars"], ["ljus", "#/flik/lights"], ["musik", "#/flik/music"], ["musik-ovriga", "#/flik/music", "otherStations"], ["musik-spotify", "#/flik/music", "library"], ["musik-poddar", "#/flik/music", "podcasts"], ["musik-spellista", "#/flik/music", "playlist"], ["musik-utan-ma", "?utan-ma#/flik/music", "noAssistant"], ["sakerhet", "#/flik/security"], ["sakerhet-kamera", "#/flik/security", "bigCamera"], ["hushall", "#/flik/household"], ["eink-start", "?tema=eink"], ["eink-veckan", "?tema=eink#/sida/veckan"], ["eink-ljus", "?tema=eink#/flik/lights"], ["spegel-start", "?tema=spegel"]];
 // ROUTES_ONLY=ljus,uppgift checks just those views (quick local runs).
 const routeOnly = process.env.ROUTES_ONLY?.split(",");
 if (routeOnly) ROUTES.splice(0, ROUTES.length, ...ROUTES.filter(([r]) => routeOnly.includes(r)));
@@ -40,7 +42,7 @@ const line = (row) => {
 for (const [theme, clock] of [["ljust", "2026-10-18T16:00:00+02:00"], ["mörkt", "2026-10-18T20:30:00+02:00"]])
 for (const [name0, dev, tablet] of DEVICES) {
   const name = `${name0} ${theme}`;
-  const d = devices[dev];
+  const d = typeof dev === "string" ? devices[dev] : dev;
   // A fresh browser per device keeps memory in check over 300 views.
   const b = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
   const ctx = await b.newContext({ ...d, locale: "sv-SE", timezoneId: "Europe/Stockholm" });
@@ -102,8 +104,16 @@ for (const [name0, dev, tablet] of DEVICES) {
       if (!tablet) await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     }
     if (open === "otherStations") {
+      await p.getByRole("button", { name: /Fler kanaler/ }).click();
       await p.getByRole("radio", { name: "Övriga" }).click();
+      await p.locator(".station-row").first().waitFor();
       // On a phone the list is further down: scroll there like a person would.
+      await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    }
+    if (open === "playlist") {
+      await p.getByRole("tab", { name: /Spotify|Bibliotek/ }).click();
+      await p.locator(".cover").first().click();
+      await p.locator(".track-row").first().waitFor();
       await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     }
     if (open === "library" || open === "podcasts") {
@@ -116,6 +126,16 @@ for (const [name0, dev, tablet] of DEVICES) {
       await p.getByRole("tab", { name: /Spotify|Bibliotek/ }).click();
       await p.locator(".lib-setup .btn").first().waitFor();
       await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    }
+    if (open === "eventCancel") {
+      await p.locator(".event").first().click();
+      await p.getByRole("button", { name: "Utgår" }).click();
+    }
+    if (open === "reminderNews") await p.locator(".reminder-link").first().click();
+    if (open === "bigCamera") {
+      await p.locator(".camera").first().click();
+      // On a phone, look at the whole page like a person scrolling down it.
+      if (!tablet) await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     }
     if (open === "task") await p.locator(".task-row", { hasText: "Prov i NO" }).first().click();
     if (open) await p.waitForTimeout(600);

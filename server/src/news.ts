@@ -24,7 +24,8 @@ export function buildSchoolNews(news: SchoolData["news"], people: Map<string, Pe
         text: n.text,
         published: n.published,
         date: d ? `${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}` : undefined,
-        files: n.files.map((f) => ({ name: f.name, url: `api/school/file?u=${encodeURIComponent(f.url)}` })),
+        // Vklass's own files need the family's login, so the board fetches them; other links open as they are.
+        files: n.files.map((f) => ({ name: f.name, url: /^https:\/\/[a-z0-9.-]*vklass\.se\//i.test(f.url) ? `api/school/file?u=${encodeURIComponent(f.url)}` : f.url })),
         seen: seen.has(n.id),
       };
     });
@@ -36,7 +37,7 @@ export function newsReminders(news: SchoolNews[], now: Date): Reminder[] {
   return news
     .filter((n) => !n.seen && (!n.published || Date.parse(n.published) >= week))
     .slice(0, 2)
-    .map((n) => ({ icon: "school" as const, title: `Från skolan: ${n.title}`, sub: `${n.who ? `${n.who} · ` : ""}läs på Skolan`, tone: "blue" as const, personId: n.personId }));
+    .map((n) => ({ icon: "school" as const, title: `Från skolan: ${n.title}`, sub: `${n.who ? `${n.who} · ` : ""}tryck för att läsa`, tone: "blue" as const, personId: n.personId, newsId: n.id }));
 }
 
 // ---------- Utflykt, matsäck … from school news ----------

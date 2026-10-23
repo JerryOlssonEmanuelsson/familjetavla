@@ -18,9 +18,15 @@ panel_title: Familjetavla
 homeassistant_api: true
 # Öppna port 8099 om surfplattan ska nå tavlan direkt (http://homeassistant.local:8099) utan att
 # logga in i Home Assistant. Sätt då en PIN för inställningarna i guiden.
+# Https med Home Assistants certifikat (fullchain.pem/privkey.pem i ssl-mappen): öppna port 8443.
+map:
+  - type: ssl
+    read_only: true
 ports:
   8099/tcp: null
+  8443/tcp: null
 ports_description:
   8099/tcp: Direktåtkomst för väggplattan (valfritt)
+  8443/tcp: Https med Home Assistants certifikat – krävs för att installera som app på Android (valfritt)
 environment:
   TZ: Europe/Stockholm

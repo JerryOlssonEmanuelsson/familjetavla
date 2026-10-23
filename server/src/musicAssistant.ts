@@ -1,4 +1,5 @@
 import { ha, type HaConn, type HaState } from "./connectors/ha.js";
+import { haSocket } from "./connectors/haws.js";
 
 /**
  * Music Assistant (a free Home Assistant app): the family's Spotify playlists, albums and podcasts
@@ -51,8 +52,8 @@ export function toTile(x: MaItem): Tile | null {
     type,
     title: x.name.slice(0, 80),
     subtitle: (by || (x.version ?? "")).slice(0, 60) || undefined,
-    // Only https covers: the board may run on https and must not load mixed content.
-    image: x.image && /^https:\/\//.test(x.image) ? x.image : undefined,
+    // Spotify's covers are https; Music Assistant's own image proxy on the home network is http.
+    image: x.image && /^https?:\/\//.test(x.image) ? x.image : undefined,
   };
 }
 
@@ -119,12 +120,54 @@ export async function search(conn: HaConn, speakers: string[], q: string): Promi
   return ["playlists", "artists", "albums", "tracks", "podcasts"].flatMap((k) => tiles(r[k]));
 }
 
-export async function playOn(conn: HaConn, states: Map<string, HaState>, speaker: { entityId: string; name: string }, tile: { uri: string; type: MediaType }) {
+export interface Track {
+  uri: string;
+  title: string;
+  artist?: string;
+  image?: string;
+}
+
+interface Browsed {
+  title?: string;
+  thumbnail?: string | null;
+  media_content_id?: string;
+  media_class?: string;
+  children?: Browsed[];
+}
+
+/** Music Assistant names a track "Artist - Title" when it browses; split it back. */
+export function toTrack(x: Browsed): Track | null {
+  if (!x.media_content_id || !x.title || !/^[a-z0-9_-]+:\/\/\S{1,300}$/i.test(x.media_content_id)) return null;
+  const at = x.title.indexOf(" - ");
+  return {
+    uri: x.media_content_id,
+    title: (at > 0 ? x.title.slice(at + 3) : x.title).slice(0, 120),
+    artist: at > 0 ? x.title.slice(0, at).slice(0, 80) : undefined,
+    image: x.thumbnail && /^https?:\/\//.test(x.thumbnail) ? x.thumbnail : undefined,
+  };
+}
+
+/** Every track in a playlist or album (Music Assistant browses it on one of its players). */
+export async function tracksOf(conn: HaConn, speakers: string[], uri: string): Promise<{ title: string; tracks: Track[] }> {
+  const s = await cachedSetup(conn, speakers);
+  const player = s?.players[0]?.e;
+  const sock = haSocket();
+  if (!s || !player) throw new Error("Music Assistant finns inte i Home Assistant.");
+  if (!sock?.connected) throw new Error("Home Assistant svarar inte just nu.");
+  const node = (await sock.call({ type: "media_player/browse_media", entity_id: player, media_content_id: uri, media_content_type: "music" }, 20_000)) as Browsed;
+  return { title: node.title ?? "", tracks: (node.children ?? []).map(toTrack).filter((t): t is Track => t !== null).slice(0, 500) };
+}
+
+export async function playOn(conn: HaConn, states: Map<string, HaState>, speaker: { entityId: string; name: string }, tile: { uri: string; type: MediaType; start?: string; shuffle?: boolean }) {
   const s = await cachedSetup(conn, [speaker.entityId]);
   if (!s) throw new Error("Music Assistant finns inte i Home Assistant.");
   const names = new Map([...states.values()].map((x) => [x.entity_id, String((x.attributes as { friendly_name?: string }).friendly_name ?? "")]));
   const player = playerFor(s, speaker, names);
   if (!player) throw new Error(`Music Assistant känner inte igen ${speaker.name}. Lägg till högtalaren i Music Assistant, eller välj dess Music Assistant-spelare under Huset → Musik.`);
-  await ha.service(conn, "music_assistant", "play_media", { entity_id: player, media_id: tile.uri, media_type: tile.type, enqueue: "replace" });
+  // A soundbar or speaker in standby: wake it first (any brand that Home Assistant can turn on).
+  if (states.get(player)?.state === "off") await ha.service(conn, "media_player", "turn_on", { entity_id: player }).catch(() => undefined);
+  // In order or shuffled – set on the player's queue before it starts.
+  if (tile.shuffle !== undefined) await ha.service(conn, "media_player", "shuffle_set", { entity_id: player, shuffle: tile.shuffle }).catch(() => undefined);
+  await ha.service(conn, "music_assistant", "play_media", { entity_id: player, media_id: tile.uri, media_type: tile.type, enqueue: "replace", ...(tile.start ? { start_item: tile.start } : {}) });
   return player;
 }
