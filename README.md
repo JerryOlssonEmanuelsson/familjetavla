@@ -56,6 +56,7 @@ Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem
         volumes:
           - ./music-assistant:/data
     ```
+- **Smart laddning:** har du en smartstyrning som planerar laddningen (billigaste timmarna, solel) visas **planen** för de kommande 24 timmarna, och en laddknapp med **Auto / Ladda nu / Pausa** som ger samma överstyrning som styrningens egen app. Hittas automatiskt om styrningen följer [avtalet](docs/SMART-LADDNING.md).
 - **Hus:** termostater, värmepump, varmvatten och **spabad** (Balboa, Gecko …) med lägen och pumpar. **Enhetskort** för värmepumpar som bara ger sensorer, t.ex. via **Husdata H60/H66**.
 - **Energi:** solel, köp/sälj mot nätet, husets effekt, hembatteri – vilken växelriktare som helst.
 - **Grafer:** senaste dygnet för valfria sensorer + elpris.

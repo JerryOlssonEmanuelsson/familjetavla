@@ -209,6 +209,9 @@ export interface CarEntity {
   charging?: string;
   /** Förvärmning: climate.*, switch.* eller button.* på bilen. */
   climate?: string;
+  /** Smart laddning: laddplan (sensor med attributet slots) och laddläge (select/input_select). Hittas annars av sig själva, se smartcharging.ts. */
+  plan?: string;
+  mode?: string;
 }
 
 export interface DeviceCard {
@@ -566,6 +569,8 @@ export interface Dashboard {
     ageHours: number | null;
     status: string;
     climate?: { entityId: string; on: boolean };
+    /** Smartstyrd laddning: plan och laddläge (samma överstyrning som smartstyrningens egen knapp). */
+    smart?: import("./smartcharging.js").SmartCharging;
     schedules: { id: string; name: string; days: number[]; time: string; enabled: boolean }[];
   }[];
   lights: Lamp[];

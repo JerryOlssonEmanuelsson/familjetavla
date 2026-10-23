@@ -192,6 +192,7 @@ const realApi = {
   discover: () => request<Discovery>("ha/discover"),
   car: (index: number) => request<CarDetails>(`car/${index}`),
   carAction: (index: number, entityId: string, action: "on" | "off" | "press") => post(`car/${index}/action`, { entityId, action }),
+  carMode: (index: number, option: string) => post(`car/${index}/mode`, { option }),
   run: (entityId: string, action: "on" | "off" | "press" = "on") => post("run", { entityId, action }),
   saveSchedule: (s: Schedule) => request(`schedules/${s.id}`, { method: "PUT", body: JSON.stringify(s) }),
   deleteSchedule: (id: string) => request(`schedules/${id}`, { method: "DELETE" }),

@@ -12,6 +12,7 @@ import { duties, dutiesIcs } from "./plan.js";
 import { loadShelf, saveDinner, saveShelf } from "./meals.js";
 import { carActions, carCharging, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
+import { findSmartCharging } from "./smartcharging.js";
 import { haSocket } from "./connectors/haws.js";
 import { energyLive, liveEnergyIds } from "./energy.js";
 import { publishToHa } from "./publisher.js";
@@ -235,7 +236,7 @@ export const configSchema = z
     schedules: z.array(scheduleSchema).max(40),
     entities: z.object({
       cars: z
-        .array(z.object({ name: label(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional(), climate: entity.optional() }))
+        .array(z.object({ name: label(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional(), climate: entity.optional(), plan: entity.optional(), mode: entity.optional() }))
         .max(6),
       energy: z.object({
         solar: entity.optional(),
@@ -1068,6 +1069,26 @@ export async function registerRoutes(app: FastifyInstance) {
       if (!entityId || !ents.some((x) => x.e === entityId)) throw new Error("Entiteten hör inte till bilen.");
       await runEntityAction(entityId, action ?? "on");
       invalidate("car:");
+      invalidate("ha:states");
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  // Laddläge hos en smartstyrning (t.ex. Auto / Ladda nu / Pausa): samma överstyrning som smartstyrningens egen knapp, via Home Assistant.
+  app.post("/api/car/:index/mode", async (req, reply) => {
+    const { option } = (req.body ?? {}) as { option?: string };
+    try {
+      const car = loadConfig().entities.cars[Number((req.params as { index: string }).index)];
+      const conn = haConnection();
+      if (!car || !conn) throw new Error(car ? "Home Assistant är inte anslutet." : "Okänd bil");
+      const states = new Map((await cached("ha:states", 5_000, () => ha.states(conn))).map((s) => [s.entity_id, s]));
+      const sc = findSmartCharging(states, car.name, { plan: car.plan, mode: car.mode });
+      if (!sc?.modeEntity) throw new Error("Bilen har ingen smart laddning med laddläge.");
+      if (!option || !sc.options.includes(option)) throw new Error("Okänt laddläge.");
+      const d = sc.modeEntity.startsWith("input_select.") ? "input_select" : "select";
+      await ha.service(conn, d, "select_option", { entity_id: sc.modeEntity, option });
       invalidate("ha:states");
       return { ok: true };
     } catch (e) {

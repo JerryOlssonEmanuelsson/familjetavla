@@ -1,6 +1,7 @@
 import { buildAppliances } from "./appliances.js";
 import { buildRobots, buildSecurity } from "./security.js";
 import { energyLive, energyToday, todaySeries } from "./energy.js";
+import { findSmartCharging } from "./smartcharging.js";
 import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable, versionInfo } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
@@ -383,13 +384,19 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     lessonView: cfg.dashboard.lessons ?? "all",
     update: updateAvailable(),
     version: versionInfo(),
-    cars: cfg.entities.cars.map((c) => ({
-      ...buildCar(c, stateMap, now),
+    cars: cfg.entities.cars.map((c) => {
+      const smart = findSmartCharging(stateMap, c.name, { plan: c.plan, mode: c.mode });
+      const base = buildCar(c, stateMap, now);
+      return {
+      ...base,
+      status: smart?.state ? [base.status, smart.state].filter(Boolean).join(" · ") : base.status,
+      smart,
       climate: c.climate ? { entityId: c.climate, on: isOnState(stateMap.get(c.climate)?.state) } : undefined,
       schedules: (cfg.schedules ?? [])
         .filter((s) => s.entityId === c.climate)
         .map(({ id, name, days, time, enabled }) => ({ id, name, days, time, enabled })),
-    })),
+      };
+    }),
     lights: cfg.entities.lights.map((l) => lamp(stateMap, l.entityId, l.name)),
     music: buildMusic(cfg, stateMap),
     security: buildSecurity(cfg, stateMap),
