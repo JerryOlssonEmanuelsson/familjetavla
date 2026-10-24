@@ -127,7 +127,7 @@ export function loadConfig(): Config {
     const at = d.home.findIndex((w) => w.id === "meals");
     d.home.splice(at >= 0 ? at + 1 : d.home.length, 0, { id: "schoolday", on: true });
   }
-  for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: false });
+  for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: id === "chores" }); // sysslor visar sig bara när det finns några
   for (const id of TAB_IDS) if (!d.tabs.some((t) => t.id === id)) d.tabs.push({ id, on: true });
   return cached;
 }
@@ -228,6 +228,9 @@ export interface LocalFile {
   volumes?: Record<string, number>;
   /** "Saknas på hyllan" per barn: ["Blöjor", "Extrakläder"]. */
   shelf?: Record<string, string[]>;
+  /** Sysslor barnen ska göra (se chores.ts) och vilka som är avbockade per dag (YYYY-MM-DD → id:n). */
+  chores?: import("./chores.js").Chore[];
+  choreDone?: Record<string, string[]>;
   /** Dit/hem-val per händelse, nyckel = travelKey(). */
   travel?: Record<string, import("./types.js").TravelChoice>;
   /** Andra som skjutsar ("Marina", "Ola"), senast använd först – snabbval i Planera veckan. */

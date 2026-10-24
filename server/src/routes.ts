@@ -13,6 +13,7 @@ import { loadShelf, saveDinner, saveShelf } from "./meals.js";
 import { carActions, carCharging, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
 import { findAutoModes, findSmartCharging } from "./smartcharging.js";
+import { loadChores, saveChores, setChoreDone } from "./chores.js";
 import { haSocket } from "./connectors/haws.js";
 import { energyLive, liveEnergyIds } from "./energy.js";
 import { publishToHa } from "./publisher.js";
@@ -1339,6 +1340,24 @@ export async function registerRoutes(app: FastifyInstance) {
     const body = z.object({ personId: z.string().regex(ID), items: z.array(z.string().max(30)).max(10) }).safeParse(req.body);
     if (!body.success || !loadConfig().people.some((p) => p.id === body.data.personId && p.care)) return fail(reply, new Error("Okänt barn"));
     saveShelf(body.data.personId, body.data.items);
+    return { ok: true };
+  });
+
+  // ---------- Sysslor: bocka av på tavlan (alla), ändra listan (PIN) ----------
+  app.post("/api/chores/toggle", async (req, reply) => {
+    const body = z.object({ id: z.string().max(40), done: z.boolean() }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltigt"));
+    if (!setChoreDone(body.data.id, dayKey(new Date()), body.data.done)) return fail(reply, new Error("Okänd syssla"));
+    invalidate("ha:states");
+    return { ok: true };
+  });
+  app.get("/api/chores", async () => ({ chores: loadChores() }));
+  app.put("/api/chores", { preHandler: guard }, async (req, reply) => {
+    const body = z.object({ chores: z.array(z.object({ id: z.string().regex(ID), personId: z.string().regex(ID), title: z.string().min(1).max(40), days: z.array(z.number().int().min(1).max(7)).max(7) })).max(80) }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltig lista"));
+    const kids = new Set(loadConfig().people.filter((p) => p.kind === "child").map((p) => p.id));
+    if (body.data.chores.some((c) => !kids.has(c.personId))) return fail(reply, new Error("Sysslor kan bara läggas på barn."));
+    saveChores(body.data.chores);
     return { ok: true };
   });
 

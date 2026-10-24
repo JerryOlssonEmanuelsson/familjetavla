@@ -2,6 +2,7 @@ import { buildAppliances } from "./appliances.js";
 import { buildRobots, buildSecurity } from "./security.js";
 import { energyLive, energyToday, todaySeries } from "./energy.js";
 import { findAutoModes, findSmartCharging } from "./smartcharging.js";
+import { choresForToday } from "./chores.js";
 import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable, versionInfo } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
@@ -364,6 +365,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     shelf: Object.entries(loadShelf())
       .filter(([id]) => people.get(id)?.care)
       .map(([id, items]) => ({ personId: id, name: people.get(id)!.name, items })),
+    chores: choresForToday(cfg.people, now),
     custody,
     legend: [
       ...cfg.people.map((p) => ({ name: p.name, color: p.color })),

@@ -120,7 +120,7 @@ export interface TravelChoice {
   home?: TravelLeg;
 }
 
-export const HOME_WIDGETS = ["now", "meals", "schoolday", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates", "music"] as const;
+export const HOME_WIDGETS = ["now", "meals", "schoolday", "chores", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates", "music"] as const;
 export type HomeWidget = (typeof HOME_WIDGETS)[number];
 /** Startskärmens rutor: "auto" följer hur många rutor som visas, annars liten/normal/stor. */
 export type WidgetSize = "auto" | "s" | "m" | "l";
@@ -559,6 +559,8 @@ export interface Dashboard {
   sick: { personId: string; name: string; date: string }[];
   /** "Saknas på hyllan" per barn på förskola/fritids. */
   shelf: { personId: string; name: string; items: string[] }[];
+  /** Dagens sysslor per barn (bocka av på tavlan). */
+  chores: import("./chores.js").ChoresForPerson[];
   cars: {
     name: string;
     battery: number | null;

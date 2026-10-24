@@ -1,5 +1,9 @@
 # Ändringar
 
+## 0.14.0
+
+- **Sysslor:** en ruta på startsidan där barnen bockar av det de ska göra innan skärmtid ("Plocka undan", "Packa väskan"). Per barn och veckodag, nollställs varje dag, och "Klart! 🎉" när allt är gjort. Lägg till och ta bort under **Ändra** (kräver PIN om du satt en). Tavlan skickar också `sensor.familjetavla_sysslor_<namn>` ("klart" eller "2 kvar") till Home Assistant, så en automation kan till exempel hålla tv:n avstängd tills sysslorna är gjorda. Förslag från Robert Allert.
+
 ## 0.13.0
 
 - **Smart laddning:** har du en smartstyrning som planerar bilens laddning visas **planen** under Bil (band över kommande timmar, blocken, kWh och batteri efter planen), med knapparna **Auto / Ladda nu / Pausa**. Laddknappen ger samma överstyrning som smartstyrningens egen app. Hittas av sig själv om styrningen följer [avtalet](../docs/SMART-LADDNING.md).
