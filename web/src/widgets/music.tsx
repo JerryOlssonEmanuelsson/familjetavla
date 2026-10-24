@@ -127,6 +127,7 @@ function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
       if (!d.on) {
         if (Math.abs(dy) < 30 || Math.abs(dy) < Math.abs(e.clientX - d.x) * 1.5) return;
         d.on = true;
+        document.documentElement.dataset.volDrag = "1"; // tavlans "dra ner för att ladda om" ska inte tro att det är för den
         e.currentTarget.setPointerCapture(e.pointerId);
       }
       // 1 % per 4 px after the first 30.
@@ -135,6 +136,7 @@ function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
     onPointerUp: () => {
       const d = st.current;
       st.current = null;
+      delete document.documentElement.dataset.volDrag;
       if (d?.on) {
         swallow.current = Date.now();
         if (shown !== null && shown !== d.from) void set(shown);
@@ -143,6 +145,7 @@ function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
     },
     onPointerCancel: () => {
       st.current = null;
+      delete document.documentElement.dataset.volDrag;
       setShown(null);
     },
     // A drag that started on a button must not also press it.

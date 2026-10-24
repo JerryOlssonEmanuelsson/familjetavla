@@ -1041,6 +1041,12 @@ export function Dashboard() {
   const onPointerMove = (e: React.PointerEvent) => {
     const g = gesture.current;
     if (!g) return;
+    if (document.documentElement.dataset.volDrag) {
+      // Ett volymsvep pågår (Musik): inget laddar om sidan och inget byter flik.
+      gesture.current = null;
+      setPull(0);
+      return;
+    }
     const dy = e.clientY - g.y;
     const dx = e.clientX - g.x;
     if (g.pulling && dy > 0 && Math.abs(dy) > Math.abs(dx)) setPull(Math.min(110, dy * 0.6));
