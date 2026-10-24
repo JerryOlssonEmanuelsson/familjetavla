@@ -128,7 +128,7 @@ export function loadConfig(): Config {
     d.home.splice(at >= 0 ? at + 1 : d.home.length, 0, { id: "schoolday", on: true });
   }
   for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: false });
-  for (const id of TAB_IDS) if (!d.tabs.some((t) => t.id === id)) d.tabs.push({ id, on: true });
+  for (const id of TAB_IDS) if (!d.tabs.some((t) => t.id === id)) (id === "food" ? d.tabs.unshift.bind(d.tabs) : d.tabs.push.bind(d.tabs))({ id, on: true });
   return cached;
 }
 
@@ -214,10 +214,14 @@ export interface LocalItem {
   id: string;
   name: string;
   done: boolean;
+  /** Gjord av ett erbjudande: butikens kopplings-id och erbjudandets id (så ICA visar priset på raden). */
+  offer?: { store: string; id: string };
 }
 
 export interface LocalFile {
   shopping?: LocalItem[];
+  /** Varor som skickats till en butik: radens namn (gemener) → butiken och när (för märket i inköpslistan). */
+  sentToStore?: Record<string, { store: string; at: string }>;
   /** Veckans middagar: YYYY-MM-DD → "Tacos". */
   dinners?: Record<string, string>;
   /** Hur ofta en middag valts (för favoriter) och vad man brukar handla till den. */

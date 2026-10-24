@@ -20,6 +20,7 @@ import {
   collectSchool,
   collectWaste,
   groceryIntegration,
+  groceryIntegrations,
   hasPriceExtras,
   totalPrice,
   type SourceError,
@@ -378,6 +379,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
       const g = groceryIntegration(cfg);
       return g ? { provider: g.provider.meta.id, name: g.provider.meta.name } : undefined;
     })(),
+    groceries: groceryIntegrations(cfg).map((g) => ({ id: g.integ.id, provider: g.provider.meta.id, name: g.provider.meta.name })),
     prices: buildPrices(cfg, prices, now),
     energy: buildEnergy(cfg, stateMap, energySeries, prices),
     schoolFood: todaysFood(family.schoolFood, now),
@@ -418,7 +420,15 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
       ...buildClimate(c.entityId, c.name, stateMap),
       controls: (c.controls ?? []).map((id) => buildControl(stateMap, id, c.name)),
     })),
-    temps: cfg.entities.temps.map((t) => ({ name: t.name, value: formatTemp(stateMap, t.entityId) })),
+    temps: cfg.entities.temps.map((t) => {
+      const offline = isOffline(stateMap, t.entityId);
+      const since = stateMap.get(t.entityId)?.last_changed;
+      return {
+        name: t.name,
+        value: formatTemp(stateMap, t.entityId),
+        ...(offline ? { offline: true, days: since ? Math.max(0, Math.floor((now.getTime() - new Date(since).getTime()) / 86_400_000)) : undefined } : {}),
+      };
+    }),
     deviceCards: (cfg.entities.deviceCards ?? []).map((c, index) => ({
       index,
       title: c.title,
@@ -598,14 +608,24 @@ async function loadShopping(cfg: Config, errors: SourceError[]): Promise<Dashboa
     if (conn) {
       try {
         const items = await cached(`todo:${cfg.shopping.entityId}`, 15_000, () => ha.todoItems(conn, cfg.shopping.entityId!));
-        return { source: "ha", items: items.map((i) => ({ id: i.uid, name: i.summary, done: i.status === "completed" })) };
+        return { source: "ha", items: markSent(items.map((i) => ({ id: i.uid, name: i.summary, done: i.status === "completed" }))) };
       } catch (e) {
         errors.push({ source: "Inköpslista", message: (e as Error).message });
       }
     }
     return { source: "ha", items: [] };
   }
-  return { source: "local", items: loadLocalList() };
+  return { source: "local", items: markSent(loadLocalList()) };
+}
+
+/** Items that were sent to a shop in the last days get a mark (the shop's name), so the list shows what is already ordered. */
+function markSent<T extends { name: string; done: boolean }>(items: T[]): (T & { sent?: string })[] {
+  const sent = loadLocal().sentToStore ?? {};
+  const limit = Date.now() - 3 * 86_400_000;
+  return items.map((i) => {
+    const s = sent[i.name.trim().toLowerCase()];
+    return s && !i.done && Date.parse(s.at) > limit ? { ...i, sent: s.store } : i;
+  });
 }
 
 const WEEKDAY_NAMES = ["söndag", "måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag"];
