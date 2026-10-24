@@ -455,6 +455,16 @@ export function FamilyStep({ cfg, set }: StepProps) {
           <Icon name="plus" size={20} /> Barn
         </button>
       </div>
+      {cfg.people.some((p) => p.kind === "child" && p.name.trim()) && (
+        <section className="card">
+          <Toggle
+            label="Sysslor för barnen"
+            help="En ruta på startsidan där barnen bockar av vad de ska göra innan de får sätta sig vid tv:n eller datorn. Du lägger in sysslorna på tavlan efteråt (knappen Lägg till i rutan)."
+            checked={cfg.dashboard.home.some((w) => w.id === "chores" && w.on)}
+            onChange={(on) => set({ ...cfg, dashboard: { ...cfg.dashboard, home: cfg.dashboard.home.map((w) => (w.id === "chores" ? { ...w, on } : w)) } })}
+          />
+        </section>
+      )}
     </div>
   );
 }
@@ -2017,6 +2027,7 @@ export function NotifyStep({ cfg, set, resp }: StepProps) {
                 )}
                 <Toggle label="Kvällen innan kl 20 – vad jag ansvarar för imorgon" checked={n.evening ?? true} onChange={(v) => setNotify(a.id, { evening: v })} />
                 <Toggle label="Söndag kl 19 – Planera veckan om något saknar ansvarig" checked={n.weekly ?? true} onChange={(v) => setNotify(a.id, { weekly: v })} />
+                <Toggle label="Ny version av Familjetavlan – en notis när det finns en" checked={n.updates ?? true} onChange={(v) => setNotify(a.id, { updates: v })} />
                 {(cfg.entities.security || (cfg.entities.appliances ?? []).length > 0 || (cfg.entities.robots ?? []).length > 0) && (
                   <Toggle
                     label="Hemmet – tvätten klar, roboten har fastnat, dörren olåst kl 22, porten öppen, larmet"

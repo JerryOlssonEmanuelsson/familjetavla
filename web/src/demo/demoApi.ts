@@ -129,6 +129,7 @@ const careSaved: Record<string, TravelChoice> = {};
     { name: "Köttfärssås och spagetti" },
   ];
   dd.shelf = [{ personId: "maja", name: "Maja", items: ["Extrakläder"] }];
+  dd.chores = [{ personId: "maja", name: "Maja", color: "#f59e0b", items: [{ id: "c1", title: "Plocka undan", done: true }, { id: "c2", title: "Borsta tänderna", done: false }, { id: "c3", title: "Packa väskan", done: false }], allDone: false }];
   dd.reminders.splice(3, 0, { icon: "bag", title: "Maja · ta med till förskolan: extrakläder", sub: "Bocka av när det är lämnat – tryck på lämningen", tone: "amber" });
   const fri = dd.days.find((x) => x.key === "2026-10-23");
   fri?.events.unshift({ time: "", title: "Planeringsdag – förskolan stängd", color: "#34e0a1", who: "Maja", initial: "M", category: "school", icon: "school" });
@@ -514,6 +515,16 @@ export const demoApi = {
     }
     return wait({ ok: true as const }, 150);
   },
+  choreToggle: (id: string, done: boolean) => {
+    for (const p of d.chores) {
+      const i = p.items.find((x) => x.id === id);
+      if (i) i.done = done;
+      p.allDone = p.items.every((x) => x.done);
+    }
+    return wait({ ok: true as const }, 100);
+  },
+  chores: () => wait({ chores: d.chores.flatMap((p) => p.items.map((i) => ({ id: i.id, personId: p.personId, title: i.title, days: [] as number[] }))) }, 100),
+  saveChores: (_c: { id: string; personId: string; title: string; days: number[] }[]) => wait({ ok: true as const }, 100),
   shelf: (personId: string, items: string[]) => {
     d.shelf = items.length ? [{ personId, name: "Maja", items }] : [];
     d.reminders = d.reminders.filter((r) => !r.title.startsWith("Maja · ta med"));

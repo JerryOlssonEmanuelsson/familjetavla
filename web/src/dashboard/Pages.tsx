@@ -235,6 +235,137 @@ function CarDetailsSheet({ index, onClose, actions }: { index: number; onClose: 
   );
 }
 
+type Smart = NonNullable<Dashboard["cars"][number]["smart"]>;
+
+const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+const dayName = (iso: string) => {
+  const d = new Date(iso);
+  const today = new Date();
+  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (same(d, today)) return "idag";
+  if (same(d, new Date(today.getTime() + 86_400_000))) return "imorgon";
+  return d.toLocaleDateString("sv-SE", { weekday: "short" });
+};
+
+/** Laddplanen för de kommande 24 timmarna som ett band, med blocken listade under. */
+function PlanBar({ slots }: { slots: Smart["slots"] }) {
+  const t0 = Date.now();
+  const lastEnd = Math.max(0, ...slots.map((s) => Date.parse(s.end)));
+  const span = Math.min(48, Math.max(24, Math.ceil((lastEnd - t0) / 3_600_000 / 6) * 6)) * 3_600_000;   // 24 h, men längre (högst 48 h) så att hela planen syns
+  const t1 = t0 + span;
+  const shown = slots.filter((s) => Date.parse(s.end) > t0 && Date.parse(s.start) < t1);
+  const pct = (t: number) => Math.max(0, Math.min(100, ((t - t0) / (t1 - t0)) * 100));
+  return (
+    <div className="stack" style={{ gap: 6 }}>
+      <div style={{ position: "relative", height: 22, borderRadius: 11, background: "rgba(120,130,150,0.22)", overflow: "hidden" }} aria-label="Planerad laddning">
+        {shown.map((s) => (
+          <div key={s.start} title={`${hhmm(s.start)}–${hhmm(s.end)}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${pct(Date.parse(s.start))}%`, width: `${Math.max(1.2, pct(Date.parse(s.end)) - pct(Date.parse(s.start)))}%`, background: "var(--green, #04ce78)" }} />
+        ))}
+      </div>
+      <div className="row" style={{ justifyContent: "space-between", fontSize: 12 }}>
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+          <span key={f} className="muted">{f === 0 ? "nu" : hhmm(new Date(t0 + f * span).toISOString())}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const SMART_DAYS = ["Mån", "Tis", "Ons", "Tors", "Fre", "Lör", "Sön"];
+
+/** Veckoschemat ("klar kl T med mål %") som smartstyrningen följer. En ändring här sparas hos smartstyrningen och slår igenom i dess egen app. */
+function SmartScheduleEditor({ index, s, actions }: { index: number; s: Smart; actions: Actions }) {
+  const [rows, setRows] = useState(s.schedule ?? []);
+  useEffect(() => setRows(s.schedule ?? []), [JSON.stringify(s.schedule)]);
+  const editable = Boolean(s.scheduleEntity);
+  const save = (day: number, patch: Partial<NonNullable<Smart["schedule"]>[number]>) => {
+    const next = rows.map((r) => (r.day === day ? { ...r, ...patch } : r));
+    setRows(next);
+    const r = next.find((x) => x.day === day)!;
+    actions.run(`Laddschema ${SMART_DAYS[day]}`, () => api.carSchedule(index, r), { done: `Laddschema ${SMART_DAYS[day]} sparat`, check: (d) => { const x = d.cars[index]?.smart?.schedule?.find((y) => y.day === day); return !!x && x.time === r.time && x.soc === r.soc && x.enabled === r.enabled; }, slow: "Skickat – smartstyrningen sparar det inom några sekunder." });
+  };
+  if (rows.length === 0) return null;
+  return (
+    <details>
+      <summary className="muted" style={{ cursor: "pointer", fontWeight: 600 }}>
+        Laddschema (klar kl) {editable ? "" : "· bara läsning"}
+      </summary>
+      <div className="stack" style={{ gap: 0, marginTop: 6 }}>
+        {rows.map((r) => (
+          <div key={r.day} className="row gap" style={{ padding: "6px 0", borderBottom: "1px solid var(--card-border)", alignItems: "center" }}>
+            <b style={{ width: 38 }}>{SMART_DAYS[r.day]}</b>
+            <button className={`btn small ${r.enabled ? "selected" : ""}`} aria-pressed={r.enabled} disabled={!editable} onClick={() => save(r.day, { enabled: !r.enabled })}>
+              {r.enabled ? "På" : "Av"}
+            </button>
+            <input type="time" value={r.time} disabled={!editable || !r.enabled} onChange={(e) => e.target.value && save(r.day, { time: e.target.value })} style={{ minWidth: 0 }} aria-label={`${SMART_DAYS[r.day]} klar kl`} />
+            <select value={r.soc} disabled={!editable || !r.enabled} onChange={(e) => save(r.day, { soc: Number(e.target.value) })} aria-label={`${SMART_DAYS[r.day]} mål`}>
+              {Array.from(new Set([...[20, 30, 40, 50, 60, 70, 80, 90, 100], r.soc])).sort((a, b) => a - b).map((v) => (
+                <option key={v} value={v}>
+                  {v} %
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+/** Smartstyrd laddning: planen och laddläget (Auto / Ladda nu / Pausa) från bilens smartstyrning i Home Assistant. Laddknappen ger samma överstyrning som smartstyrningens egen app. */
+function SmartChargingCard({ index, car, actions }: { index: number; car: Dashboard["cars"][number]; actions: Actions }) {
+  const s = car.smart;
+  if (!s) return null;
+  const upcoming = s.slots.filter((x) => Date.parse(x.end) > Date.now()).slice(0, 6);
+  const now = s.nowOption && s.mode === s.nowOption;
+  const choose = (option: string, label: string) =>
+    actions.run(label, () => api.carMode(index, option), { done: `${label}: klart`, check: (d) => d.cars[index]?.smart?.mode === option, slow: "Skickat – smartstyrningen kan ta en halv minut på sig." });
+  const big = now ? s.pauseOption ?? s.autoOption : s.nowOption;
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Laddplan</h2>
+        <span className={`chip ${car.charging ? "good" : ""}`}>{s.state || (car.charging ? "Laddar" : "Ingen plan")}</span>
+      </div>
+      {s.modeEntity && big && (
+        <button className={`big-btn ${now ? "" : "amber"}`} onClick={() => choose(big, now ? "Stoppa laddning" : "Starta laddning")}>
+          {now ? "Stoppa laddning" : "Starta laddning"}
+        </button>
+      )}
+      {s.modeEntity && s.options.length > 0 && (
+        <div className="grid-2" style={{ gridTemplateColumns: `repeat(${Math.min(s.options.length, 3)}, minmax(0, 1fr))` }}>
+          {s.options.map((o) => (
+            <button key={o} className={`btn ${o === s.mode ? "selected" : ""}`} aria-pressed={o === s.mode} onClick={() => o !== s.mode && choose(o, o)}>
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+      <PlanBar slots={s.slots} />
+      {upcoming.length > 0 ? (
+        <div className="stack" style={{ gap: 0 }}>
+          {upcoming.map((x) => (
+            <div key={x.start} className="row gap" style={{ padding: "8px 0", borderBottom: "1px solid var(--card-border)" }}>
+              <span className="grow">
+                {dayName(x.start)} {hhmm(x.start)}–{hhmm(x.end)}
+              </span>
+              <b>{x.kw !== null ? `${x.kw.toLocaleString("sv-SE")} kW` : ""}</b>
+            </div>
+          ))}
+          <p className="muted" style={{ marginTop: 8 }}>
+            {s.plannedKwh !== null ? `${s.plannedKwh.toLocaleString("sv-SE")} kWh planerat` : ""}
+            {s.socAfter !== null ? ` · ${s.socAfter} % efter planen` : ""}
+            {s.source ? ` · ${s.source}` : ""}
+          </p>
+        </div>
+      ) : (
+        <p className="muted">Ingen laddning planerad just nu.</p>
+      )}
+      <SmartScheduleEditor index={index} s={s} actions={actions} />
+    </section>
+  );
+}
+
 /** Start/stop charging and the car's own charge schedule, read from its Home Assistant integration. */
 function ChargingCard({ index, charging, actions }: { index: number; charging: boolean; actions: Actions }) {
   const [c, setC] = useState<CarDetails["charging"] | null>(null);
@@ -337,7 +468,7 @@ export function CarsPage({ data, actions }: { data: Dashboard; actions: Actions 
             {car.ageHours !== null && car.ageHours >= 3 && <span className="chip warn">Data {car.ageHours} h gammal</span>}
           </div>
         </section>
-        <ChargingCard index={data.cars.indexOf(car)} charging={Boolean(car.charging)} actions={actions} />
+        {car.smart ? <SmartChargingCard index={data.cars.indexOf(car)} car={car} actions={actions} /> : <ChargingCard index={data.cars.indexOf(car)} charging={Boolean(car.charging)} actions={actions} />}
         <ScheduleEditor car={car} actions={actions} />
         {data.prices && <PriceCard prices={data.prices} />}
       </div>
@@ -485,6 +616,31 @@ export function LightsPage({ data, actions }: { data: Dashboard; actions: Action
 export function HousePage({ data, actions }: { data: Dashboard; actions: Actions }) {
   return (
     <main className="page-grid">
+      {(data.smartModes ?? []).length > 0 && (
+        <section className="card strong">
+          <span className="muted" style={{ fontWeight: 600 }}>
+            Smart styrning
+          </span>
+          {data.smartModes.map((m) => (
+            <div key={m.entityId} className="stack" style={{ gap: 6 }}>
+              <span>{m.name}</span>
+              <div className="row gap wrap">
+                {m.options.map((o) => (
+                  <button
+                    key={o}
+                    className={`btn small ${m.mode === o ? "selected" : ""}`}
+                    aria-pressed={m.mode === o}
+                    title={/^auto/i.test(o) ? "Följer sitt eget schema, som Home Assistant styr" : undefined}
+                    onClick={() => m.mode !== o && actions.run(`${m.name}: ${o}`, () => api.control(m.entityId, "select", o), { done: `${m.name}: ${o}`, check: (d) => d.smartModes?.find((x) => x.entityId === m.entityId)?.mode === o })}
+                  >
+                    {o}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
       {data.climates.map((c) => (
         <section className="card strong" key={c.entityId}>
           <span className="muted" style={{ fontWeight: 600 }}>

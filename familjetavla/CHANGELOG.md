@@ -1,5 +1,22 @@
 # Ändringar
 
+## 0.14.0
+
+- **Nytt volymreglage:** en riktig skjutreglage (fylld bana, stor tumme, ljudikon som stänger av ljudet) i musikkortet och i Musik, och ett glas-reglage när man sveper för volym. Det klipps inte längre av kortet.
+- **Notis när det finns en ny version** av Familjetavlan, till de vuxna som har notiser på (en gång per version; kan stängas av under Notiser).
+- **Ladda om-knapp** uppe till höger (pilarna), bredvid temat och inställningarna. Den laddar om tavlan och hämtar senaste versionen. Att dra ner för att ladda om sidan finns kvar, men händer inte längre när du sveper ner för att sänka volymen.
+- **Rullistor** i installationen har läsbar text i listan (mörkt tema).
+- **Val i installationen:** "Sysslor för barnen" under Familjen. De är av som standard.
+- **Sysslor:** en ruta på startsidan där barnen bockar av det de ska göra innan skärmtid ("Plocka undan", "Packa väskan"). Per barn och veckodag, nollställs varje dag, och "Klart! 🎉" när allt är gjort. Lägg till och ta bort under **Ändra** (kräver PIN om du satt en). Tavlan skickar också `sensor.familjetavla_sysslor_<namn>` ("klart" eller "2 kvar") till Home Assistant, så en automation kan till exempel hålla tv:n avstängd tills sysslorna är gjorda. Förslag från Robert Allert.
+
+## 0.13.0
+
+- **Smart laddning:** har du en smartstyrning som planerar bilens laddning visas **planen** under Bil (band över kommande timmar, blocken, kWh och batteri efter planen), med knapparna **Auto / Ladda nu / Pausa**. Laddknappen ger samma överstyrning som smartstyrningens egen app. Hittas av sig själv om styrningen följer [avtalet](../docs/SMART-LADDNING.md).
+- **Laddschema (klar kl, mål %) per veckodag** går att läsa och ändra under Bil om smartstyrningen publicerar det. Ändringen sparas hos smartstyrningen och slår igenom i dess egen app.
+- **Auto för värme, varmvatten och spabad:** väljare vars första alternativ är Auto (följer sitt eget schema) visas under Hus under **Smart styrning**, utan inställningar.
+- **Uppdateras av sig själv med Docker:** `docker compose up -d` startar nu också Watchtower, som hämtar nya versioner av tavlan var sjätte timme. Vill du inte det: ta bort tjänsten `watchtower` i docker-compose.yml.
+- Spellistan startar nu även när Spotify först måste släppa en gammal ström: tavlan väntar upp till en minut i stället för att visa "Tidsgräns nådd", och säger vad som hänt om Spotify nekar.
+
 ## 0.12.0
 
 - **Https med Home Assistants certifikat:** har HA https (Let's Encrypt, DuckDNS …) körs tavlan även på https på port 8443 med samma certifikat. Då kan Chrome installera tavlan som en riktig app, och installera-knappen leder dit. Se README → Väggplattan.

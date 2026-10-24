@@ -1041,6 +1041,12 @@ export function Dashboard() {
   const onPointerMove = (e: React.PointerEvent) => {
     const g = gesture.current;
     if (!g) return;
+    if (document.documentElement.dataset.volDrag) {
+      // Ett volymsvep pågår (Musik): inget laddar om sidan och inget byter flik.
+      gesture.current = null;
+      setPull(0);
+      return;
+    }
     const dy = e.clientY - g.y;
     const dx = e.clientX - g.x;
     if (g.pulling && dy > 0 && Math.abs(dy) > Math.abs(dx)) setPull(Math.min(110, dy * 0.6));
@@ -1175,6 +1181,9 @@ export function Dashboard() {
           <div className="row gap">
             <button className="btn icon" aria-label={theme === "dark" ? "Byt till ljust tema" : "Byt till mörkt tema"} onClick={toggleTheme}>
               <Icon name={theme === "dark" ? "moon" : "sun"} size={24} />
+            </button>
+            <button className="btn icon" aria-label="Ladda om tavlan" title="Ladda om tavlan (hämtar också senaste versionen)" onClick={() => window.location.reload()}>
+              <Icon name="refresh" size={24} />
             </button>
             {!isInstalled() && !isDemo && (
               <button className="btn icon" aria-label="Installera som app" title="Lägg tavlan på hemskärmen" onClick={() => setInstallOpen(true)}>

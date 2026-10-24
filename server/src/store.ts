@@ -34,7 +34,7 @@ export function defaultConfig(): Config {
     dashboard: {
       accent: "#34e0a1",
       theme: "auto",
-      home: HOME_WIDGETS.map((id) => ({ id, on: !["temps", "energy", "climates"].includes(id) })),
+      home: HOME_WIDGETS.map((id) => ({ id, on: !["temps", "energy", "climates", "chores"].includes(id) })),
       tabs: TAB_IDS.map((id) => ({ id, on: true })),
       nightFrom: "22:00",
       nightTo: "06:00",
@@ -228,6 +228,11 @@ export interface LocalFile {
   volumes?: Record<string, number>;
   /** "Saknas på hyllan" per barn: ["Blöjor", "Extrakläder"]. */
   shelf?: Record<string, string[]>;
+  /** Sysslor barnen ska göra (se chores.ts) och vilka som är avbockade per dag (YYYY-MM-DD → id:n). */
+  chores?: import("./chores.js").Chore[];
+  choreDone?: Record<string, string[]>;
+  /** Senaste version som vi meddelat om (så att samma version bara ger en notis). */
+  updateNotified?: string;
   /** Dit/hem-val per händelse, nyckel = travelKey(). */
   travel?: Record<string, import("./types.js").TravelChoice>;
   /** Andra som skjutsar ("Marina", "Ola"), senast använd först – snabbval i Planera veckan. */

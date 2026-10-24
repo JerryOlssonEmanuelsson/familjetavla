@@ -14,6 +14,18 @@ services:
       - ./data:/data
       # Https med samma certifikat som Home Assistant: mappen med fullchain.pem och privkey.pem.
       # - /sökväg/till/homeassistant/ssl:/ssl:ro
+    labels:
+      - com.centurylinklabs.watchtower.enable=true      # uppdateras automatiskt av tjänsten watchtower nedan (eller din egen Watchtower med --label-enable)
     environment:
       - TZ=Europe/Stockholm
       # - BROWSER_WS_URL=ws://browserless:3000   # extern webbläsare för Willys (valfritt)
+
+  # Hämtar nya versioner av tavlan automatiskt (var sjätte timme) och startar om den. Inställningarna ligger kvar i ./data.
+  # Vill du uppdatera själv: ta bort den här tjänsten, och kör `docker compose pull && docker compose up -d` när du vill.
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: familjetavla-watchtower
+    restart: unless-stopped
+    command: --label-enable --cleanup --interval 21600
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

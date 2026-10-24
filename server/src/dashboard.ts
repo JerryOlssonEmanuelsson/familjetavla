@@ -1,6 +1,8 @@
 import { buildAppliances } from "./appliances.js";
 import { buildRobots, buildSecurity } from "./security.js";
 import { energyLive, energyToday, todaySeries } from "./energy.js";
+import { findAutoModes, findSmartCharging } from "./smartcharging.js";
+import { choresForToday } from "./chores.js";
 import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
 import { updateAvailable, versionInfo } from "./updates.js";
 import { buildSchoolDays, buildSchoolWeek } from "./schoolday.js";
@@ -363,6 +365,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     shelf: Object.entries(loadShelf())
       .filter(([id]) => people.get(id)?.care)
       .map(([id, items]) => ({ personId: id, name: people.get(id)!.name, items })),
+    chores: choresForToday(cfg.people, now),
     custody,
     legend: [
       ...cfg.people.map((p) => ({ name: p.name, color: p.color })),
@@ -383,13 +386,20 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     lessonView: cfg.dashboard.lessons ?? "all",
     update: updateAvailable(),
     version: versionInfo(),
-    cars: cfg.entities.cars.map((c) => ({
-      ...buildCar(c, stateMap, now),
+    cars: cfg.entities.cars.map((c) => {
+      const smart = findSmartCharging(stateMap, c.name, { plan: c.plan, mode: c.mode });
+      const base = buildCar(c, stateMap, now);
+      return {
+      ...base,
+      status: smart?.state ? [base.status, smart.state].filter(Boolean).join(" · ") : base.status,
+      smart,
       climate: c.climate ? { entityId: c.climate, on: isOnState(stateMap.get(c.climate)?.state) } : undefined,
       schedules: (cfg.schedules ?? [])
         .filter((s) => s.entityId === c.climate)
         .map(({ id, name, days, time, enabled }) => ({ id, name, days, time, enabled })),
-    })),
+      };
+    }),
+    smartModes: findAutoModes(stateMap),
     lights: cfg.entities.lights.map((l) => lamp(stateMap, l.entityId, l.name)),
     music: buildMusic(cfg, stateMap),
     security: buildSecurity(cfg, stateMap),

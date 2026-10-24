@@ -14,6 +14,16 @@ export function newer(a: string, b: string): boolean {
   return false;
 }
 
+/** Notisen om en ny version: bara till vuxna som har notiser på (och inte stängt av den), och bara en gång per version. */
+export function updateNotice(u: { latest: string; current: string } | undefined, already: string | undefined) {
+  if (!u || already === u.latest) return undefined;
+  return {
+    version: u.latest,
+    title: "Ny version av Familjetavlan",
+    message: `Version ${u.latest} finns (ni kör ${u.current}). Tavlan uppdateras av sig själv om du kör Watchtower; annars: docker compose pull && docker compose up -d, eller uppdatera tillägget i Home Assistant.`,
+  };
+}
+
 let latest: string | null = null;
 let lastTry = 0;
 

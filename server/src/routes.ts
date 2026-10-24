@@ -12,6 +12,8 @@ import { duties, dutiesIcs } from "./plan.js";
 import { loadShelf, saveDinner, saveShelf } from "./meals.js";
 import { carActions, carCharging, carRows, deviceEntities, discover, readRegistry } from "./discovery.js";
 import { runEntityAction } from "./scheduler.js";
+import { findAutoModes, findSmartCharging } from "./smartcharging.js";
+import { loadChores, saveChores, setChoreDone } from "./chores.js";
 import { haSocket } from "./connectors/haws.js";
 import { energyLive, liveEnergyIds } from "./energy.js";
 import { publishToHa } from "./publisher.js";
@@ -142,6 +144,7 @@ const personSchema = z.object({
       evening: z.boolean().optional(),
       weekly: z.boolean().optional(),
       home: z.boolean().optional(),
+      updates: z.boolean().optional(),
       morning: z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/)]).optional(),
       children: z.array(z.string().regex(ID)).max(20).optional(),
     })
@@ -235,7 +238,7 @@ export const configSchema = z
     schedules: z.array(scheduleSchema).max(40),
     entities: z.object({
       cars: z
-        .array(z.object({ name: label(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional(), climate: entity.optional() }))
+        .array(z.object({ name: label(40), battery: entity, range: entity.optional(), location: entity.optional(), charging: entity.optional(), climate: entity.optional(), plan: entity.optional(), mode: entity.optional() }))
         .max(6),
       energy: z.object({
         solar: entity.optional(),
@@ -1075,6 +1078,47 @@ export async function registerRoutes(app: FastifyInstance) {
     }
   });
 
+  // Laddläge hos en smartstyrning (t.ex. Auto / Ladda nu / Pausa): samma överstyrning som smartstyrningens egen knapp, via Home Assistant.
+  app.post("/api/car/:index/mode", async (req, reply) => {
+    const { option } = (req.body ?? {}) as { option?: string };
+    try {
+      const car = loadConfig().entities.cars[Number((req.params as { index: string }).index)];
+      const conn = haConnection();
+      if (!car || !conn) throw new Error(car ? "Home Assistant är inte anslutet." : "Okänd bil");
+      const states = new Map((await cached("ha:states", 5_000, () => ha.states(conn))).map((s) => [s.entity_id, s]));
+      const sc = findSmartCharging(states, car.name, { plan: car.plan, mode: car.mode });
+      if (!sc?.modeEntity) throw new Error("Bilen har ingen smart laddning med laddläge.");
+      if (!option || !sc.options.includes(option)) throw new Error("Okänt laddläge.");
+      const d = sc.modeEntity.startsWith("input_select.") ? "input_select" : "select";
+      await ha.service(conn, d, "select_option", { entity_id: sc.modeEntity, option });
+      invalidate("ha:states");
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
+  // Ändra bilens laddschema (klar kl T med mål %, per veckodag). Skrivs som JSON i smartstyrningens kommandofält i Home Assistant; styrningen sparar det som sitt eget schema, så ändringen slår igenom hos den.
+  app.post("/api/car/:index/schedule", async (req, reply) => {
+    const b = (req.body ?? {}) as { day?: number; time?: string; soc?: number; enabled?: boolean };
+    try {
+      const car = loadConfig().entities.cars[Number((req.params as { index: string }).index)];
+      const conn = haConnection();
+      if (!car || !conn) throw new Error(car ? "Home Assistant är inte anslutet." : "Okänd bil");
+      const day = Number(b.day);
+      const soc = Number(b.soc);
+      if (!Number.isInteger(day) || day < 0 || day > 6 || !/^\d{2}:\d{2}$/.test(String(b.time)) || !Number.isFinite(soc) || soc < 20 || soc > 100) throw new Error("Ogiltigt schema.");
+      const states = new Map((await cached("ha:states", 5_000, () => ha.states(conn))).map((s) => [s.entity_id, s]));
+      const sc = findSmartCharging(states, car.name, { plan: car.plan, mode: car.mode });
+      if (!sc?.scheduleEntity || !sc.scheduleCar) throw new Error("Laddschemat går inte att ändra härifrån – smartstyrningen saknar kommandofält.");
+      await ha.service(conn, "input_text", "set_value", { entity_id: sc.scheduleEntity, value: JSON.stringify({ car: sc.scheduleCar, day, time: b.time, soc: Math.round(soc), enabled: Boolean(b.enabled) }) });
+      invalidate("ha:states");
+      return { ok: true };
+    } catch (e) {
+      return fail(reply, e);
+    }
+  });
+
   // ---------- Generic controls on climate/device cards ----------
   app.post("/api/control", async (req, reply) => {
     const { entityId, op, value } = (req.body ?? {}) as { entityId?: string; op?: "toggle" | "select" | "set" | "press"; value?: string | number };
@@ -1084,6 +1128,10 @@ export async function registerRoutes(app: FastifyInstance) {
       ...(cfg.entities.deviceCards ?? []).flatMap((c) => c.controls),
     ]);
     const conn = haConnection();
+    if (conn && entityId && op === "select" && !allowed.has(entityId)) {              // lägesväljare (Auto först) som tavlan hittat själv
+      const st = new Map((await cached("ha:states", 5_000, () => ha.states(conn))).map((s) => [s.entity_id, s]));
+      if (findAutoModes(st).some((m) => m.entityId === entityId)) allowed.add(entityId);
+    }
     if (!entityId || !allowed.has(entityId)) return fail(reply, new Error("Okänt reglage"));
     if (!conn) return fail(reply, new Error("Home Assistant är inte anslutet."));
     const domain = entityId.split(".")[0];
@@ -1293,6 +1341,24 @@ export async function registerRoutes(app: FastifyInstance) {
     const body = z.object({ personId: z.string().regex(ID), items: z.array(z.string().max(30)).max(10) }).safeParse(req.body);
     if (!body.success || !loadConfig().people.some((p) => p.id === body.data.personId && p.care)) return fail(reply, new Error("Okänt barn"));
     saveShelf(body.data.personId, body.data.items);
+    return { ok: true };
+  });
+
+  // ---------- Sysslor: bocka av på tavlan (alla), ändra listan (PIN) ----------
+  app.post("/api/chores/toggle", async (req, reply) => {
+    const body = z.object({ id: z.string().max(40), done: z.boolean() }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltigt"));
+    if (!setChoreDone(body.data.id, dayKey(new Date()), body.data.done)) return fail(reply, new Error("Okänd syssla"));
+    invalidate("ha:states");
+    return { ok: true };
+  });
+  app.get("/api/chores", async () => ({ chores: loadChores() }));
+  app.put("/api/chores", { preHandler: guard }, async (req, reply) => {
+    const body = z.object({ chores: z.array(z.object({ id: z.string().regex(ID), personId: z.string().regex(ID), title: z.string().min(1).max(40), days: z.array(z.number().int().min(1).max(7)).max(7) })).max(80) }).safeParse(req.body);
+    if (!body.success) return fail(reply, new Error("Ogiltig lista"));
+    const kids = new Set(loadConfig().people.filter((p) => p.kind === "child").map((p) => p.id));
+    if (body.data.chores.some((c) => !kids.has(c.personId))) return fail(reply, new Error("Sysslor kan bara läggas på barn."));
+    saveChores(body.data.chores);
     return { ok: true };
   });
 

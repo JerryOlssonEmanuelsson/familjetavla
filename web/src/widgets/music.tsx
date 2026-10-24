@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Dashboard, Music as MusicData } from "../../../server/src/types";
 import { api, type DirStation, type Shelf, type Tile, type Track } from "../api";
@@ -70,6 +71,55 @@ function useControls(sp: Speaker, actions: Actions) {
  * "P4 Jönköping · Kök" with − volume + and Stopp. While something plays, a long swipe up or down also
  * turns the volume (a bar shows over the page while swiping); a short touch does nothing, so it never fights a tap.
  */
+/** Volymreglage: en riktig skjutreglage med fylld bana, stor tumme och tydligt värde. Skickar medan man drar (högst fem gånger i sekunden) och slutvärdet när man släpper. */
+function VolumeSlider({ value, onCommit, label }: { value: number; onCommit: (v: number) => void; label: string }) {
+  const [local, setLocal] = useState(value);
+  const dragging = useRef(false);
+  const last = useRef({ sent: value, at: 0 });
+  useEffect(() => {
+    if (!dragging.current) setLocal(value);
+  }, [value]);
+  const send = (v: number, force = false) => {
+    const now = Date.now();
+    if (v !== last.current.sent && (force || now - last.current.at > 200)) {
+      last.current = { sent: v, at: now };
+      onCommit(v);
+    }
+  };
+  return (
+    <div className="vol-slider" onClick={(e) => e.stopPropagation()}>
+      <button className="vol-ico" aria-label={local === 0 ? "Ljudet är av" : "Stäng av ljudet"} onClick={() => { const v = local === 0 ? 20 : 0; setLocal(v); send(v, true); }}>
+        <Icon name={local === 0 ? "speakerMute" : local < 35 ? "speakerLow" : "speaker"} size={22} />
+      </button>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={local}
+        aria-label={label}
+        style={{ ["--v" as string]: `${local}%` }}
+        onPointerDown={() => (dragging.current = true)}
+        onInput={(e) => {
+          const v = Number((e.target as HTMLInputElement).value);
+          setLocal(v);
+          send(v);
+        }}
+        onPointerUp={() => {
+          dragging.current = false;
+          send(local, true);
+        }}
+        onKeyUp={() => send(local, true)}
+        onBlur={() => {
+          dragging.current = false;
+          send(local, true);
+        }}
+      />
+      <b className="vol-val">{local}</b>
+    </div>
+  );
+}
+
 function NowPlaying({ sp, actions, showName }: { sp: Speaker; actions: Actions; showName: boolean }) {
   const c = useControls(sp, actions);
   const vol = sp.volume ?? null;
@@ -83,13 +133,7 @@ function NowPlaying({ sp, actions, showName }: { sp: Speaker; actions: Actions; 
       <span className="music-ctl">
         {!sp.offline && vol !== null && (
           <span className="music-vol">
-            <button className="btn small ghost" aria-label="Sänk volymen" disabled={vol <= 0} onClick={() => void c.volume(vol - 10)}>
-              −
-            </button>
-            <b>{vol}</b>
-            <button className="btn small ghost" aria-label="Höj volymen" disabled={vol >= 100} onClick={() => void c.volume(vol + 10)}>
-              +
-            </button>
+            <VolumeSlider value={vol} label={`Volym i ${sp.name}`} onCommit={(v) => void c.volume(v)} />
           </span>
         )}
         {sp.playing && (
@@ -127,6 +171,7 @@ function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
       if (!d.on) {
         if (Math.abs(dy) < 30 || Math.abs(dy) < Math.abs(e.clientX - d.x) * 1.5) return;
         d.on = true;
+        document.documentElement.dataset.volDrag = "1"; // tavlans "dra ner för att ladda om" ska inte tro att det är för den
         e.currentTarget.setPointerCapture(e.pointerId);
       }
       // 1 % per 4 px after the first 30.
@@ -135,6 +180,7 @@ function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
     onPointerUp: () => {
       const d = st.current;
       st.current = null;
+      delete document.documentElement.dataset.volDrag;
       if (d?.on) {
         swallow.current = Date.now();
         if (shown !== null && shown !== d.from) void set(shown);
@@ -143,6 +189,7 @@ function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
     },
     onPointerCancel: () => {
       st.current = null;
+      delete document.documentElement.dataset.volDrag;
       setShown(null);
     },
     // A drag that started on a button must not also press it.
@@ -153,16 +200,25 @@ function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
       }
     },
   };
+  // Läggs direkt på sidan (portal): kort med glas-effekt skulle annars bli en egen "fixed"-yta och klippa reglaget.
   const overlay =
-    shown !== null ? (
-      <div className="vol-overlay" role="status" aria-live="polite">
-        <span className="vol-pct">{shown}%</span>
-        <span className="vol-bar">
-          <span style={{ height: `${shown}%` }} />
-        </span>
-        <span>Volym</span>
-      </div>
-    ) : null;
+    shown !== null
+      ? createPortal(
+          <div className="vol-overlay" role="status" aria-live="polite" aria-label={`Volym ${shown} procent`}>
+            <div className="vol-card">
+              <Icon name="speaker" size={26} />
+              <div className="vol-track">
+                <div className="vol-fill" style={{ height: `${shown}%` }} />
+              </div>
+              <b className="vol-pct">
+                {shown}
+                <small>%</small>
+              </b>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
   return { handlers, overlay, active };
 }
 

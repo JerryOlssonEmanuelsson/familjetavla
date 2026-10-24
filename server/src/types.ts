@@ -58,6 +58,8 @@ export interface NotifySettings {
   weekly?: boolean;
   /** Hemmet: tvätten klar, roboten har fastnat, dörren olåst kl 22, porten öppen, larmet. Saknas = på. */
   home?: boolean;
+  /** En notis när en ny version av Familjetavlan finns (en gång per version). Saknas = på. */
+  updates?: boolean;
 }
 
 export interface CareSchedule {
@@ -120,7 +122,7 @@ export interface TravelChoice {
   home?: TravelLeg;
 }
 
-export const HOME_WIDGETS = ["now", "meals", "schoolday", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates", "music"] as const;
+export const HOME_WIDGETS = ["now", "meals", "schoolday", "chores", "reminders", "custody", "week", "shopping", "prices", "cars", "lights", "temps", "energy", "climates", "music"] as const;
 export type HomeWidget = (typeof HOME_WIDGETS)[number];
 /** Startskärmens rutor: "auto" följer hur många rutor som visas, annars liten/normal/stor. */
 export type WidgetSize = "auto" | "s" | "m" | "l";
@@ -209,6 +211,9 @@ export interface CarEntity {
   charging?: string;
   /** Förvärmning: climate.*, switch.* eller button.* på bilen. */
   climate?: string;
+  /** Smart laddning: laddplan (sensor med attributet slots) och laddläge (select/input_select). Hittas annars av sig själva, se smartcharging.ts. */
+  plan?: string;
+  mode?: string;
 }
 
 export interface DeviceCard {
@@ -556,6 +561,8 @@ export interface Dashboard {
   sick: { personId: string; name: string; date: string }[];
   /** "Saknas på hyllan" per barn på förskola/fritids. */
   shelf: { personId: string; name: string; items: string[] }[];
+  /** Dagens sysslor per barn (bocka av på tavlan). */
+  chores: import("./chores.js").ChoresForPerson[];
   cars: {
     name: string;
     battery: number | null;
@@ -566,6 +573,8 @@ export interface Dashboard {
     ageHours: number | null;
     status: string;
     climate?: { entityId: string; on: boolean };
+    /** Smartstyrd laddning: plan och laddläge (samma överstyrning som smartstyrningens egen knapp). */
+    smart?: import("./smartcharging.js").SmartCharging;
     schedules: { id: string; name: string; days: number[]; time: string; enabled: boolean }[];
   }[];
   lights: Lamp[];
@@ -588,6 +597,8 @@ export interface Dashboard {
     /** Pumpar, lampor, blåsare m.m. på samma enhet (t.ex. spabadets). */
     controls: Control[];
   }[];
+  /** Lägesväljare för smart styrning (Auto först = följer sitt eget schema), hittade i Home Assistant. */
+  smartModes: { entityId: string; name: string; mode: string; options: string[] }[];
   temps: { name: string; value: string }[];
   deviceCards: {
     index: number;

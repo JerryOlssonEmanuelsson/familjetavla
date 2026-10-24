@@ -56,6 +56,7 @@ Kalendrar, **barnvecka**, barnens **sport** (SportAdmin, laget.se) med **dit/hem
         volumes:
           - ./music-assistant:/data
     ```
+- **Smart laddning:** har du en smartstyrning som planerar laddningen (billigaste timmarna, solel) visas **planen** för de kommande 24 timmarna, och en laddknapp med **Auto / Ladda nu / Pausa** som ger samma överstyrning som styrningens egen app. Hittas automatiskt om styrningen följer [avtalet](docs/SMART-LADDNING.md).
 - **Hus:** termostater, värmepump, varmvatten och **spabad** (Balboa, Gecko …) med lägen och pumpar. **Enhetskort** för värmepumpar som bara ger sensorer, t.ex. via **Husdata H60/H66**.
 - **Energi:** solel, köp/sälj mot nätet, husets effekt, hembatteri – vilken växelriktare som helst.
 - **Grafer:** senaste dygnet för valfria sensorer + elpris.
@@ -115,7 +116,7 @@ docker compose up -d     # se docker-compose.yml
 Öppna `http://<datorn>:8099`. Ange Home Assistants adress (t.ex. `http://192.168.1.10:8123`, inte `localhost`) och en **långlivad token** från en administratör i guiden.
 
 - **Sätt en PIN** i guidens sista steg. Då kommer bara skärmar som låsts upp med PIN-koden en gång åt tavlan – inte gäster eller andra enheter på wifi:t.
-- **Uppdatera:** `docker compose pull && docker compose up -d`. Inställningarna ligger kvar i `./data`.
+- **Uppdateras av sig själv:** `docker-compose.yml` startar också Watchtower, som hämtar nya versioner var sjätte timme. Vill du uppdatera själv, ta bort tjänsten `watchtower` och kör `docker compose pull && docker compose up -d`. Inställningarna ligger kvar i `./data`.
 
 ### Utan Home Assistant och utan Docker
 
