@@ -146,6 +146,12 @@ textarea {
 button {
   cursor: pointer;
 }
+/* Rullistornas lista öppnas av webbläsaren med vit botten: utan egna färger blir texten (ljus i mörkt tema) vit på vitt. */
+select option,
+select optgroup {
+  background-color: var(--bg-solid);
+  color: var(--text);
+}
 h1,
 h2,
 h3,
