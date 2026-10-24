@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { Dashboard, Music as MusicData } from "../../../server/src/types";
 import { api, type DirStation, type Shelf, type Tile, type Track } from "../api";
@@ -156,16 +157,25 @@ function useVolumeDrag(sp: Speaker, set: (pct: number) => unknown) {
       }
     },
   };
+  // Läggs direkt på sidan (portal): kort med glas-effekt skulle annars bli en egen "fixed"-yta och klippa reglaget.
   const overlay =
-    shown !== null ? (
-      <div className="vol-overlay" role="status" aria-live="polite">
-        <span className="vol-pct">{shown}%</span>
-        <span className="vol-bar">
-          <span style={{ height: `${shown}%` }} />
-        </span>
-        <span>Volym</span>
-      </div>
-    ) : null;
+    shown !== null
+      ? createPortal(
+          <div className="vol-overlay" role="status" aria-live="polite" aria-label={`Volym ${shown} procent`}>
+            <div className="vol-card">
+              <Icon name="speaker" size={26} />
+              <div className="vol-track">
+                <div className="vol-fill" style={{ height: `${shown}%` }} />
+              </div>
+              <b className="vol-pct">
+                {shown}
+                <small>%</small>
+              </b>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
   return { handlers, overlay, active };
 }
 

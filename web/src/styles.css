@@ -2227,7 +2227,10 @@ marker.pf-buy path {
 @media (max-width: 700px) {
   .board-header { flex-wrap: wrap; gap: 12px; }
   .board-header .grow { flex: 1 1 100%; min-width: 0; }
-  .board-header .people { margin-right: auto; }
+  .board-header .people { margin-right: auto; gap: 4px; }
+  .board-header .avatar.lg { width: 38px; height: 38px; font-size: 16px; }
+  .board-header .btn.icon { width: 44px; height: 44px; }
+  .board-header .row.gap { gap: 8px; }
   .board-header .sub { font-size: 14px; gap: 6px 8px; }
 }
 
@@ -3876,39 +3879,73 @@ marker.pf-buy path {
 /* Volume while dragging, like a video player: a bar in the middle of the screen. */
 .vol-overlay {
   position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 60;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.vol-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 18px 26px;
-  border-radius: 22px;
-  background: rgba(10, 12, 24, 0.72);
-  color: #fff;
-  font-weight: 650;
-  pointer-events: none;
+  gap: 16px;
+  width: 96px;
+  padding: 22px 0 18px;
+  border-radius: 36px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-solid) 58%, transparent);
+  -webkit-backdrop-filter: blur(26px) saturate(1.5);
+  backdrop-filter: blur(26px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  animation: vol-pop 0.22s var(--spring);
 }
-.vol-pct {
-  font-size: 28px;
-  font-variant-numeric: tabular-nums;
-}
-.vol-bar {
+.vol-track {
   position: relative;
-  width: 10px;
-  height: 160px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.25);
+  width: 48px;
+  height: 200px;
+  border-radius: 24px;
+  background: rgba(127, 135, 160, 0.28);
   overflow: hidden;
 }
-.vol-bar > span {
+.vol-fill {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  background: #fff;
+  border-radius: 0 0 24px 24px;
+  background: linear-gradient(to top, var(--accent), color-mix(in srgb, var(--accent) 50%, #fff));
+  box-shadow: 0 -6px 18px color-mix(in srgb, var(--accent) 55%, transparent);
+  transition: height 60ms linear;
+}
+.vol-pct {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.vol-pct small {
+  font-size: 15px;
+  font-weight: 700;
+  margin-left: 1px;
+  opacity: 0.7;
+}
+@keyframes vol-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vol-card {
+    animation: none;
+  }
 }
 @media (min-width: 1000px) and (min-height: 600px), (min-width: 700px) and (min-height: 900px) {
   .music-tab.vol-drag,
@@ -3922,4 +3959,9 @@ marker.pf-buy path {
   padding: 12px;
   border-radius: 12px;
   background: var(--amber-soft);
+}
+
+.edit-bar .btn.remove {
+  color: var(--red, #e5484d);
+  border-color: color-mix(in srgb, var(--red, #e5484d) 45%, transparent);
 }

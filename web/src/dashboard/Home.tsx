@@ -300,8 +300,8 @@ function useArrange(data: Dashboard, actions: Actions) {
             </button>
           </>
         )}
-        <button className="btn small" onClick={() => setAsking(id)}>
-          Dölj
+        <button className="btn small remove" aria-label={`Ta bort ${label(id)} från startsidan`} onClick={() => setAsking(id)}>
+          Ta bort
         </button>
       </div>
     ) : null,
@@ -332,9 +332,9 @@ function useArrange(data: Dashboard, actions: Actions) {
   // On top of everything (the tab bar too), like the board's other questions.
   const question = asking ? createPortal(
     <div className="overlay" onClick={() => setAsking(null)}>
-      <div className="sheet" role="alertdialog" aria-modal="true" aria-label={`Dölja ${label(asking)}?`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
-        <h2 style={{ fontSize: 22 }}>Dölja {label(asking)} från startsidan?</h2>
-        <p className="muted">Den kan visas igen här (+ {label(asking)}) eller under Inställningar → Startskärm.</p>
+      <div className="sheet" role="alertdialog" aria-modal="true" aria-label={`Ta bort ${label(asking)}?`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 460 }}>
+        <h2 style={{ fontSize: 22 }}>Ta bort {label(asking)} från startsidan?</h2>
+        <p className="muted">Inget raderas. Du kan lägga tillbaka den här (+ {label(asking)}) eller under Inställningar → Startskärm.</p>
         <div className="row gap" style={{ justifyContent: "flex-end" }}>
           <button className="btn" onClick={() => setAsking(null)}>
             Avbryt
@@ -346,7 +346,7 @@ function useArrange(data: Dashboard, actions: Actions) {
               setAsking(null);
             }}
           >
-            Dölj
+            Ta bort
           </button>
         </div>
       </div>
