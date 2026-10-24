@@ -58,6 +58,8 @@ export interface NotifySettings {
   weekly?: boolean;
   /** Hemmet: tvätten klar, roboten har fastnat, dörren olåst kl 22, porten öppen, larmet. Saknas = på. */
   home?: boolean;
+  /** En notis när en ny version av Familjetavlan finns (en gång per version). Saknas = på. */
+  updates?: boolean;
 }
 
 export interface CareSchedule {

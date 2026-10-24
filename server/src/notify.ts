@@ -6,7 +6,8 @@ import { haSocket } from "./connectors/haws.js";
 import { buildPlan, dutyMessage, duties, needsAttention, type Duty } from "./plan.js";
 import { loadShelf, saveShelf } from "./meals.js";
 import { travelKey } from "./travel.js";
-import { loadConfig } from "./store.js";
+import { loadConfig, loadLocal, saveLocal } from "./store.js";
+import { updateAvailable, updateNotice } from "./updates.js";
 import { addDays, hhmm, isoWeekday, startOfDay } from "./time.js";
 import type { Person } from "./types.js";
 
@@ -195,6 +196,14 @@ export function startNotifier(log: FastifyBaseLogger) {
             await ha.service(conn, "notify", a.notify!.service!, { title: alert.title, message: alert.message }).catch((e) => log.warn(`Notis till ${a.notify!.service} misslyckades: ${(e as Error).message}`));
           }
         }
+      }
+      // Ny version av Familjetavlan: en notis per version, till de vuxna som har notiser på.
+      const notice = updateNotice(updateAvailable(), loadLocal().updateNotified);
+      if (notice) {
+        for (const a of adults.filter((x) => x.notify?.updates !== false)) {
+          await ha.service(conn, "notify", a.notify!.service!, { title: notice.title, message: notice.message }).catch((e) => log.warn(`Notis till ${a.notify!.service} misslyckades: ${(e as Error).message}`));
+        }
+        saveLocal({ updateNotified: notice.version });
       }
       if (sent.size > 2000) sent.clear();
     } catch (e) {

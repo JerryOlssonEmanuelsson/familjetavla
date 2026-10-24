@@ -144,6 +144,7 @@ const personSchema = z.object({
       evening: z.boolean().optional(),
       weekly: z.boolean().optional(),
       home: z.boolean().optional(),
+      updates: z.boolean().optional(),
       morning: z.union([z.literal(""), z.string().regex(/^\d{2}:\d{2}$/)]).optional(),
       children: z.array(z.string().regex(ID)).max(20).optional(),
     })

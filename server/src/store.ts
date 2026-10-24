@@ -231,6 +231,8 @@ export interface LocalFile {
   /** Sysslor barnen ska göra (se chores.ts) och vilka som är avbockade per dag (YYYY-MM-DD → id:n). */
   chores?: import("./chores.js").Chore[];
   choreDone?: Record<string, string[]>;
+  /** Senaste version som vi meddelat om (så att samma version bara ger en notis). */
+  updateNotified?: string;
   /** Dit/hem-val per händelse, nyckel = travelKey(). */
   travel?: Record<string, import("./types.js").TravelChoice>;
   /** Andra som skjutsar ("Marina", "Ola"), senast använd först – snabbval i Planera veckan. */
