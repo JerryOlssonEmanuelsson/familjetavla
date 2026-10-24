@@ -455,6 +455,16 @@ export function FamilyStep({ cfg, set }: StepProps) {
           <Icon name="plus" size={20} /> Barn
         </button>
       </div>
+      {cfg.people.some((p) => p.kind === "child" && p.name.trim()) && (
+        <section className="card">
+          <Toggle
+            label="Sysslor för barnen"
+            help="En ruta på startsidan där barnen bockar av vad de ska göra innan de får sätta sig vid tv:n eller datorn. Du lägger in sysslorna på tavlan efteråt (knappen Lägg till i rutan)."
+            checked={cfg.dashboard.home.some((w) => w.id === "chores" && w.on)}
+            onChange={(on) => set({ ...cfg, dashboard: { ...cfg.dashboard, home: cfg.dashboard.home.map((w) => (w.id === "chores" ? { ...w, on } : w)) } })}
+          />
+        </section>
+      )}
     </div>
   );
 }

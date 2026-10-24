@@ -34,7 +34,7 @@ export function defaultConfig(): Config {
     dashboard: {
       accent: "#34e0a1",
       theme: "auto",
-      home: HOME_WIDGETS.map((id) => ({ id, on: !["temps", "energy", "climates"].includes(id) })),
+      home: HOME_WIDGETS.map((id) => ({ id, on: !["temps", "energy", "climates", "chores"].includes(id) })),
       tabs: TAB_IDS.map((id) => ({ id, on: true })),
       nightFrom: "22:00",
       nightTo: "06:00",
@@ -127,7 +127,7 @@ export function loadConfig(): Config {
     const at = d.home.findIndex((w) => w.id === "meals");
     d.home.splice(at >= 0 ? at + 1 : d.home.length, 0, { id: "schoolday", on: true });
   }
-  for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: id === "chores" }); // sysslor visar sig bara när det finns några
+  for (const id of HOME_WIDGETS) if (!d.home.some((w) => w.id === id)) d.home.push({ id, on: false });
   for (const id of TAB_IDS) if (!d.tabs.some((t) => t.id === id)) d.tabs.push({ id, on: true });
   return cached;
 }
