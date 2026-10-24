@@ -1182,6 +1182,9 @@ export function Dashboard() {
             <button className="btn icon" aria-label={theme === "dark" ? "Byt till ljust tema" : "Byt till mörkt tema"} onClick={toggleTheme}>
               <Icon name={theme === "dark" ? "moon" : "sun"} size={24} />
             </button>
+            <button className="btn icon" aria-label="Ladda om tavlan" title="Ladda om tavlan (hämtar också senaste versionen)" onClick={() => window.location.reload()}>
+              <Icon name="refresh" size={24} />
+            </button>
             {!isInstalled() && !isDemo && (
               <button className="btn icon" aria-label="Installera som app" title="Lägg tavlan på hemskärmen" onClick={() => setInstallOpen(true)}>
                 <Icon name="install" size={24} />

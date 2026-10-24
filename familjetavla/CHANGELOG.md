@@ -2,6 +2,9 @@
 
 ## 0.14.0
 
+- **Ladda om-knapp** uppe till höger (pilarna), bredvid temat och inställningarna. Den laddar om tavlan och hämtar senaste versionen. Att dra ner för att ladda om sidan finns kvar, men händer inte längre när du sveper ner för att sänka volymen.
+- **Rullistor** i installationen har läsbar text i listan (mörkt tema).
+- **Val i installationen:** "Sysslor för barnen" under Familjen. De är av som standard.
 - **Sysslor:** en ruta på startsidan där barnen bockar av det de ska göra innan skärmtid ("Plocka undan", "Packa väskan"). Per barn och veckodag, nollställs varje dag, och "Klart! 🎉" när allt är gjort. Lägg till och ta bort under **Ändra** (kräver PIN om du satt en). Tavlan skickar också `sensor.familjetavla_sysslor_<namn>` ("klart" eller "2 kvar") till Home Assistant, så en automation kan till exempel hålla tv:n avstängd tills sysslorna är gjorda. Förslag från Robert Allert.
 
 ## 0.13.0
