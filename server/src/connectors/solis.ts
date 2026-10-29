@@ -38,7 +38,19 @@ export async function solisPost<T>(c: SolisCreds, path: string, payload: Record<
   if (!/^https?:\/\//.test(base)) throw new Error("API-adressen ska börja med https://");
   if (!c.keyId || !c.secret) throw new Error("API-ID och hemlig nyckel behövs.");
   const body = JSON.stringify(payload);
-  const res = await fetchWithTimeout(`${base}${path}`, { method: "POST", body, headers: solisHeaders(body, path, c.keyId.trim(), c.secret.trim()), timeoutMs: 20_000 });
+  // SolisCloud is slow at times: one more try (newly signed, since the Date header counts) before giving up.
+  const send = () => fetchWithTimeout(`${base}${path}`, { method: "POST", body, headers: solisHeaders(body, path, c.keyId.trim(), c.secret.trim()), timeoutMs: 30_000 });
+  let res: Response;
+  try {
+    res = await send();
+  } catch {
+    await new Promise((r) => setTimeout(r, 2000));
+    res = await send();
+  }
+  if (res.status >= 500 || res.status === 429) {
+    await new Promise((r) => setTimeout(r, 2000));
+    res = await send();
+  }
   if (res.status === 408) throw new Error("SolisCloud säger att klockan går fel – datorns tid måste stämma på några minuter när.");
   if (res.status === 401 || res.status === 403) throw new Error("SolisCloud godkände inte nyckeln – kontrollera API-ID och hemlig nyckel.");
   if (!res.ok) throw new Error(`SolisCloud svarade ${res.status}`);

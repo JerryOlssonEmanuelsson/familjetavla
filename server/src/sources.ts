@@ -6,7 +6,9 @@ import type { HourPrice } from "./connectors/elpris.js";
 import type { Pickup } from "./connectors/waste.js";
 import type { SolarReading } from "./connectors/solis.js";
 import { findProvider, makeCtx } from "./providers/registry.js";
-import { getSecret } from "./store.js";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { DATA_DIR, getSecret } from "./store.js";
 import type { CalendarCategory, CalendarSource, Config } from "./types.js";
 
 const MIN = 60_000;
@@ -156,11 +158,36 @@ export async function collectSolar(cfg: Config, errors: SourceError[]): Promise<
   if (!integ) return null;
   const provider = findProvider("solar", integ.provider);
   if (!provider) return null;
+  const source = provider.meta.name.replace(/\s*\(.*\)$/, "");
   try {
     const reading = await cached(`solar:${integ.id}`, 2 * MIN, () => provider.fetch(makeCtx(integ)));
-    return { reading, source: provider.meta.name.replace(/\s*\(.*\)$/, "") };
+    saveLastSolar(integ.id, reading);
+    return { reading, source };
   } catch (e) {
-    errors.push({ source: "Solceller", message: (e as Error).message });
+    // Molntjänsten svarar inte: visa senaste kända värden (även efter omstart) och säg bara till
+    // om de börjar bli gamla – tavlan ska inte bli tom för att Solis är långsam en stund.
+    const last = loadLastSolar(integ.id);
+    const age = last ? Date.now() - (last.reading.updated ?? last.at) : Infinity;
+    if (!last || age > 20 * MIN) errors.push({ source: "Solceller", message: (e as Error).message });
+    return last ? { reading: last.reading, source } : null;
+  }
+}
+
+const LAST_SOLAR = () => join(DATA_DIR, "solar-last.json");
+
+function saveLastSolar(id: string, reading: SolarReading) {
+  try {
+    writeFileSync(LAST_SOLAR(), JSON.stringify({ id, at: Date.now(), reading }));
+  } catch {
+    /* only a convenience */
+  }
+}
+
+function loadLastSolar(id: string): { at: number; reading: SolarReading } | null {
+  try {
+    const j = JSON.parse(readFileSync(LAST_SOLAR(), "utf8")) as { id: string; at: number; reading: SolarReading };
+    return j.id === id ? j : null;
+  } catch {
     return null;
   }
 }
