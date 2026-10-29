@@ -81,7 +81,17 @@ describe("Solis reading", () => {
     expect(e.solarKw).toBe(3);
     expect(e.batteryKw).toBe(0.8);
     expect(e.selfUseKw).toBe(1.2); // 3 − 1 sold − 0.8 charged
-    expect(e.today?.selfSufficiencyPct).toBe(80);
+    // Egen solel: 12,4 − 4 såld = 8,4 av 10 förbrukat.
+    expect(e.today?.selfUseKwh).toBe(8.4);
+    expect(e.today?.selfSufficiencyPct).toBe(84);
     expect(e.source).toBe("Solis");
+  });
+
+  it("does not count a battery charged from the grid against the sun", () => {
+    // Som en vinterdag: 10,8 sol, 7,4 såld, 36,2 köpt (mest till batteriet), 23 förbrukat.
+    const r = toReading([{ ...inverter, batteryTodayChargeEnergy: 23, batteryTodayDischargeEnergy: 9 }], { dayEnergy: 10.8, gridPurchasedDayEnergy: 36.2, gridSellDayEnergy: 7.4, homeLoadEnergy: 23 });
+    const e = mergeSolar({}, r, "Solis");
+    expect(e.today?.selfUseKwh).toBe(3.4);
+    expect(e.today?.selfSufficiencyPct).toBe(15);
   });
 });

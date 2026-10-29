@@ -1619,6 +1619,22 @@ a.btn {
 .pf-house {
   color: var(--text);
 }
+.pf-bat {
+  stroke: #8b5cf6;
+  color: #8b5cf6;
+  fill: #8b5cf6;
+}
+.pf-bat-level {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0.85;
+}
+.pf-sub {
+  fill: var(--muted);
+  stroke: none;
+  font-size: 17px;
+  font-weight: 600;
+}
 .pf-node circle {
   fill: var(--control);
   stroke: currentColor;
@@ -1648,7 +1664,8 @@ a.btn {
 }
 marker.pf-sun path,
 marker.pf-sell path,
-marker.pf-buy path {
+marker.pf-buy path,
+marker.pf-bat path {
   stroke: none;
 }
 /* Without motion (e-ink, reduced motion) the dots stand still; the arrowheads still show the way. */

@@ -699,9 +699,11 @@ export function mergeSolar(ha: NonNullable<Dashboard["energy"]>, r: SolarReading
     const importKwh = pick(t.importKwh, today?.importKwh);
     const exportKwh = pick(t.exportKwh, today?.exportKwh);
     const houseKwh = pick(t.houseKwh, today?.houseKwh);
-    const selfUseKwh = solarKwh !== undefined ? round(Math.max(0, solarKwh - (exportKwh ?? 0) - (t.batteryChargeKwh ?? 0) + (t.batteryDischargeKwh ?? 0))) : today?.selfUseKwh;
+    // Egen solel = det solen gav som inte såldes (till huset direkt eller via batteriet). Batteriet
+    // laddas ofta från nätet på natten, så det räknas inte bort. Självförsörjning = egen solel / förbrukat.
+    const selfUseKwh = solarKwh !== undefined ? round(Math.max(0, solarKwh - (exportKwh ?? 0))) : today?.selfUseKwh;
     const capped = selfUseKwh !== undefined && houseKwh !== undefined ? Math.min(selfUseKwh, houseKwh) : selfUseKwh;
-    const selfSufficiencyPct = houseKwh && importKwh !== undefined ? Math.round(Math.max(0, Math.min(100, (1 - importKwh / houseKwh) * 100))) : today?.selfSufficiencyPct;
+    const selfSufficiencyPct = houseKwh && capped !== undefined ? Math.round(Math.max(0, Math.min(100, (capped / houseKwh) * 100))) : today?.selfSufficiencyPct;
     today = {
       ...today,
       solarKwh,

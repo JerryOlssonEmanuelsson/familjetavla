@@ -860,8 +860,9 @@ export function EnergyPage({ data }: { data: Dashboard }) {
 }
 
 /**
- * "Just nu": sun, grid and house with the power moving between them. The dots run faster and the
- * lines get thicker the more power flows; it follows Home Assistant live (about once a second).
+ * "Just nu": sun, grid, house and (when there is one) the home battery with the power moving
+ * between them. The dots run faster and the lines get thicker the more power flows; it follows
+ * Home Assistant live (about once a second), or the cloud service each time it reports.
  */
 function PowerFlow({ e, price, spot }: { e: NonNullable<Dashboard["energy"]>; price?: number; spot?: boolean }) {
   const kw = (n: number) => `${fmtNum(n, n < 1 ? 2 : 1)} kW`;
@@ -869,18 +870,46 @@ function PowerFlow({ e, price, spot }: { e: NonNullable<Dashboard["energy"]>; pr
   const grid = e.gridKw ?? 0;
   const buy = Math.max(0, grid);
   const sell = Math.max(0, -grid);
-  const toHouse = e.selfUseKw ?? Math.max(0, solar - sell);
-  const house = e.houseKw ?? toHouse + buy;
   const hasSun = e.solarKw !== undefined;
   const hasGrid = e.gridKw !== undefined;
+  const hasBat = e.batteryPct !== undefined || e.batteryKw !== undefined;
+  const batKw = e.batteryKw ?? 0;
+  const charge = Math.max(0, batKw);
+  const discharge = Math.max(0, -batKw);
+  const house = e.houseKw ?? Math.max(0, solar + buy - sell - charge + discharge);
+  // Who feeds what: the sun goes to the house first, then the battery, then the grid.
+  // What the battery takes beyond the sun comes from the grid.
+  const sunToHouse = hasBat ? Math.max(0, Math.min(solar - sell, house)) : (e.selfUseKw ?? Math.max(0, solar - sell));
+  const sunToBat = hasBat ? Math.max(0, Math.min(charge, solar - sell - sunToHouse)) : 0;
+  const gridToBat = hasBat ? Math.max(0, Math.min(buy, charge - sunToBat)) : 0;
+  const gridToHouse = Math.max(0, buy - gridToBat);
+  const batToHouse = hasBat ? Math.min(discharge, house) : 0;
+  const batToGrid = hasBat ? Math.max(0, discharge - batToHouse) : 0;
+  const sunToGrid = Math.max(0, sell - batToGrid);
+  const on = (k: number) => k > 0.005;
+  const P = {
+    sunHouse: "M200 74 C200 130 270 150 318 176",
+    sunGrid: "M200 74 C200 130 130 150 82 176",
+    gridHouse: "M100 200 L300 200",
+    sunBat: "M200 74 L200 300",
+    gridBat: "M60 262 C60 310 110 330 170 330",
+    batHouse: "M230 330 C290 330 340 310 340 262",
+    batGrid: "M170 336 C105 336 66 316 66 262",
+  };
   const flows = [
-    { id: "sun-house", on: hasSun && toHouse > 0.005, kw: toHouse, d: "M200 74 C200 130 270 150 318 176", cls: "sun" },
-    { id: "sun-grid", on: hasSun && sell > 0.005, kw: sell, d: "M200 74 C200 130 130 150 82 176", cls: "sell" },
-    { id: "grid-house", on: hasGrid && buy > 0.005, kw: buy, d: "M100 200 L300 200", cls: "buy" },
+    { id: "sun-house", on: hasSun && on(sunToHouse), kw: sunToHouse, d: P.sunHouse, cls: "sun" },
+    { id: "sun-grid", on: hasSun && on(sunToGrid), kw: sunToGrid, d: P.sunGrid, cls: "sell" },
+    { id: "grid-house", on: hasGrid && on(gridToHouse), kw: gridToHouse, d: P.gridHouse, cls: "buy" },
+    { id: "sun-bat", on: hasSun && hasBat && on(sunToBat), kw: sunToBat, d: P.sunBat, cls: "sun" },
+    { id: "grid-bat", on: hasGrid && hasBat && on(gridToBat), kw: gridToBat, d: P.gridBat, cls: "buy" },
+    { id: "bat-house", on: hasBat && on(batToHouse), kw: batToHouse, d: P.batHouse, cls: "bat" },
+    { id: "bat-grid", on: hasBat && hasGrid && on(batToGrid), kw: batToGrid, d: P.batGrid, cls: "bat" },
   ];
   // Faster and thicker with more power, within what still reads well.
   const style = (k: number) =>
     ({ strokeWidth: Math.min(11, 5 + k * 1.2), animationDuration: `${Math.max(0.35, 1.6 / (0.4 + k)).toFixed(2)}s` }) as React.CSSProperties;
+  const batText = !hasBat ? "" : on(charge) ? `laddar ${kw(charge)}` : on(discharge) ? `laddar ur ${kw(discharge)}` : "vilar";
+  const pct = e.batteryPct !== undefined ? Math.round(e.batteryPct) : undefined;
   return (
     <section className="card strong power-flow">
       <div className="pf-head">
@@ -895,17 +924,24 @@ function PowerFlow({ e, price, spot }: { e: NonNullable<Dashboard["energy"]>; pr
           </span>
         )}
       </div>
-      <svg viewBox="0 0 400 262" role="img" aria-label={`Sol ${kw(solar)}, ${grid >= 0 ? "köper" : "säljer"} ${kw(Math.abs(grid))}, huset ${kw(house)}`}>
+      <svg
+        viewBox={hasBat ? "0 0 400 412" : "0 0 400 262"}
+        role="img"
+        aria-label={`Sol ${kw(solar)}, ${grid >= 0 ? "köper" : "säljer"} ${kw(Math.abs(grid))}, huset ${kw(house)}${hasBat ? `, batteri ${pct ?? ""} % ${batText}` : ""}`}
+      >
         <defs>
-          {["sun", "sell", "buy"].map((c) => (
+          {["sun", "sell", "buy", "bat"].map((c) => (
             <marker key={c} id={`pf-arrow-${c}`} className={`pf-${c}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto">
               <path d="M0 0 L10 5 L0 10 z" />
             </marker>
           ))}
         </defs>
-        {hasSun && <path className="pf-track" d="M200 74 C200 130 270 150 318 176" />}
-        {hasSun && hasGrid && <path className="pf-track" d="M200 74 C200 130 130 150 82 176" />}
-        {hasGrid && <path className="pf-track" d="M100 200 L300 200" />}
+        {hasSun && <path className="pf-track" d={P.sunHouse} />}
+        {hasSun && hasGrid && <path className="pf-track" d={P.sunGrid} />}
+        {hasGrid && <path className="pf-track" d={P.gridHouse} />}
+        {hasBat && hasSun && <path className="pf-track" d={P.sunBat} />}
+        {hasBat && hasGrid && <path className="pf-track" d={P.gridBat} />}
+        {hasBat && <path className="pf-track" d={P.batHouse} />}
         {flows
           .filter((f) => f.on)
           .map((f) => (
@@ -943,15 +979,22 @@ function PowerFlow({ e, price, spot }: { e: NonNullable<Dashboard["energy"]>; pr
             Huset {kw(house)}
           </text>
         </g>
+        {hasBat && (
+          <g className={`pf-node pf-bat ${on(charge) || on(discharge) ? "" : "idle"}`}>
+            <circle cx="200" cy="330" r="30" />
+            <g transform="translate(182 312) scale(1.5)">
+              <path d="M6 4h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 2h6" />
+              {pct !== undefined && pct > 0 && <rect className="pf-bat-level" x="7" y={19 - Math.round((12 * Math.min(100, pct)) / 100)} width="10" height={Math.round((12 * Math.min(100, pct)) / 100)} rx="1" />}
+            </g>
+            <text x="200" y="384" textAnchor="middle" className="pf-label">
+              Batteri{pct !== undefined ? ` ${pct} %` : ""}
+            </text>
+            <text x="200" y="406" textAnchor="middle" className="pf-sub">
+              {batText}
+            </text>
+          </g>
+        )}
       </svg>
-      {e.batteryPct !== undefined && (
-        <p className="pf-cost">
-          Hembatteri <b>{Math.round(e.batteryPct)} %</b>
-          {e.batteryKw !== undefined && Math.abs(e.batteryKw) >= 0.02 && (
-            <span className="muted"> · {e.batteryKw > 0 ? "laddar" : "laddar ur"} {kw(Math.abs(e.batteryKw))}</span>
-          )}
-        </p>
-      )}
       {buy > 0.005 && price !== undefined ? (
         <p className="pf-cost">
           Kostar nu <b>{fmtNum(buy * price, 2)} kr/tim</b>
@@ -963,6 +1006,10 @@ function PowerFlow({ e, price, spot }: { e: NonNullable<Dashboard["energy"]>; pr
       ) : hasSun && solar > 0.005 && hasGrid ? (
         <p className="pf-cost">
           <b>Gratis just nu</b> <span className="muted">– solen räcker till huset</span>
+        </p>
+      ) : hasBat && on(discharge) && hasGrid ? (
+        <p className="pf-cost">
+          <b>Gratis just nu</b> <span className="muted">– batteriet räcker till huset</span>
         </p>
       ) : null}
     </section>
