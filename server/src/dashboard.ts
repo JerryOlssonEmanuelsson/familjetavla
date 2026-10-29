@@ -2,6 +2,7 @@ import { audience } from "./audience.js";
 import { buildAppliances } from "./appliances.js";
 import { buildRobots, buildSecurity } from "./security.js";
 import { energyLive, energyToday, todaySeries } from "./energy.js";
+import type { SolarReading } from "./connectors/solis.js";
 import { findAutoModes, findSmartCharging } from "./smartcharging.js";
 import { choresForToday } from "./chores.js";
 import { buildSchoolNews, newsReminders, newsTripReminders, ownCalendarEvents } from "./news.js";
@@ -20,6 +21,7 @@ import {
   collectCalendars,
   collectPrices,
   collectSchool,
+  collectSolar,
   collectWaste,
   groceryIntegration,
   groceryIntegrations,
@@ -267,7 +269,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
   const today = startOfDay(now);
 
   const conn = haConnection();
-  const [family, waste, weather, prices, states, shopping] = await Promise.all([
+  const [family, waste, weather, prices, states, shopping, solar] = await Promise.all([
     gatherFamily(cfg, now, errors),
     collectWaste(cfg, errors),
     cfg.household.lat != null && cfg.household.lon != null
@@ -286,6 +288,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
         })
       : Promise.resolve([] as HaState[]),
     loadShopping(cfg, errors),
+    collectSolar(cfg, errors),
   ]);
   const stateMap = new Map(states.map((s) => [s.entity_id, s]));
   const { people, children, all, withCare, travelCtx } = family;
@@ -385,7 +388,7 @@ export async function buildDashboard(now = new Date(), opts: { allReminders?: bo
     })(),
     groceries: groceryIntegrations(cfg).map((g) => ({ id: g.integ.id, provider: g.provider.meta.id, name: g.provider.meta.name })),
     prices: buildPrices(cfg, prices, now),
-    energy: buildEnergy(cfg, stateMap, energySeries, prices),
+    energy: buildEnergy(cfg, stateMap, energySeries, prices, solar),
     schoolFood: todaysFood(family.schoolFood, now),
     schoolDay: buildSchoolDays(all, people, now, (e, day) => visibleOn(e, people, day)),
     school: buildSchoolWeek(all, people, now, (e, day) => visibleOn(e, people, day)),
@@ -659,14 +662,69 @@ function kw(states: Map<string, HaState>, id?: string): number | undefined {
   return Math.round((unit === "W" ? n / 1000 : unit === "MW" ? n * 1000 : n) * 100) / 100;
 }
 
-function buildEnergy(cfg: Config, states: Map<string, HaState>, series: Record<string, { t: number; v: number }[]>, spot: HourPrice[]): Dashboard["energy"] {
+function buildEnergy(
+  cfg: Config,
+  states: Map<string, HaState>,
+  series: Record<string, { t: number; v: number }[]>,
+  spot: HourPrice[],
+  solar?: { reading: SolarReading; source: string } | null,
+): Dashboard["energy"] {
   const e = cfg.entities.energy ?? {};
   const units = Object.fromEntries([e.solarEnergy, e.importEnergy, e.exportEnergy].filter((x): x is string => Boolean(x)).map((id) => [id, String(states.get(id)?.attributes.unit_of_measurement ?? "kWh")]));
-  const out = {
+  const fromHa = {
     ...energyLive(e, states),
     today: energyToday(e, series, units, spot, (p) => (hasPriceExtras(cfg) ? totalPrice(cfg, p) : p)),
   };
+  const out = solar ? mergeSolar(fromHa, solar.reading, solar.source) : fromHa;
   return Object.values(out).some((v) => v !== undefined) ? out : undefined;
+}
+
+/**
+ * Siffror från en molntjänst (SolisCloud) går före Home Assistants där de finns. Dagens summor
+ * räknas om med samma regler som för mätarna: egen solel = sol − såld − det som laddats in i batteriet.
+ */
+export function mergeSolar(ha: NonNullable<Dashboard["energy"]>, r: SolarReading, source: string): NonNullable<Dashboard["energy"]> {
+  const pick = <T,>(a: T | undefined, b: T | undefined) => (a !== undefined ? a : b);
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const solarKw = pick(r.solarKw, ha.solarKw);
+  const gridKw = pick(r.gridKw, ha.gridKw);
+  const houseKw = pick(r.houseKw, ha.houseKw ?? (solarKw !== undefined && gridKw !== undefined ? Math.max(0, solarKw + gridKw - (r.batteryKw ?? 0)) : undefined));
+  const sold = gridKw !== undefined && gridKw < 0 ? -gridKw : 0;
+  const charging = Math.max(0, r.batteryKw ?? 0);
+  const selfUseKw = solarKw !== undefined ? round(Math.max(0, Math.min(solarKw - sold - charging, houseKw ?? solarKw))) : ha.selfUseKw;
+  let today = ha.today;
+  if (r.today) {
+    const t = r.today;
+    const solarKwh = pick(t.solarKwh, today?.solarKwh);
+    const importKwh = pick(t.importKwh, today?.importKwh);
+    const exportKwh = pick(t.exportKwh, today?.exportKwh);
+    const houseKwh = pick(t.houseKwh, today?.houseKwh);
+    const selfUseKwh = solarKwh !== undefined ? round(Math.max(0, solarKwh - (exportKwh ?? 0) - (t.batteryChargeKwh ?? 0) + (t.batteryDischargeKwh ?? 0))) : today?.selfUseKwh;
+    const capped = selfUseKwh !== undefined && houseKwh !== undefined ? Math.min(selfUseKwh, houseKwh) : selfUseKwh;
+    const selfSufficiencyPct = houseKwh && importKwh !== undefined ? Math.round(Math.max(0, Math.min(100, (1 - importKwh / houseKwh) * 100))) : today?.selfSufficiencyPct;
+    today = {
+      ...today,
+      solarKwh,
+      importKwh,
+      exportKwh,
+      houseKwh,
+      selfUseKwh: capped,
+      selfSufficiencyPct,
+      batteryChargeKwh: t.batteryChargeKwh,
+      batteryDischargeKwh: t.batteryDischargeKwh,
+    };
+  }
+  return {
+    solarKw,
+    gridKw,
+    houseKw,
+    selfUseKw,
+    batteryPct: pick(r.batteryPct, ha.batteryPct),
+    batteryKw: r.batteryKw,
+    source,
+    updated: r.updated,
+    today,
+  };
 }
 
 function buildPrices(cfg: Config, spot: HourPrice[], now: Date): Dashboard["prices"] {

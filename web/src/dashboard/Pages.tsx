@@ -5,6 +5,7 @@ import { Icon } from "../Icon";
 import type { Actions } from "./Dashboard";
 import { Ring } from "./bits";
 import { PriceCard } from "../widgets/prices";
+import { batteryVerb } from "../widgets/energy";
 
 const DAYS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
 const fmtNum = (n: number | null | undefined, d = 1) => (n === null || n === undefined ? "–" : String(Math.round(n * 10 ** d) / 10 ** d).replace(".", ","));
@@ -779,7 +780,7 @@ export function EnergyPage({ data }: { data: Dashboard }) {
             ) : null}
             {e?.batteryPct !== undefined && (
               <div>
-                <small>Hembatteri</small>
+                <small>{batteryVerb(e.batteryKw, "Hembatteri")}</small>
                 <b className="big-num">{Math.round(e.batteryPct)} %</b>
               </div>
             )}
@@ -826,6 +827,18 @@ export function EnergyPage({ data }: { data: Dashboard }) {
                 <b>{e.today.selfSufficiencyPct} %</b>
               </div>
             )}
+            {e.today.batteryChargeKwh !== undefined && (
+              <div>
+                <small>Till batteriet</small>
+                <b>{fmtNum(e.today.batteryChargeKwh)} kWh</b>
+              </div>
+            )}
+            {e.today.batteryDischargeKwh !== undefined && (
+              <div>
+                <small>Från batteriet</small>
+                <b>{fmtNum(e.today.batteryDischargeKwh)} kWh</b>
+              </div>
+            )}
             {e.today.costKr !== undefined && (
               <div>
                 <small>Köpt el kostat</small>
@@ -834,6 +847,12 @@ export function EnergyPage({ data }: { data: Dashboard }) {
             )}
           </div>
         </section>
+      )}
+      {e?.source && (
+        <p className="muted" style={{ textAlign: "center", margin: 0 }}>
+          Från {e.source}
+          {e.updated ? ` · uppdaterat ${new Date(e.updated).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}` : ""}
+        </p>
       )}
       {data.prices && <PriceCard prices={data.prices} />}
     </main>
@@ -868,9 +887,13 @@ function PowerFlow({ e, price, spot }: { e: NonNullable<Dashboard["energy"]>; pr
         <span className="muted" style={{ fontWeight: 600 }}>
           Just nu
         </span>
-        <span className="pf-live">
-          <i /> Live
-        </span>
+        {e.source ? (
+          <span className="muted">{e.source}</span>
+        ) : (
+          <span className="pf-live">
+            <i /> Live
+          </span>
+        )}
       </div>
       <svg viewBox="0 0 400 262" role="img" aria-label={`Sol ${kw(solar)}, ${grid >= 0 ? "köper" : "säljer"} ${kw(Math.abs(grid))}, huset ${kw(house)}`}>
         <defs>
@@ -921,6 +944,14 @@ function PowerFlow({ e, price, spot }: { e: NonNullable<Dashboard["energy"]>; pr
           </text>
         </g>
       </svg>
+      {e.batteryPct !== undefined && (
+        <p className="pf-cost">
+          Hembatteri <b>{Math.round(e.batteryPct)} %</b>
+          {e.batteryKw !== undefined && Math.abs(e.batteryKw) >= 0.02 && (
+            <span className="muted"> · {e.batteryKw > 0 ? "laddar" : "laddar ur"} {kw(Math.abs(e.batteryKw))}</span>
+          )}
+        </p>
+      )}
       {buy > 0.005 && price !== undefined ? (
         <p className="pf-cost">
           Kostar nu <b>{fmtNum(buy * price, 2)} kr/tim</b>

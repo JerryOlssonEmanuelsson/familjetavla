@@ -1480,6 +1480,8 @@ function DecimalField({ label, value, help, onChange }: { label: string; value: 
 export function ElectricityStep({ cfg, set, secrets, setSecrets, resp, haOk, postcode, saveNow }: StepProps) {
   const [integ, put] = useIntegration(cfg, set, "price");
   const meta = integ && resp.providers.find((p) => p.id === integ.provider && p.category === "price");
+  const [solar, putSolar] = useIntegration(cfg, set, "solar");
+  const solarMeta = solar && resp.providers.find((p) => p.id === solar.provider && p.category === "solar");
   const e = cfg.electricity;
   const setE = (patch: Partial<Config["electricity"]>) => set({ ...cfg, electricity: { ...e, ...patch } });
   const ore = (label: string, k: "markupOre" | "gridOre" | "taxOre", help: string) => (
@@ -1518,6 +1520,24 @@ export function ElectricityStep({ cfg, set, secrets, setSecrets, resp, haOk, pos
             options={[1, 2, 3, 4, 5, 6, 8].map((n) => ({ value: String(n), label: `${n} ${n === 1 ? "timme" : "timmar"} i följd` }))}
             help="Bra för att ladda bilen eller köra disk/tvätt."
           />
+        </section>
+      )}
+      <section className="card">
+        <h2>Solceller och hembatteri</h2>
+        <p className="muted">Har du Home Assistant hittas växelriktaren där. Annars kan tavlan hämta direkt från tillverkarens molntjänst.</p>
+        <ProviderTiles
+          providers={resp.providers}
+          category="solar"
+          selected={solar?.provider}
+          allowNone="Ingen molntjänst"
+          haAvailable={haOk}
+          onSelect={(id) => putSolar(id ? { id: "solar", category: "solar", provider: id, settings: solar?.provider === id ? solar.settings : {} } : null)}
+        />
+      </section>
+      {solar && solarMeta && (
+        <section className="card">
+          <h2>{solarMeta.name}</h2>
+          <ProviderForm key={`${solar.id}-${solar.provider}`} meta={solarMeta} integ={solar} onChange={putSolar} secrets={secrets} setSecrets={setSecrets} secretsSet={resp.secretsSet} saveNow={saveNow} verified={resp.verified.includes(solar.id)} />
         </section>
       )}
     </div>
@@ -2246,7 +2266,7 @@ export function DoneStep({ cfg, secrets, setSecrets, resp, haOk, addSteps }: Ste
     { title: "Hemmet", desc: "Bil, ljus, värme, energi och musik från Home Assistant.", ids: ha(["hamta", "huset"]), done: e.cars.length + e.lights.length + e.climates.length + (e.speakers ?? []).length > 0 },
     { title: "Sophämtning", desc: "Påminnelse kvällen innan kärlen töms.", ids: ["sopor"], done: cfg.integrations.some((i) => i.category === "waste") },
     { title: "Inköpslista", desc: "Lista på tavlan, och skicka till butikens varukorg.", ids: ["inkop"], done: cfg.shopping.source === "ha" || cfg.integrations.some((i) => i.category === "grocery") },
-    { title: "Elpris", desc: "Timpris och billigaste timmarna.", ids: ["el"], done: cfg.integrations.some((i) => i.category === "price") },
+    { title: "Elpris och solceller", desc: "Timpris, billigaste timmarna och solceller via molntjänst.", ids: ["el"], done: cfg.integrations.some((i) => i.category === "price") },
     { title: "Startskärm och utseende", desc: "Vad som visas, tema, nattläge och fotoram.", ids: ["visning"], done: false },
   ];
   const kids = cfg.people.filter((p) => p.kind === "child").length;

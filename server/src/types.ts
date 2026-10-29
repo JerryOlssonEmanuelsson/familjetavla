@@ -133,7 +133,7 @@ export type TabId = (typeof TAB_IDS)[number];
 
 // ---------- Leverantörsmoduler (skola, mataffär, sopor, elpris) ----------
 
-export type IntegrationCategory = "school" | "grocery" | "waste" | "price";
+export type IntegrationCategory = "school" | "grocery" | "waste" | "price" | "solar";
 
 export type FieldType = "text" | "password" | "url" | "number" | "select" | "entity" | "toggle" | "schedule";
 
@@ -539,6 +539,12 @@ export interface Dashboard {
     /** Solel som används i huset just nu (sol − såld). */
     selfUseKw?: number;
     batteryPct?: number;
+    /** Hembatteriets effekt: + laddar, − laddar ur. */
+    batteryKw?: number;
+    /** Var siffrorna kommer ifrån när det inte är Home Assistant, t.ex. "SolisCloud". */
+    source?: string;
+    /** När växelriktaren senast rapporterade (ms), för molntjänster som ligger efter. */
+    updated?: number;
     /** Sedan midnatt, ur mätarställningarna i Home Assistant. */
     today?: {
       solarKwh?: number;
@@ -550,6 +556,8 @@ export interface Dashboard {
       selfSufficiencyPct?: number;
       /** Köpt el gånger timpriset (med påslag om sådant är inlagt). */
       costKr?: number;
+      batteryChargeKwh?: number;
+      batteryDischargeKwh?: number;
     };
   };
   schoolFood?: { child: string; day: string; dishes: string[] }[];

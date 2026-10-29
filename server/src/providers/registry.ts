@@ -2,8 +2,9 @@ import { getSecret, loadConfig, setSecret } from "../store.js";
 import type { Integration, IntegrationCategory, ProviderMeta, SettingValue } from "../types.js";
 import { citygross, hemkop, ica, willys } from "./grocery.js";
 import { haPrice, spotPrice } from "./price.js";
+import { solis } from "./solar.js";
 import { schoolIcs, schoolsoft, skola24, skolmatHa, skolmaten, vklass } from "./school.js";
-import type { AnyProvider, GroceryProvider, PriceProvider, ProviderCtx, SchoolProvider, WasteProvider } from "./types.js";
+import type { AnyProvider, GroceryProvider, PriceProvider, ProviderCtx, SchoolProvider, SolarProvider, WasteProvider } from "./types.js";
 import { wasteEdp, wasteHa, wasteIcs, wasteManual, wasteSrv, wasteStockholm } from "./waste.js";
 
 /**
@@ -15,10 +16,11 @@ export const PROVIDERS = {
   grocery: [willys, ica, citygross, hemkop] as GroceryProvider[],
   waste: [wasteEdp, wasteSrv, wasteStockholm, wasteManual, wasteIcs, wasteHa] as WasteProvider[],
   price: [spotPrice, haPrice] as PriceProvider[],
+  solar: [solis] as SolarProvider[],
 } satisfies Record<IntegrationCategory, AnyProvider[]>;
 
 /** Which categories allow several integrations at once (one school calendar per child). */
-export const MULTIPLE: Record<IntegrationCategory, boolean> = { school: true, grocery: true, waste: false, price: false };
+export const MULTIPLE: Record<IntegrationCategory, boolean> = { school: true, grocery: true, waste: false, price: false, solar: false };
 
 export function allMeta(): ProviderMeta[] {
   return Object.values(PROVIDERS).flat().map((p) => p.meta);

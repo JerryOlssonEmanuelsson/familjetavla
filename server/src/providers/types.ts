@@ -2,6 +2,7 @@ import type { CalEvent } from "../connectors/ics.js";
 import type { Product } from "../connectors/axfood.js";
 import type { HourPrice } from "../connectors/elpris.js";
 import type { Pickup } from "../connectors/waste.js";
+import type { SolarReading } from "../connectors/solis.js";
 import type { FoodPart, Integration, ProviderMeta, SettingValue, StoreFoodData, TestResult } from "../types.js";
 
 /**
@@ -78,4 +79,11 @@ export interface PriceProvider {
   fetch(ctx: ProviderCtx, now: Date): Promise<HourPrice[]>;
 }
 
-export type AnyProvider = SchoolProvider | GroceryProvider | WasteProvider | PriceProvider;
+export interface SolarProvider {
+  meta: ProviderMeta;
+  test(ctx: ProviderCtx): Promise<TestResult>;
+  /** Sol, nät, hus och hembatteri just nu, plus dagens summor. */
+  fetch(ctx: ProviderCtx): Promise<SolarReading>;
+}
+
+export type AnyProvider = SchoolProvider | GroceryProvider | WasteProvider | PriceProvider | SolarProvider;

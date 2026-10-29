@@ -1,6 +1,13 @@
 import type { Dashboard } from "../../../server/src/types";
 import type { WidgetModule } from "./types";
 
+/** "Batteri", "Laddar 1,2 kW" eller "Laddar ur 0,8 kW". */
+export function batteryVerb(kw?: number, label = "Batteri") {
+  if (kw === undefined || Math.abs(kw) < 0.02) return label;
+  const v = Math.abs(kw).toFixed(1).replace(".", ",");
+  return kw > 0 ? `Laddar ${v} kW` : `Laddar ur ${v} kW`;
+}
+
 export function EnergyMini({ e, price }: { e: Dashboard["energy"]; price?: number }) {
   if (!e) return null;
   const f = (n?: number) => (n === undefined ? "–" : `${n.toFixed(1).replace(".", ",")} kW`);
@@ -34,7 +41,7 @@ export function EnergyMini({ e, price }: { e: Dashboard["energy"]; price?: numbe
         )}
         {e.batteryPct !== undefined && (
           <div>
-            <small>Batteri</small>
+            <small>{batteryVerb(e.batteryKw)}</small>
             <b>{Math.round(e.batteryPct)} %</b>
           </div>
         )}

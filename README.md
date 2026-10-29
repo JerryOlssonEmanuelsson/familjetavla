@@ -92,6 +92,7 @@ Det som inte finns i HA sköts av **leverantörsmoduler**:
 | Mataffär | Hemköp | Samma plattform som Willys | experimentell |
 | Elpris | Spotpris SE1–SE4 | elprisetjustnu.se + ditt påslag, nät, skatt, moms | stabil |
 | Elpris | HA-sensor | Nordpool, Tibber m.fl. | beta |
+| Solceller | **Solis (SolisCloud)** | API-ID + hemlig nyckel från SolisCloud. Sol, hembatteri (laddar/laddar ur) och köp/sälj utan Home Assistant | experimentell |
 
 > Vklass, SchoolSoft, Willys/Hemköp/ICA/City Gross, EDP och SRV är **inofficiella** kopplingar och kan sluta fungera när sajterna ändras. BankID går inte att automatisera – kontona behöver ett lösenord.
 

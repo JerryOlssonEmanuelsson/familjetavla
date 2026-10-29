@@ -188,7 +188,7 @@ const travelChoiceSchema = z.object({ to: travelLegSchema.optional(), home: trav
 
 const integrationSchema = z.object({
   id: z.string().regex(ID),
-  category: z.enum(["school", "grocery", "waste", "price"]),
+  category: z.enum(["school", "grocery", "waste", "price", "solar"]),
   provider: z.string().max(40),
   settings: z.record(z.union([z.string().max(4000), z.number(), z.boolean()])),
   personMap: z.record(z.string()).optional(),
@@ -319,7 +319,7 @@ export const configSchema = z
     for (const i of c.integrations) {
       if (!findProvider(i.category as IntegrationCategory, i.provider)) ctx.addIssue({ code: "custom", message: `okänd leverantör ${i.provider}`, path: ["integrations"] });
     }
-    for (const cat of ["waste", "price"] as const) {
+    for (const cat of ["waste", "price", "solar"] as const) {
       if (c.integrations.filter((i) => i.category === cat).length > 1) ctx.addIssue({ code: "custom", message: `bara en ${cat} åt gången`, path: ["integrations"] });
     }
     // Several stores are fine, but each only once.
@@ -534,6 +534,8 @@ export async function registerRoutes(app: FastifyInstance) {
       pendingEnergy = null;
       const sock = haSocket();
       if (!sock?.connected) return;
+      // Solceller från en molntjänst (SolisCloud) styr flödet – Home Assistant ska inte skriva över det.
+      if (loadConfig().integrations.some((i) => i.category === "solar")) return;
       const live = energyLive(loadConfig().entities.energy ?? {}, sock.states);
       const msg = `event: energy\ndata: ${JSON.stringify(live)}\n\n`;
       for (const res of clients) res.write(msg);

@@ -4,6 +4,7 @@ import { fetchIcs, filterEvents, type CalEvent } from "./connectors/ics.js";
 import { ha, haConnection } from "./connectors/ha.js";
 import type { HourPrice } from "./connectors/elpris.js";
 import type { Pickup } from "./connectors/waste.js";
+import type { SolarReading } from "./connectors/solis.js";
 import { findProvider, makeCtx } from "./providers/registry.js";
 import { getSecret } from "./store.js";
 import type { CalendarCategory, CalendarSource, Config } from "./types.js";
@@ -117,7 +118,7 @@ export async function collectSchool(cfg: Config, from: Date, to: Date, errors: S
   return out;
 }
 
-function single(cfg: Config, category: "waste" | "price" | "grocery") {
+function single(cfg: Config, category: "waste" | "price" | "grocery" | "solar") {
   return cfg.integrations.find((i) => i.category === category);
 }
 
@@ -146,6 +147,21 @@ export async function collectPrices(cfg: Config, now: Date, errors: SourceError[
   } catch (e) {
     errors.push({ source: "Elpris", message: (e as Error).message });
     return [];
+  }
+}
+
+/** Solceller och hembatteri från en molntjänst (t.ex. SolisCloud). Uppdateras där ungefär var femte minut. */
+export async function collectSolar(cfg: Config, errors: SourceError[]): Promise<{ reading: SolarReading; source: string } | null> {
+  const integ = single(cfg, "solar");
+  if (!integ) return null;
+  const provider = findProvider("solar", integ.provider);
+  if (!provider) return null;
+  try {
+    const reading = await cached(`solar:${integ.id}`, 2 * MIN, () => provider.fetch(makeCtx(integ)));
+    return { reading, source: provider.meta.name.replace(/\s*\(.*\)$/, "") };
+  } catch (e) {
+    errors.push({ source: "Solceller", message: (e as Error).message });
+    return null;
   }
 }
 
